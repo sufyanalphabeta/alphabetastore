@@ -1,19 +1,12 @@
-import Image from "next/image";
 import Avatar from "@mui/material/Avatar";
+import Chip from "@mui/material/Chip";
 import Typography from "@mui/material/Typography";
-
-// MUI ICON COMPONENTS
-import Edit from "@mui/icons-material/Edit";
-import Delete from "@mui/icons-material/Delete";
 
 // GLOBAL CUSTOM COMPONENTS
 import FlexBox from "components/flex-box/flex-box";
 
-// CUSTOM UTILS LIBRARY FUNCTION
-import { currency } from "lib";
-
 // STYLED COMPONENTS
-import { StyledIconButton, StyledTableCell, StyledTableRow } from "../styles";
+import { StyledTableCell, StyledTableRow } from "../styles";
 
 
 // ========================================================================
@@ -28,9 +21,8 @@ export default function CustomerRow({
     email,
     name,
     phone,
-    avatar,
-    balance,
-    orders
+    status,
+    orderCount
   } = customer;
   const STYLE = {
     fontWeight: 400
@@ -39,7 +31,7 @@ export default function CustomerRow({
       <StyledTableCell align="left">
         <FlexBox alignItems="center" gap={1.5}>
           <Avatar variant="rounded">
-            <Image fill src={avatar} alt={name} sizes="(60px, 60px)" />
+            {name?.slice(0, 1).toUpperCase() || "?"}
           </Avatar>
 
           <Typography variant="h6">{name}</Typography>
@@ -47,7 +39,7 @@ export default function CustomerRow({
       </StyledTableCell>
 
       <StyledTableCell align="left" sx={STYLE}>
-        {phone}
+        {phone || "-"}
       </StyledTableCell>
 
       <StyledTableCell align="left" sx={STYLE}>
@@ -55,21 +47,11 @@ export default function CustomerRow({
       </StyledTableCell>
 
       <StyledTableCell align="left" sx={STYLE}>
-        {currency(balance)}
+        <Chip size="small" label={status === "ACTIVE" ? "نشط" : "معطل"} color={status === "ACTIVE" ? "success" : "default"} />
       </StyledTableCell>
 
       <StyledTableCell align="left" sx={STYLE}>
-        {orders}
-      </StyledTableCell>
-
-      <StyledTableCell align="center">
-        <StyledIconButton>
-          <Edit />
-        </StyledIconButton>
-
-        <StyledIconButton>
-          <Delete />
-        </StyledIconButton>
+        {orderCount ?? 0}
       </StyledTableCell>
     </StyledTableRow>;
 }

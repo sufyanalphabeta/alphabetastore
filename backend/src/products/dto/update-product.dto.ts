@@ -4,9 +4,11 @@ import {
   IsEnum,
   IsInt,
   IsNumber,
+  IsObject,
   IsOptional,
   IsString,
   IsUUID,
+  MaxLength,
   Min,
   MinLength,
 } from 'class-validator';
@@ -51,6 +53,20 @@ export class UpdateProductDto {
   @IsOptional()
   @IsEnum(ProductStatus)
   status?: (typeof ProductStatus)[keyof typeof ProductStatus];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  brand?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  sku?: string;
+
+  @IsOptional()
+  @IsObject()
+  specs?: Record<string, unknown>;
 
   @IsOptional()
   @IsArray()

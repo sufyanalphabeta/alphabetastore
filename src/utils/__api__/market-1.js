@@ -14,9 +14,9 @@ const getMainCarousel = cache(async () => {
   return products.slice(0, 4).map(item => ({
     id: item.id,
     title: item.title || item.name,
-    description: item.shortDescription || item.description || "Discover new arrivals and daily deals",
+    description: item.shortDescription || item.description || "اكتشف أحدث الوافدين وأفضل العروض اليومية",
     imgUrl: item.thumbnail || FALLBACK_PRODUCT_IMAGE,
-    buttonText: "Shop Now",
+    buttonText: "تسوق الآن",
     buttonLink: `/products/${item.slug}`
   }));
 });
@@ -27,19 +27,29 @@ const getFlashDeals = cache(async () => {
 });
 
 const getCategories = cache(async () => {
-  const categories = getActiveCategories(await fetchCategories());
-  return categories.slice(0, 8).map(item => ({
+  const categories = getActiveCategories(await fetchCategories(true));
+  // Only top-level (parent) categories, sorted by sortOrder
+  const topLevel = categories
+    .filter(item => !item.parentId)
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+    .slice(0, 8);
+  return topLevel.map(item => ({
     id: item.id,
     name: item.name,
     slug: item.slug,
-    image: "/assets/images/products/apple-watch.png",
+    icon: item.icon || null,
     href: toCategoryLink(item.slug)
   }));
 });
 
+const getBestSellers = cache(async () => {
+  const products = await fetchProducts();
+  return products.slice(0, 8);
+});
+
 const getJustForYou = cache(async () => {
   const products = await fetchProducts();
-  return products.slice(12, 24);
+  return products.slice(0, 8);
 });
 
 const getNewArrivalList = cache(async () => {
@@ -102,5 +112,6 @@ export default {
   getBlogs,
   getCategories,
   getServiceList,
+  getBestSellers,
   getJustForYou
 };

@@ -36,6 +36,9 @@ function mapCategoryRow(category) {
     name: category?.name || "Untitled Category",
     slug: category?.slug || "",
     isActive: category?.isActive !== false,
+    isVisible: category?.isVisible !== false,
+    sortOrder: category?.sortOrder ?? 0,
+    icon: category?.icon || "",
     parentName: category?.parent?.name || "Root"
   };
 }
@@ -90,7 +93,10 @@ export default function CategoriesPageView({
         return [category.name, category.slug, category.parentName]
           .some(value => String(value || "").toLowerCase().includes(normalizedQuery));
       })
-      .sort((left, right) => left.name.localeCompare(right.name, "ar"));
+      .sort((left, right) => {
+        const orderDiff = (left.sortOrder ?? 0) - (right.sortOrder ?? 0);
+        return orderDiff !== 0 ? orderDiff : left.name.localeCompare(right.name, "ar");
+      });
   }, [categories, searchTerm]);
 
   const totalPages = Math.max(1, Math.ceil(filteredCategories.length / PAGE_SIZE));
@@ -142,6 +148,26 @@ export default function CategoriesPageView({
       } : item));
     } catch (error) {
       window.alert(error instanceof Error ? error.message : "Failed to update category.");
+    } finally {
+      setBusyCategoryId("");
+    }
+  };
+
+  const handleToggleVisible = async category => {
+    const nextValue = !category.isVisible;
+    setBusyCategoryId(category.id);
+
+    try {
+      await apiPatch(`/categories/${category.id}`, {
+        isVisible: nextValue
+      });
+
+      setCategories(current => current.map(item => item.id === category.id ? {
+        ...item,
+        isVisible: nextValue
+      } : item));
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Failed to update category visibility.");
     } finally {
       setBusyCategoryId("");
     }
@@ -199,14 +225,16 @@ export default function CategoriesPageView({
                 <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Slug</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Parent</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                <TableCell align="center" sx={{ fontWeight: 600 }}>Order</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Active</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Visible</TableCell>
                 <TableCell align="center" sx={{ fontWeight: 600 }}>Action</TableCell>
               </TableRow>
             </TableHead>
 
             <TableBody>
               {isLoading ? <TableRow>
-                  <TableCell colSpan={6}>
+                  <TableCell colSpan={8}>
                     <Stack alignItems="center" justifyContent="center" py={6}>
                       <CircularProgress color="info" />
                     </Stack>
@@ -216,8 +244,12 @@ export default function CategoriesPageView({
                     <TableCell>{category.name}</TableCell>
                     <TableCell>{category.slug || "-"}</TableCell>
                     <TableCell>{category.parentName}</TableCell>
+                    <TableCell align="center">{category.sortOrder ?? 0}</TableCell>
                     <TableCell>
                       <Switch checked={category.isActive} color="info" disabled={busyCategoryId === category.id} onChange={() => handleToggleActive(category)} />
+                    </TableCell>
+                    <TableCell>
+                      <Switch checked={category.isVisible} color="success" disabled={busyCategoryId === category.id} onChange={() => handleToggleVisible(category)} />
                     </TableCell>
                     <TableCell align="center">
                       <IconButton component={Link} href={`/admin/categories/${category.slug}`} color="info" disabled={!category.slug || Boolean(busyCategoryId)}>
@@ -229,7 +261,7 @@ export default function CategoriesPageView({
                       </IconButton>
                     </TableCell>
                   </TableRow>) : <TableRow>
-                  <TableCell colSpan={6}>
+                  <TableCell colSpan={8}>
                     <Stack alignItems="center" justifyContent="center" py={6}>
                       <Typography color="text.secondary">No categories found for the current search.</Typography>
                     </Stack>

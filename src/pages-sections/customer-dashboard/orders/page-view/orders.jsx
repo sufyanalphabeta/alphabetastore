@@ -11,6 +11,7 @@ import Packages from "icons/Packages";
 import OrderRow from "../order-row";
 import Pagination from "../../pagination";
 import DashboardHeader from "../../dashboard-header";
+import EmptyState from "components/empty-state/EmptyState";
 import { fetchCustomerOrdersPage } from "utils/orders";
 
 const PAGE_SIZE = 5;
@@ -92,7 +93,15 @@ export function OrdersPageView({
           <CircularProgress color="info" />
         </Stack> : null}
 
-      {!isLoading && !pageError && orders.length === 0 ? <Alert severity="info">لا توجد طلبات حتى الآن.</Alert> : null}
+      {!isLoading && !pageError && orders.length === 0 ? (
+        <EmptyState
+          type="orders"
+          title="لا توجد طلبات بعد"
+          subtitle="لم تقم بأي طلبات حتى الآن. تصفح متجرنا واكتشف منتجاتنا المميزة."
+          actionLabel="تسوق الآن"
+          actionHref="/products/search"
+        />
+      ) : null}
 
       {!isLoading && !pageError ? orders.map(order => <OrderRow order={order} key={order.id} />) : null}
 

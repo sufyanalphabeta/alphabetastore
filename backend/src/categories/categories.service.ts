@@ -32,21 +32,25 @@ export class CategoriesService {
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
   ) {}
 
-  async findAll() {
-    const cached = await this.cacheManager.get(CATEGORIES_CACHE_KEY);
+  async findAll(onlyVisible = false) {
+    const cacheKey = onlyVisible ? `${CATEGORIES_CACHE_KEY}:visible` : CATEGORIES_CACHE_KEY;
+    const cached = await this.cacheManager.get(cacheKey);
 
     if (cached) {
       return cached;
     }
 
+    const where = onlyVisible
+      ? { isActive: true, isVisible: true }
+      : undefined;
+
     const categories = await this.prisma.category.findMany({
+      where,
       include: categoryInclude,
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
     });
 
-    await this.cacheManager.set(CATEGORIES_CACHE_KEY, categories, CATEGORIES_CACHE_TTL_MS);
+    await this.cacheManager.set(cacheKey, categories, CATEGORIES_CACHE_TTL_MS);
 
     return categories;
   }
@@ -61,6 +65,9 @@ export class CategoriesService {
           slug: createCategoryDto.slug,
           parentId: createCategoryDto.parentId,
           isActive: createCategoryDto.isActive ?? true,
+          isVisible: createCategoryDto.isVisible ?? true,
+          sortOrder: createCategoryDto.sortOrder ?? 0,
+          icon: createCategoryDto.icon,
         },
         include: categoryInclude,
       });
@@ -97,6 +104,9 @@ export class CategoriesService {
           slug: updateCategoryDto.slug,
           parentId: updateCategoryDto.parentId,
           isActive: updateCategoryDto.isActive,
+          isVisible: updateCategoryDto.isVisible,
+          sortOrder: updateCategoryDto.sortOrder,
+          icon: updateCategoryDto.icon,
         },
         include: categoryInclude,
       });

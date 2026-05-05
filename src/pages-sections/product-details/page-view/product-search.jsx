@@ -25,6 +25,8 @@ import { FlexBetween, FlexBox } from "components/flex-box";
 import ProductFilters from "components/products-view/filters";
 import ProductsGridView from "components/products-view/products-grid-view";
 import ProductsListView from "components/products-view/products-list-view";
+import ProductCardSkeleton from "components/product-cards/ProductCardSkeleton";
+import EmptyState from "components/empty-state/EmptyState";
 import { buildProductFilters, fetchCategories, fetchProductsPage } from "utils/catalog";
 
 // TYPES
@@ -67,8 +69,12 @@ export default function ProductSearchPageView() {
   const view = searchParams.get("view") || "grid";
   const sort = searchParams.get("sort") || "relevance";
   const category = searchParams.get("category");
+  const brand = searchParams.get("brand");
+  const minPrice = searchParams.get("minPrice");
+  const maxPrice = searchParams.get("maxPrice");
   const [products, setProducts] = useState([]);
   const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [availableBrands, setAvailableBrands] = useState([]);
   const [pagination, setPagination] = useState({
     page: 1,
     limit: PAGE_SIZE,
@@ -113,6 +119,9 @@ export default function ProductSearchPageView() {
         const productsResponse = await fetchProductsPage({
           q: query,
           category,
+          brand,
+          minPrice: minPrice ? Number(minPrice) : undefined,
+          maxPrice: maxPrice ? Number(maxPrice) : undefined,
           sort,
           status: "ACTIVE",
           page: Number(page) || 1,
@@ -123,6 +132,15 @@ export default function ProductSearchPageView() {
 
         setProducts(productsResponse.products);
         setPagination(productsResponse.pagination);
+
+        // Extract unique brands from loaded products
+        const brands = [...new Set(
+          productsResponse.products
+            .map(p => p.brand)
+            .filter(Boolean)
+        )].sort();
+
+        setAvailableBrands(brands);
       } catch {
         if (!active) return;
 
@@ -146,7 +164,7 @@ export default function ProductSearchPageView() {
     return () => {
       active = false;
     };
-  }, [category, page, query, sort]);
+  }, [category, brand, minPrice, maxPrice, page, query, sort]);
 
   const handleChangeSearchParams = (key, value) => {
     if (!key || !value) return;
@@ -167,15 +185,31 @@ export default function ProductSearchPageView() {
   const lastIndex = totalProducts ? Math.min(currentPage * PAGE_SIZE, totalProducts) : 0;
 
   if (loading) {
-    return <div className="bg-white pt-2 pb-4">
+    return (
+      <div className="bg-white pt-2 pb-4">
         <Container>
           <Grid container spacing={3}>
-            {[1, 2, 3, 4, 5, 6].map(item => <Grid key={item} size={{ lg: 4, md: 6, xs: 12 }}>
-                <Skeleton variant="rounded" height={280} />
-              </Grid>)}
+            <Grid size={{ xl: 2, md: 3 }} sx={{ display: { md: "block", xs: "none" } }}>
+              {/* Sidebar skeleton */}
+              <Box pt={1}>
+                {[1, 2, 3, 4].map(i => (
+                  <Skeleton key={i} variant="text" width="80%" height={32} animation="wave" sx={{ mb: 0.5 }} />
+                ))}
+              </Box>
+            </Grid>
+            <Grid size={{ xl: 10, md: 9, xs: 12 }}>
+              <Grid container spacing={3}>
+                {[1, 2, 3, 4, 5, 6].map(item => (
+                  <Grid key={item} size={{ lg: 4, sm: 6, xs: 12 }}>
+                    <ProductCardSkeleton />
+                  </Grid>
+                ))}
+              </Grid>
+            </Grid>
           </Grid>
         </Container>
-      </div>;
+      </div>
+    );
   }
 
   if (error) {
@@ -247,7 +281,7 @@ export default function ProductSearchPageView() {
                       <FilterList fontSize="small" />
                     </IconButton>}>
                   <Box px={3} py={2}>
-                    <ProductFilters filters={filters} />
+                    <ProductFilters filters={{ ...filters, brands: availableBrands }} />
                   </Box>
                 </Sidenav>
               </Box>
@@ -266,7 +300,7 @@ export default function ProductSearchPageView() {
             xs: "none"
           }
         }}>
-            <ProductFilters filters={filters} />
+            <ProductFilters filters={{ ...filters, brands: availableBrands }} />
           </Grid>
 
           {/* PRODUCT VIEW AREA */}
@@ -277,12 +311,15 @@ export default function ProductSearchPageView() {
         }}>
             {view === "grid" ? <ProductsGridView products={products} /> : <ProductsListView products={products} />}
 
-            {!products.length ? <Typography variant="body1" sx={{
-            mt: 4,
-            color: "grey.600"
-          }}>
-                لا توجد منتجات مطابقة.
-              </Typography> : null}
+            {!products.length ? (
+              <EmptyState
+                type="search"
+                title="لا توجد منتجات مطابقة"
+                subtitle="حاول تغيير الفلاتر أو كلمات البحث للعثور على ما تبحث عنه."
+                actionLabel="تصفح كل المنتجات"
+                actionHref="/products/search"
+              />
+            ) : null}
 
             <FlexBetween flexWrap="wrap" mt={6}>
               <Typography variant="body1" sx={{

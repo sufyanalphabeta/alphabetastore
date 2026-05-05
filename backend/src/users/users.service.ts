@@ -65,11 +65,12 @@ export class UsersService {
     return user;
   }
 
-  createCustomer(data: CreateUserDto & { passwordHash: string }) {
+  createCustomer(data: CreateUserDto & { passwordHash: string; customerCode?: string }) {
     const payload: Prisma.UserCreateInput = {
       name: data.name,
       email: data.email,
       phone: data.phone,
+      customerCode: data.customerCode ?? null,
       preferredPaymentMethod: PaymentMethodCode.COD,
       passwordHash: data.passwordHash,
       role: Role.CUSTOMER,
@@ -80,6 +81,30 @@ export class UsersService {
       data: payload,
       select: publicUserSelect,
     });
+  }
+
+  findAllCustomers(page = 1, limit = 50) {
+    const skip = (page - 1) * limit;
+    return Promise.all([
+      this.prisma.user.findMany({
+        where: { role: Role.CUSTOMER },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          status: true,
+          createdAt: true,
+          _count: {
+            select: { orders: true },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.user.count({ where: { role: Role.CUSTOMER } }),
+    ]).then(([items, total]) => ({ items, total, page, limit }));
   }
 
   async updateProfile(userId: string, updateProfileDto: UpdateProfileDto) {

@@ -64,6 +64,7 @@ export function mapOrder(order) {
     id: order?.id || "",
     userId: order?.userId || null,
     addressId: order?.addressId || null,
+    orderNumber: order?.orderNumber || "",
     fullName: order?.fullName || "",
     phone: order?.phone || "",
     city: order?.city || "",

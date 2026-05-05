@@ -217,6 +217,7 @@ export default function CheckoutForm() {
 
       const nextParams = new URLSearchParams({
         orderId: order.id,
+        ...(order.orderNumber ? { orderNumber: order.orderNumber } : {}),
         paymentId: payment.id,
         paymentMethod: payment.paymentMethodCode
       });

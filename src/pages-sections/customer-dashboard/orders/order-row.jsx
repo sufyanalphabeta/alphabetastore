@@ -38,7 +38,7 @@ export default function OrderRow({
       gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr"
     }}>
         <Typography noWrap variant="h5">
-          #{order.id.substring(0, 18)}
+          {order.orderNumber || `#${order.id.substring(0, 8)}`}
         </Typography>
 
         <Box textAlign={{

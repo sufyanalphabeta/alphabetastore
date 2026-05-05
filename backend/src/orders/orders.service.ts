@@ -161,12 +161,15 @@ export class OrdersService {
       );
     }
 
+    const orderNumber = await this.generateOrderNumber(identity.userId);
+
     const [order] = await this.prisma.$transaction([
       this.prisma.order.create({
         data: {
           userId: identity.userId,
           sessionId: identity.userId ? null : this.requireSessionId(identity),
           addressId: savedAddress?.id ?? null,
+          orderNumber,
           fullName: createOrderDto.fullName,
           phone: createOrderDto.phone,
           city: createOrderDto.city,
@@ -397,6 +400,7 @@ export class OrdersService {
       userId: order.userId,
       sessionId: order.sessionId,
       addressId: order.addressId,
+      orderNumber: order.orderNumber ?? null,
       fullName: order.fullName,
       phone: order.phone,
       city: order.city,
@@ -461,6 +465,27 @@ export class OrdersService {
 
     const value = Number(setting?.value || 0);
     return Number.isFinite(value) && value > 0 ? value : 0;
+  }
+
+  private async generateOrderNumber(userId: string | null): Promise<string> {
+    let customerCode: string | null = null;
+
+    if (userId) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { customerCode: true },
+      });
+      customerCode = user?.customerCode ?? null;
+    }
+
+    const code = customerCode ?? 'GUEST';
+
+    const count = await this.prisma.order.count({
+      where: userId ? { userId } : {},
+    });
+
+    const seq = String(count + 1).padStart(4, '0');
+    return `ORD-${code}-${seq}`;
   }
 
   private async findManyWithQuery(baseWhere: Record<string, unknown>, query: FindOrdersQueryDto) {

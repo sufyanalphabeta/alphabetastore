@@ -6,11 +6,15 @@ import {
 	Param,
 	Patch,
 	Post,
+	Query,
 	Req,
 	UseGuards,
 } from '@nestjs/common';
 
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
+import { Role } from '../prisma/prisma-client';
 import { JwtPayload } from '../auth/types/jwt-payload.type';
 import { CreateAddressDto } from './dto/create-address.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -69,5 +73,18 @@ export class UsersController {
 	@UseGuards(JwtAuthGuard)
 	deleteMyAddress(@Req() request: UsersRequest, @Param('id') id: string) {
 		return this.usersService.deleteAddress(request.user.sub, id);
+	}
+
+	@Get('admin/users')
+	@UseGuards(JwtAuthGuard, RolesGuard)
+	@Roles(Role.ADMIN)
+	findAllCustomers(
+		@Query('page') page?: string,
+		@Query('limit') limit?: string,
+	) {
+		return this.usersService.findAllCustomers(
+			page ? Number(page) : 1,
+			limit ? Number(limit) : 50,
+		);
 	}
 }

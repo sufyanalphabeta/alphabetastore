@@ -13,15 +13,11 @@ export const tableHeading = [{
   label: "Email",
   align: "left"
 }, {
-  id: "balance",
-  label: "Wallet Balance",
+  id: "status",
+  label: "Status",
   align: "left"
 }, {
-  id: "orders",
-  label: "No Of Orders",
+  id: "orderCount",
+  label: "Orders",
   align: "left"
-}, {
-  id: "action",
-  label: "Action",
-  align: "center"
 }];

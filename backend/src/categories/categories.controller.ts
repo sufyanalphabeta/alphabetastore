@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 
@@ -22,8 +23,9 @@ export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
 
   @Get()
-  findAll() {
-    return this.categoriesService.findAll();
+  findAll(@Query('visible') visible?: string) {
+    const onlyVisible = visible === 'true' || visible === '1';
+    return this.categoriesService.findAll(onlyVisible);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

@@ -47,6 +47,14 @@ export default function ProductIntro({
       }}>
           <Typography variant="h1">{product.title}</Typography>
 
+          {product.brand ? <Typography variant="body2" sx={{ mt: 0.5, color: "text.secondary" }}>
+              العلامة التجارية: <strong style={{ color: "inherit" }}>{product.brand}</strong>
+            </Typography> : null}
+
+          {product.sku ? <Typography variant="body2" sx={{ mt: 0.25, color: "text.secondary" }}>
+              SKU: <strong style={{ color: "inherit" }}>{product.sku}</strong>
+            </Typography> : null}
+
           {product.categoryName ? <Typography variant="body1">
               الفئة: <strong>{product.categoryName}</strong>
             </Typography> : null}

@@ -15,7 +15,7 @@ import Alert from "@mui/material/Alert";
 import CircularProgress from "@mui/material/CircularProgress";
 
 import { Checkbox, FormProvider, TextField } from "components/form-hook";
-import { fetchCategories } from "utils/catalog";
+import { fetchAdminCategories } from "utils/admin-catalog";
 import { apiPatch, apiPost } from "utils/api";
 
 
@@ -24,7 +24,10 @@ const validationSchema = yup.object().shape({
   name: yup.string().required("Name required"),
   slug: yup.string().required("Slug required"),
   parentId: yup.string().nullable(),
-  isActive: yup.boolean().required()
+  isActive: yup.boolean().required(),
+  isVisible: yup.boolean().required(),
+  sortOrder: yup.number().integer().min(0).required(),
+  icon: yup.string().nullable()
 });
 
 
@@ -44,7 +47,10 @@ export default function CategoryForm({
     name: "",
     slug: "",
     parentId: "",
-    isActive: true
+    isActive: true,
+    isVisible: true,
+    sortOrder: 0,
+    icon: ""
   };
   const methods = useForm({
     defaultValues: initialValues,
@@ -59,7 +65,8 @@ export default function CategoryForm({
   } = methods;
   const editingCategory = useMemo(() => categories.find(item => item.slug === slug) || null, [categories, slug]);
 
-  const parentOptions = useMemo(() => categories.filter(item => item.id !== editingCategory?.id), [categories, editingCategory?.id]);
+  // Only top-level categories can be parents (no deep nesting)
+  const parentOptions = useMemo(() => categories.filter(item => !item.parentId && item.id !== editingCategory?.id), [categories, editingCategory?.id]);
 
   useEffect(() => {
     let isMounted = true;
@@ -69,7 +76,7 @@ export default function CategoryForm({
       setIsLoading(true);
 
       try {
-        const data = await fetchCategories();
+        const data = await fetchAdminCategories();
 
         if (!isMounted) return;
 
@@ -87,7 +94,10 @@ export default function CategoryForm({
             name: currentCategory.name || "",
             slug: currentCategory.slug || "",
             parentId: currentCategory.parentId || "",
-            isActive: currentCategory.isActive ?? true
+            isActive: currentCategory.isActive ?? true,
+            isVisible: currentCategory.isVisible ?? true,
+            sortOrder: currentCategory.sortOrder ?? 0,
+            icon: currentCategory.icon || ""
           });
         }
       } catch (error) {
@@ -114,7 +124,10 @@ export default function CategoryForm({
       name: values.name.trim(),
       slug: values.slug.trim(),
       parentId: values.parentId || undefined,
-      isActive: Boolean(values.isActive)
+      isActive: Boolean(values.isActive),
+      isVisible: Boolean(values.isVisible),
+      sortOrder: Number(values.sortOrder) || 0,
+      icon: values.icon?.trim() || undefined
     };
 
     setPageError("");
@@ -181,8 +194,25 @@ export default function CategoryForm({
             <Checkbox color="info" name="isActive" label="Active Category" />
           </Grid>
 
-          <Grid size={12}>
-            <TextField fullWidth multiline rows={3} disabled helperText="Image upload and featured flags are not part of the current backend category model." name="notes" label="Backend Notes" placeholder="Not editable" />
+          <Grid size={{
+          sm: 6,
+          xs: 12
+        }}>
+            <Checkbox color="info" name="isVisible" label="Visible in Navbar / Menu" />
+          </Grid>
+
+          <Grid size={{
+          sm: 6,
+          xs: 12
+        }}>
+            <TextField fullWidth type="number" name="sortOrder" label="Sort Order" color="info" size="medium" placeholder="0" helperText="Lower numbers appear first" inputProps={{ min: 0 }} />
+          </Grid>
+
+          <Grid size={{
+          sm: 6,
+          xs: 12
+        }}>
+            <TextField fullWidth name="icon" label="Icon Name (Material Icons)" color="info" size="medium" placeholder="e.g. laptop, router, videocam" helperText="Material Symbols icon name (optional)" />
           </Grid>
 
           <Grid size={12}>

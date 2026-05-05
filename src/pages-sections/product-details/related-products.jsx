@@ -19,10 +19,8 @@ export default function RelatedProducts({
 // IF NO PRODUCTS RETURN NULL
   if (!products || !products.length) return null;
   return <div className="mb-4">
-      <Typography variant="h3" sx={{
-      mb: 3
-    }}>
-        Related Products
+      <Typography variant="h3" sx={{ mb: 3 }}>
+        منتجات مشابهة
       </Typography>
 
       <Grid container spacing={3}>

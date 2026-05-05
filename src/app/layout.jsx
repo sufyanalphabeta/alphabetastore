@@ -42,6 +42,12 @@ export default function RootLayout({
   modal
 }) {
   return <html lang="ar" dir="rtl" data-scroll-behavior="smooth" suppressHydrationWarning>
+      <head>
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+        />
+      </head>
       <body id="body" className={geist.className}>
         <ReactQueryProvider>
           <AuthProvider>

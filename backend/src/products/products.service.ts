@@ -46,6 +46,8 @@ const productListSelect = {
   price: true,
   stockQty: true,
   status: true,
+  brand: true,
+  sku: true,
   createdAt: true,
   category: {
     select: {
@@ -98,12 +100,29 @@ export class ProductsService {
   private async queryProducts(query: FindProductsQueryDto) {
     const searchTerm = query.q?.trim() || query.search?.trim();
     const categoryFilter = query.category?.trim();
+    const brandFilter = query.brand?.trim();
     const whereClauses: Prisma.ProductWhereInput[] = [];
 
     if (query.status) {
       whereClauses.push({
         status: query.status,
       });
+    }
+
+    if (brandFilter) {
+      whereClauses.push({
+        brand: {
+          contains: brandFilter,
+          mode: 'insensitive',
+        },
+      });
+    }
+
+    if (query.minPrice !== undefined || query.maxPrice !== undefined) {
+      const priceClause: Prisma.DecimalFilter = {};
+      if (query.minPrice !== undefined) priceClause.gte = query.minPrice;
+      if (query.maxPrice !== undefined) priceClause.lte = query.maxPrice;
+      whereClauses.push({ price: priceClause });
     }
 
     if (categoryFilter) {
@@ -313,6 +332,9 @@ export class ProductsService {
           price: createProductDto.price,
           stockQty: createProductDto.stockQty,
           status: createProductDto.status ?? ProductStatus.ACTIVE,
+          brand: createProductDto.brand,
+          sku: createProductDto.sku,
+          specs: createProductDto.specs as any,
           images: createProductDto.imageUrls?.length
             ? {
                 create: createProductDto.imageUrls.map((imageUrl, index) => ({
@@ -353,6 +375,9 @@ export class ProductsService {
           price: updateProductDto.price,
           stockQty: updateProductDto.stockQty,
           status: updateProductDto.status,
+          brand: updateProductDto.brand,
+          sku: updateProductDto.sku,
+          specs: updateProductDto.specs as any,
           images: updateProductDto.imageUrls
             ? {
                 deleteMany: {},

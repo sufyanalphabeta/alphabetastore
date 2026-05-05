@@ -46,6 +46,18 @@ function buildCatalogQueryString(filters = {}) {
     params.set("category", filters.category);
   }
 
+  if (filters.brand) {
+    params.set("brand", filters.brand);
+  }
+
+  if (filters.minPrice !== undefined && filters.minPrice !== "" && Number(filters.minPrice) >= 0) {
+    params.set("minPrice", String(Number(filters.minPrice)));
+  }
+
+  if (filters.maxPrice !== undefined && filters.maxPrice !== "" && Number(filters.maxPrice) > 0) {
+    params.set("maxPrice", String(Number(filters.maxPrice)));
+  }
+
   if (filters.status) {
     params.set("status", filters.status);
   }
@@ -126,15 +138,20 @@ function normalizeCategories(categories) {
 }
 
 function sortByName(items) {
-  return [...items].sort((left, right) => left.name.localeCompare(right.name));
+  return [...items].sort((left, right) => {
+    const orderDiff = (left.sortOrder ?? 0) - (right.sortOrder ?? 0);
+    if (orderDiff !== 0) return orderDiff;
+    return left.name.localeCompare(right.name);
+  });
 }
 
 function createCategoryHref(slug) {
   return `/products/search?category=${encodeURIComponent(slug)}`;
 }
 
-export async function fetchCategories() {
-  return fetchCatalog("/categories", "Failed to load categories", [], {
+export async function fetchCategories(onlyVisible = false) {
+  const url = onlyVisible ? "/categories?visible=true" : "/categories";
+  return fetchCatalog(url, "Failed to load categories", [], {
     cacheMode: "force-cache",
     revalidate: 120
   });
@@ -200,7 +217,9 @@ export function mapCatalogProduct(product) {
     discount: 0,
     rating: 0,
     reviews: [],
-    brand: null,
+    brand: product?.brand || null,
+    sku: product?.sku || null,
+    specs: product?.specs || null,
     shop: null,
     categoryName
   };

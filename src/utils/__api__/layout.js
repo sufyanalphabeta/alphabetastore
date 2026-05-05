@@ -3,7 +3,7 @@ import axios from "utils/axiosInstance";
 import { buildCategoryMenus, fetchCategories } from "utils/catalog";
 
 const getLayoutData = cache(async () => {
-  const [categories, settingsResponse] = await Promise.all([fetchCategories(), axios.get("/settings")]);
+  const [categories, settingsResponse] = await Promise.all([fetchCategories(true), axios.get("/settings")]);
   const settings = settingsResponse.data;
   const siteName = settings?.site_name || "Alphabeta Store";
   const logoUrl = settings?.site_logo_url?.trim() || "";

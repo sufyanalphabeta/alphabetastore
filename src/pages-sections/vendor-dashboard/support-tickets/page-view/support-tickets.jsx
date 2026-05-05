@@ -9,7 +9,7 @@ import TableBody from "@mui/material/TableBody";
 import TableContainer from "@mui/material/TableContainer";
 import CircularProgress from "@mui/material/CircularProgress";
 import Typography from "@mui/material/Typography";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 // GLOBAL CUSTOM COMPONENTS
@@ -78,7 +78,9 @@ export default function SupportTicketsPageView() {
   });
 
   return <PageWrapper title="Support Tickets">
-      <SearchArea url="/admin/tickets" buttonText="" searchPlaceholder="Search Ticket..." />
+      <Suspense fallback={null}>
+        <SearchArea url="/admin/tickets" buttonText="" searchPlaceholder="Search Ticket..." />
+      </Suspense>
 
       {pageError ? <Alert severity="error" sx={{
       mb: 3

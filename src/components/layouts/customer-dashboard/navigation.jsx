@@ -2,7 +2,10 @@
 
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import Divider from "@mui/material/Divider";
+import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
+import AdminPanelSettings from "@mui/icons-material/AdminPanelSettings";
 import { useRouter } from "next/navigation";
 
 // CUSTOM COMPONENTS
@@ -14,11 +17,12 @@ import useSettings from "hooks/useSettings";
 import { MainContainer } from "./styles";
 export function Navigation() {
   const router = useRouter();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const {
     settings
   } = useSettings();
   const isArabic = settings.default_language === "ar";
+  const isAdmin = user?.role === "ADMIN";
 
   const MENUS = [{
     title: isArabic ? "لوحة العميل" : "Dashboard",
@@ -68,7 +72,23 @@ export function Navigation() {
           {item.list.map(listItem => <NavItem item={listItem} key={listItem.title} />)}
         </Box>)}
 
-      <Box px={4} mt={6} pb={2}>
+      <Box px={4} mt={6} pb={2} display="flex" flexDirection="column" gap={1.5}>
+        {isAdmin && (
+          <Tooltip title={isArabic ? "انتقل إلى لوحة تحكم الإدارة" : "Go to Admin Panel"} placement="top">
+            <Button
+              disableElevation
+              variant="contained"
+              color="primary"
+              fullWidth
+              startIcon={<AdminPanelSettings />}
+              onClick={() => router.push("/vendor/dashboard")}
+              sx={{ fontWeight: 700 }}
+            >
+              {isArabic ? "لوحة الإدارة" : "Admin Dashboard"}
+            </Button>
+          </Tooltip>
+        )}
+
         <Button disableElevation variant="outlined" color="primary" fullWidth onClick={handleLogout}>
           {isArabic ? "تسجيل الخروج" : "Logout"}
         </Button>

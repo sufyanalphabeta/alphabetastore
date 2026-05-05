@@ -18,9 +18,10 @@ export default function OrderConfirmationPageView() {
   const { t } = useTranslation();
   const searchParams = useSearchParams();
   const orderId = searchParams.get("orderId")?.trim() || "";
+  const orderNumber = searchParams.get("orderNumber")?.trim() || "";
   const paymentId = searchParams.get("paymentId")?.trim() || "";
   const paymentMethod = searchParams.get("paymentMethod")?.trim() || "";
-  const orderLabel = orderId ? `#${orderId.slice(0, 8).toUpperCase()}` : null;
+  const orderLabel = orderNumber || (orderId ? `#${orderId.slice(0, 8).toUpperCase()}` : null);
   const [receiptFile, setReceiptFile] = useState(null);
   const [uploadError, setUploadError] = useState("");
   const [uploadSuccess, setUploadSuccess] = useState("");

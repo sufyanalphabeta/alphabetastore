@@ -76,6 +76,7 @@ model User {
   name                   String                  @db.VarChar(120)
   email                  String                  @unique @db.VarChar(255)
   phone                  String?                 @db.VarChar(30)
+  customerCode           String?                 @unique @map("customer_code") @db.VarChar(8)
   preferredPaymentMethod PaymentMethodCode       @default(COD) @map("preferred_payment_method")
   passwordHash           String                  @map("password_hash") @db.VarChar(255)
   role                   Role                    @default(CUSTOMER)
@@ -133,18 +134,18 @@ model RefreshToken {
 }
 
 model Category {
-  id        String      @id @default(uuid()) @db.Uuid
-  name      String      @db.VarChar(120)
-  slug      String      @unique @db.VarChar(160)
-  parentId  String?     @map("parent_id") @db.Uuid
-  isActive  Boolean     @default(true) @map("is_active")
-  isVisible Boolean     @default(true) @map("is_visible")
-  sortOrder Int         @default(0) @map("sort_order")
-  icon      String?     @db.VarChar(120)
-  createdAt DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
-  parent    Category?   @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
-  children  Category[]  @relation("CategoryTree")
-  products  Product[]
+  id         String      @id @default(uuid()) @db.Uuid
+  name       String      @db.VarChar(120)
+  slug       String      @unique @db.VarChar(160)
+  parentId   String?     @map("parent_id") @db.Uuid
+  isActive   Boolean     @default(true) @map("is_active")
+  isVisible  Boolean     @default(true) @map("is_visible")
+  sortOrder  Int         @default(0) @map("sort_order")
+  icon       String?     @db.VarChar(120)
+  createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  parent     Category?   @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children   Category[]  @relation("CategoryTree")
+  products   Product[]
 
   @@index([parentId])
   @@index([isActive])
@@ -236,6 +237,7 @@ model Order {
   userId              String?             @map("user_id") @db.Uuid
   sessionId           String?             @map("session_id") @db.VarChar(191)
   addressId           String?             @map("address_id") @db.Uuid
+  orderNumber         String?             @unique @map("order_number") @db.VarChar(40)
   fullName            String              @map("full_name") @db.VarChar(160)
   phone               String              @db.VarChar(30)
   city                String              @db.VarChar(120)

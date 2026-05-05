@@ -1,6 +1,8 @@
 import Link from "next/link";
 import Image from "next/image";
 import Typography from "@mui/material/Typography";
+import Chip from "@mui/material/Chip";
+import Box from "@mui/material/Box";
 
 // LOCAL CUSTOM COMPONENTS
 import Discount from "./discount";
@@ -8,9 +10,6 @@ import HoverActions from "./hover-actions";
 
 // STYLED COMPONENTS
 import { ImageWrapper, ContentWrapper, StyledCard } from "./styles";
-
-// CUSTOM DATA MODEL
-
 
 // CUSTOM UTILS FUNCTION
 import { currency } from "lib";
@@ -32,7 +31,8 @@ export default function ProductCard17({
     thumbnail,
     images,
     discount,
-    categories
+    categories,
+    brand
   } = product;
   return <StyledCard elevation={0} bgWhite={bgWhite}>
       <ImageWrapper>
@@ -47,9 +47,14 @@ export default function ProductCard17({
       </ImageWrapper>
 
       <ContentWrapper>
-        <Typography noWrap variant="body2" className="category">
-          {categories.length > 0 ? categories[0] : "N/A"}
-        </Typography>
+        <Box display="flex" alignItems="center" justifyContent="center" gap={0.75} flexWrap="wrap" mb={0.5}>
+          <Typography noWrap variant="body2" className="category">
+            {categories.length > 0 ? categories[0] : "N/A"}
+          </Typography>
+          {brand && (
+            <Chip label={brand} size="small" variant="outlined" color="primary" sx={{ height: 18, fontSize: 11, fontWeight: 600 }} />
+          )}
+        </Box>
 
         <Link href={`/products/${slug}`} aria-label={`View ${title}`}>
           <Typography noWrap variant="h5" className="title">

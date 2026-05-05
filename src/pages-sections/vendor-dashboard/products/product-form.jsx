@@ -41,7 +41,9 @@ const validationSchema = yup.object({
   description: yup.string().trim().required("Description is required"),
   stockQty: yup.number().transform((value, originalValue) => originalValue === "" ? NaN : value).typeError("Stock quantity must be a number").integer("Stock quantity must be an integer").min(0, "Stock quantity cannot be negative").required("Stock quantity is required"),
   price: yup.number().transform((value, originalValue) => originalValue === "" ? NaN : value).typeError("Price must be a number").min(0, "Price cannot be negative").required("Price is required"),
-  status: yup.string().oneOf([ACTIVE_STATUS, INACTIVE_STATUS]).required("Status is required")
+  status: yup.string().oneOf([ACTIVE_STATUS, INACTIVE_STATUS]).required("Status is required"),
+  sku: yup.string().trim().optional(),
+  brand: yup.string().trim().optional()
 });
 
 
@@ -70,7 +72,9 @@ export default function ProductForm(props) {
     description: "",
     stockQty: "",
     price: "",
-    status: ACTIVE_STATUS
+    status: ACTIVE_STATUS,
+    sku: "",
+    brand: ""
   };
   const methods = useForm({
     defaultValues: initialValues,
@@ -121,7 +125,9 @@ export default function ProductForm(props) {
             description: productData.description || "",
             stockQty: String(productData.stockQty ?? ""),
             price: String(productData.price ?? ""),
-            status: productData.status || ACTIVE_STATUS
+            status: productData.status || ACTIVE_STATUS,
+            sku: productData.sku || "",
+            brand: productData.brand || ""
           });
         } else {
           reset(initialValues);
@@ -180,6 +186,12 @@ export default function ProductForm(props) {
       status: values.status,
       ...(values.slug?.trim() ? {
         slug: values.slug.trim()
+      } : {}),
+      ...(values.sku?.trim() ? {
+        sku: values.sku.trim()
+      } : {}),
+      ...(values.brand?.trim() ? {
+        brand: values.brand.trim()
       } : {})
     };
 
@@ -281,6 +293,20 @@ export default function ProductForm(props) {
           xs: 12
         }}>
             <TextField fullWidth name="price" color="info" size="medium" type="number" label="Price" placeholder="Price" />
+          </Grid>
+
+          <Grid size={{
+          sm: 6,
+          xs: 12
+        }}>
+            <TextField fullWidth name="sku" color="info" size="medium" label="SKU" placeholder="e.g. PROD-001" helperText="Optional. Must be unique across all products." />
+          </Grid>
+
+          <Grid size={{
+          sm: 6,
+          xs: 12
+        }}>
+            <TextField fullWidth name="brand" color="info" size="medium" label="Brand" placeholder="e.g. Samsung" />
           </Grid>
 
           <Grid size={12}>
