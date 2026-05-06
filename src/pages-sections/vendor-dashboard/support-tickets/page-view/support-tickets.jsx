@@ -33,6 +33,14 @@ import { fetchAdminTickets } from "utils/tickets";
 // =============================================================================
 
 export default function SupportTicketsPageView() {
+  return (
+    <Suspense fallback={null}>
+      <SupportTicketsContent />
+    </Suspense>
+  );
+}
+
+function SupportTicketsContent() {
   const searchParams = useSearchParams();
   const searchTerm = searchParams.get("q")?.trim().toLowerCase() || "";
   const [tickets, setTickets] = useState([]);

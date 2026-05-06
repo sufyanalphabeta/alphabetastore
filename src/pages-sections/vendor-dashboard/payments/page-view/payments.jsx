@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import Alert from "@mui/material/Alert";
@@ -38,6 +38,14 @@ function formatPaymentDate(value) {
 }
 
 export default function PaymentsPageView() {
+  return (
+    <Suspense fallback={null}>
+      <PaymentsContent />
+    </Suspense>
+  );
+}
+
+function PaymentsContent() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();

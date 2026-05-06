@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useCallback } from "react";
+import { Suspense, startTransition, useCallback } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 // MUI
@@ -21,7 +21,15 @@ export const StyledPagination = styled(MuiPagination)({
 
 // ==============================================================
 
-export default function Pagination({
+export default function Pagination(props) {
+  return (
+    <Suspense fallback={null}>
+      <PaginationInner {...props} />
+    </Suspense>
+  );
+}
+
+function PaginationInner({
   count,
   page
 }) {

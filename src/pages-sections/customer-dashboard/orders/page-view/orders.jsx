@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, Suspense, useEffect, useState } from "react";
 import Alert from "@mui/material/Alert";
 import CircularProgress from "@mui/material/CircularProgress";
 import Stack from "@mui/material/Stack";
@@ -16,7 +16,15 @@ import { fetchCustomerOrdersPage } from "utils/orders";
 
 const PAGE_SIZE = 5;
 
-export function OrdersPageView({
+export function OrdersPageView(props) {
+  return (
+    <Suspense fallback={null}>
+      <OrdersContent {...props} />
+    </Suspense>
+  );
+}
+
+function OrdersContent({
   initialPage = 1
 }) {
   const searchParams = useSearchParams();

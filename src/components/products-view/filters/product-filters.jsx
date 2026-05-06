@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { Fragment, Suspense, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 // MUI
@@ -23,7 +23,15 @@ import useProductFilterCard from "./use-product-filter-card";
 
 // TYPES
 
-export default function ProductFilters({
+export default function ProductFilters(props) {
+  return (
+    <Suspense fallback={null}>
+      <ProductFiltersInner {...props} />
+    </Suspense>
+  );
+}
+
+function ProductFiltersInner({
   filters
 }) {
   const {

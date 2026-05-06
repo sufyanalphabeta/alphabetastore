@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { Suspense, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 // MUI
@@ -11,6 +11,14 @@ import TextField from "@mui/material/TextField";
 // STYLED COMPONENT
 import { SearchOutlinedIcon } from "./styles";
 export function SearchInput2() {
+  return (
+    <Suspense fallback={null}>
+      <SearchInput2Inner />
+    </Suspense>
+  );
+}
+
+function SearchInput2Inner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [search, setSearch] = useState("");

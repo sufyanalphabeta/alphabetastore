@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { Suspense, useCallback, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 // MUI
@@ -41,6 +41,14 @@ const INPUT_PROPS = {
 // ==============================================================
 
 export function SearchInput1() {
+  return (
+    <Suspense fallback={null}>
+      <SearchInput1Inner />
+    </Suspense>
+  );
+}
+
+function SearchInput1Inner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [search, setSearch] = useState("");

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import debounce from "lodash/debounce";
 
@@ -18,7 +18,15 @@ import FlexBox from "components/flex-box/flex-box";
 
 // ===============================================================
 
-export default function SearchArea({
+export default function SearchArea(props) {
+  return (
+    <Suspense fallback={null}>
+      <SearchAreaInner {...props} />
+    </Suspense>
+  );
+}
+
+function SearchAreaInner({
   url = "/",
   buttonText = "Add Product",
   searchPlaceholder = "Search Product...",

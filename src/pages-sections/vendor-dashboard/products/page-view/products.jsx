@@ -20,7 +20,7 @@ import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import Switch from "@mui/material/Switch";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Delete from "@mui/icons-material/Delete";
@@ -59,7 +59,15 @@ function getStatusColor(isActive) {
   return isActive ? "success" : "default";
 }
 
-export default function ProductsPageView({
+export default function ProductsPageView(props) {
+  return (
+    <Suspense fallback={null}>
+      <ProductsContent {...props} />
+    </Suspense>
+  );
+}
+
+function ProductsContent({
   products: initialProducts = []
 }) {
   const router = useRouter();

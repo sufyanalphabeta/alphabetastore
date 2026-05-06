@@ -16,7 +16,7 @@ import TableBody from "@mui/material/TableBody";
 import TableContainer from "@mui/material/TableContainer";
 import Pagination from "@mui/material/Pagination";
 import RemoveRedEye from "@mui/icons-material/RemoveRedEye";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
@@ -65,7 +65,15 @@ function getStatusColor(status) {
   return "info";
 }
 
-export default function OrdersPageView({
+export default function OrdersPageView(props) {
+  return (
+    <Suspense fallback={null}>
+      <OrdersContent {...props} />
+    </Suspense>
+  );
+}
+
+function OrdersContent({
   orders: initialOrders = []
 }) {
   const router = useRouter();

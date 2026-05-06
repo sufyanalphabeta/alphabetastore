@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import Add from "@mui/icons-material/Add";
@@ -43,7 +43,15 @@ function mapCategoryRow(category) {
   };
 }
 
-export default function CategoriesPageView({
+export default function CategoriesPageView(props) {
+  return (
+    <Suspense fallback={null}>
+      <CategoriesContent {...props} />
+    </Suspense>
+  );
+}
+
+function CategoriesContent({
   initialCategories = []
 }) {
   const router = useRouter();
