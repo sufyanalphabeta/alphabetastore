@@ -46,7 +46,7 @@ export default function ProductCard16({
           </div>
 
           <LazyImage alt={title} width={380} height={379} src={thumbnail} />
-          {discount ? <DiscountChip discount={discount} sx={{
+          {discount ? <DiscountChip product={product} discount={discount} sx={{
           left: 20,
           top: 20
         }} /> : null}

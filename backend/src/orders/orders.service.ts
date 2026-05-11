@@ -4,6 +4,7 @@ import type { Prisma } from '@prisma/client';
 import { OrderPaymentStatus, OrderStatus, PaymentMethodCode } from '../prisma/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../queue/notification.service';
+import { PricingService } from '../pricing/pricing.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { FindOrdersQueryDto } from './dto/find-orders-query.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
@@ -104,6 +105,12 @@ const cartForOrderInclude = {
         select: {
           name: true,
           stockQty: true,
+          baseCurrency: true,
+          comparePrice: true,
+          discountType: true,
+          discountValue: true,
+          discountStartAt: true,
+          discountEndAt: true,
         },
       },
     },
@@ -128,6 +135,7 @@ export class OrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
+    private readonly pricingService: PricingService,
   ) {}
 
   async createOrder(identity: OrderIdentity, createOrderDto: CreateOrderDto) {
@@ -163,6 +171,9 @@ export class OrdersService {
 
     const orderNumber = await this.generateOrderNumber(identity.userId);
 
+    // Lock exchange rate at time of order
+    const pricingSettings = await this.pricingService.getPricingSettings();
+
     const [order] = await this.prisma.$transaction([
       this.prisma.order.create({
         data: {
@@ -184,6 +195,9 @@ export class OrdersService {
               productName: item.product.name,
               quantity: item.quantity,
               unitPrice: item.unitPrice,
+              baseCurrency: item.product.baseCurrency,
+              comparePrice: item.product.comparePrice,
+              exchangeRateUsed: pricingSettings.exchangeRate,
             })),
           },
           statusHistory: {

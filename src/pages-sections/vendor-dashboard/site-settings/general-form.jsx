@@ -37,6 +37,7 @@ const validationSchema = yup.object().shape({
   default_language: yup.string().oneOf(["ar", "en"]).required("default language is required"),
   default_currency: yup.string().oneOf(["LYD", "USD"]).required("default currency is required"),
   exchange_rate_usd_to_lyd: yup.number().moreThan(0).required("exchange rate is required"),
+  auto_round_prices: yup.string().oneOf(["true", "false"]).required("Auto round prices setting is required"),
   primary_color: yup.string().matches(/^#[\dA-Fa-f]{6}$/, "Primary color must be a valid hex color"),
   enable_whatsapp: yup.string().oneOf(["true", "false"]).required("WhatsApp setting is required")
 });
@@ -56,6 +57,7 @@ export default function GeneralForm() {
     default_language: "ar",
     default_currency: "LYD",
     exchange_rate_usd_to_lyd: 5.2,
+    auto_round_prices: "false",
     primary_color: "#1976d2",
     enable_whatsapp: "true"
   };
@@ -84,6 +86,7 @@ export default function GeneralForm() {
           default_language: response?.default_language === "en" ? "en" : "ar",
           default_currency: String(response?.default_currency || "LYD").toUpperCase() === "USD" ? "USD" : "LYD",
           exchange_rate_usd_to_lyd: Number(response?.exchange_rate_usd_to_lyd || 5.2),
+          auto_round_prices: String(response?.auto_round_prices ?? "false"),
           primary_color: String(response?.primary_color || "#1976d2"),
           enable_whatsapp: String(response?.enable_whatsapp ?? "true")
         });
@@ -121,6 +124,9 @@ export default function GeneralForm() {
       key: "exchange_rate_usd_to_lyd",
       value: String(values.exchange_rate_usd_to_lyd)
     }, {
+      key: "auto_round_prices",
+      value: values.auto_round_prices
+    }, {
       key: "primary_color",
       value: values.primary_color
     }, {
@@ -139,6 +145,7 @@ export default function GeneralForm() {
         direction: values.default_language === "ar" ? "rtl" : "ltr",
         default_currency: values.default_currency,
         exchange_rate_usd_to_lyd: String(values.exchange_rate_usd_to_lyd),
+        auto_round_prices: values.auto_round_prices,
         primary_color: values.primary_color,
         enable_whatsapp: values.enable_whatsapp
       });
@@ -205,6 +212,13 @@ export default function GeneralForm() {
 
         <Grid size={12}>
           <TextField fullWidth color="info" size="medium" name="exchange_rate_usd_to_lyd" type="number" label="USD to LYD Exchange Rate" />
+        </Grid>
+
+        <Grid size={{ md: 6, xs: 12 }}>
+          <TextField select fullWidth color="info" size="medium" name="auto_round_prices" label="Auto Round Prices">
+            <MenuItem value="false">No rounding (2 decimal places)</MenuItem>
+            <MenuItem value="true">Round to whole numbers</MenuItem>
+          </TextField>
         </Grid>
 
         <Grid size={12}>

@@ -10,6 +10,7 @@ import type { Cache } from 'cache-manager';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { ProductStatus } from '../prisma/prisma-client';
+import { PricingService } from '../pricing/pricing.service';
 import { StorageService } from '../storage/local-storage.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { FindProductsQueryDto } from './dto/find-products-query.dto';
@@ -32,6 +33,17 @@ const productInclude = {
       sortOrder: 'asc',
     },
   },
+  priceHistory: {
+    orderBy: { createdAt: 'desc' as const },
+    take: 5,
+    select: {
+      id: true,
+      oldBasePrice: true,
+      newBasePrice: true,
+      changeReason: true,
+      createdAt: true,
+    },
+  },
 } satisfies Prisma.ProductInclude;
 
 /**
@@ -44,6 +56,12 @@ const productListSelect = {
   name: true,
   slug: true,
   price: true,
+  baseCurrency: true,
+  comparePrice: true,
+  discountType: true,
+  discountValue: true,
+  discountStartAt: true,
+  discountEndAt: true,
   stockQty: true,
   status: true,
   brand: true,
@@ -79,6 +97,7 @@ export class ProductsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
+    private readonly pricingService: PricingService,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
   ) {}
 
@@ -330,6 +349,16 @@ export class ProductsService {
           description: createProductDto.description,
           shortDescription: createProductDto.shortDescription,
           price: createProductDto.price,
+          baseCurrency: createProductDto.baseCurrency,
+          comparePrice: createProductDto.comparePrice,
+          discountType: createProductDto.discountType,
+          discountValue: createProductDto.discountValue,
+          discountStartAt: createProductDto.discountStartAt
+            ? new Date(createProductDto.discountStartAt)
+            : undefined,
+          discountEndAt: createProductDto.discountEndAt
+            ? new Date(createProductDto.discountEndAt)
+            : undefined,
           stockQty: createProductDto.stockQty,
           status: createProductDto.status ?? ProductStatus.ACTIVE,
           brand: createProductDto.brand,
@@ -356,7 +385,7 @@ export class ProductsService {
     }
   }
 
-  async update(id: string, updateProductDto: UpdateProductDto) {
+  async update(id: string, updateProductDto: UpdateProductDto, changedByUserId?: string) {
     const existing = await this.ensureProductExists(id);
 
     if (updateProductDto.categoryId) {
@@ -373,6 +402,16 @@ export class ProductsService {
           description: updateProductDto.description,
           shortDescription: updateProductDto.shortDescription,
           price: updateProductDto.price,
+          baseCurrency: updateProductDto.baseCurrency,
+          comparePrice: updateProductDto.comparePrice,
+          discountType: updateProductDto.discountType,
+          discountValue: updateProductDto.discountValue,
+          discountStartAt: updateProductDto.discountStartAt
+            ? new Date(updateProductDto.discountStartAt)
+            : undefined,
+          discountEndAt: updateProductDto.discountEndAt
+            ? new Date(updateProductDto.discountEndAt)
+            : undefined,
           stockQty: updateProductDto.stockQty,
           status: updateProductDto.status,
           brand: updateProductDto.brand,
@@ -396,6 +435,26 @@ export class ProductsService {
         this.cacheManager.del(`${PRODUCT_DETAIL_CACHE_PREFIX}${id}`),
         this.cacheManager.del(`${PRODUCT_DETAIL_CACHE_PREFIX}${existing.slug}`),
       ]);
+
+      // Record price history if price changed
+      if (
+        updateProductDto.price !== undefined &&
+        !existing.price.equals(product.price)
+      ) {
+        const settings = await this.pricingService.getPricingSettings();
+        await this.pricingService.recordPriceHistory({
+          productId: id,
+          oldBasePrice: existing.price,
+          newBasePrice: product.price,
+          oldComparePrice: existing.comparePrice,
+          newComparePrice: product.comparePrice,
+          oldCurrency: existing.baseCurrency,
+          newCurrency: product.baseCurrency,
+          exchangeRateUsed: settings.exchangeRate,
+          changeReason: 'manual_edit',
+          changedByUserId: changedByUserId ?? null,
+        });
+      }
 
       return product;
     } catch (error) {
@@ -541,6 +600,9 @@ export class ProductsService {
       select: {
         id: true,
         slug: true,
+        price: true,
+        baseCurrency: true,
+        comparePrice: true,
       },
     });
 

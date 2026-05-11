@@ -6,6 +6,7 @@ import {
 import type { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { PricingService } from '../pricing/pricing.service';
 import { AddCartItemDto } from './dto/add-cart-item.dto';
 import { UpdateCartItemDto } from './dto/update-cart-item.dto';
 
@@ -41,7 +42,10 @@ const cartInclude = {
 
 @Injectable()
 export class CartService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly pricingService: PricingService,
+  ) {}
 
   async getCart(identity: CartIdentity) {
     const cart = await this.findOrCreateCart(identity);
@@ -60,6 +64,12 @@ export class CartService {
       select: {
         id: true,
         price: true,
+        baseCurrency: true,
+        comparePrice: true,
+        discountType: true,
+        discountValue: true,
+        discountStartAt: true,
+        discountEndAt: true,
         stockQty: true,
         status: true,
       },
@@ -102,12 +112,17 @@ export class CartService {
         },
       });
     } else {
+      // Use the pricing engine for the effective price
+      const computedPrice = await this.pricingService.computePrice(
+        product,
+        await this.pricingService.getPricingSettings(),
+      );
       await this.prisma.cartItem.create({
         data: {
           cartId: cart.id,
           productId: addCartItemDto.productId,
           quantity: addCartItemDto.quantity,
-          unitPrice: product.price,
+          unitPrice: computedPrice.finalPrice,
         },
       });
     }

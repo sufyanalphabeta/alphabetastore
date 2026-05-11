@@ -13,6 +13,7 @@ import { validationSchema } from './config/env.validation';
 import { HealthModule } from './health/health.module';
 import { OrdersModule } from './orders/orders.module';
 import { PaymentsModule } from './payments/payments.module';
+import { PricingModule } from './pricing/pricing.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProductsModule } from './products/products.module';
 import { QueueModule } from './queue/queue.module';
@@ -98,6 +99,7 @@ import { WishlistModule } from './wishlist/wishlist.module';
     CartModule,
     OrdersModule,
     PaymentsModule,
+    PricingModule,
     SettingsModule,
     TicketsModule,
     WishlistModule,

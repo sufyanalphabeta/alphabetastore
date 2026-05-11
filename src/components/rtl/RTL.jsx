@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import createCache from "@emotion/cache";
 import { CacheProvider } from "@emotion/react";
 import stylisRTLPlugin from "stylis-plugin-rtl";
-import { prefixer } from "stylis";
 
 // GLOBAL CUSTOM HOOKS
 import useSettings from "hooks/useSettings";
@@ -17,10 +16,10 @@ export default function RTL({
   useEffect(() => {
     document.dir = settings.direction;
   }, [settings.direction]);
-  const cacheRtl = createCache({
+  const cacheRtl = useMemo(() => createCache({
     key: "muirtl",
-    stylisPlugins: [prefixer, stylisRTLPlugin]
-  });
+    stylisPlugins: [stylisRTLPlugin]
+  }), []);
   if (settings.direction === "rtl") {
     return <CacheProvider value={cacheRtl}>{children}</CacheProvider>;
   }

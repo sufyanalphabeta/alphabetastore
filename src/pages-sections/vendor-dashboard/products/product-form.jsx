@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 
@@ -16,10 +16,13 @@ import Alert from "@mui/material/Alert";
 import CircularProgress from "@mui/material/CircularProgress";
 import IconButton from "@mui/material/IconButton";
 import Typography from "@mui/material/Typography";
+import Divider from "@mui/material/Divider";
 import Delete from "@mui/icons-material/Delete";
 
 import DropZone from "components/DropZone";
 import { FormProvider, TextField } from "components/form-hook";
+import useSettings from "hooks/useSettings";
+import { buildPricingSettings, computeStorefrontPrice, formatPrice } from "utils/pricing";
 import {
   ACTIVE_STATUS,
   INACTIVE_STATUS,
@@ -41,6 +44,12 @@ const validationSchema = yup.object({
   description: yup.string().trim().required("Description is required"),
   stockQty: yup.number().transform((value, originalValue) => originalValue === "" ? NaN : value).typeError("Stock quantity must be a number").integer("Stock quantity must be an integer").min(0, "Stock quantity cannot be negative").required("Stock quantity is required"),
   price: yup.number().transform((value, originalValue) => originalValue === "" ? NaN : value).typeError("Price must be a number").min(0, "Price cannot be negative").required("Price is required"),
+  baseCurrency: yup.string().oneOf(["LYD", "USD"]).required("Base currency is required"),
+  comparePrice: yup.number().transform((value, originalValue) => originalValue === "" ? NaN : value).typeError("Compare price must be a number").min(0, "Compare price cannot be negative").nullable().optional(),
+  discountType: yup.string().oneOf(["NONE", "PERCENTAGE", "FIXED"]).optional(),
+  discountValue: yup.number().transform((value, originalValue) => originalValue === "" ? NaN : value).typeError("Discount value must be a number").min(0, "Discount value cannot be negative").nullable().optional(),
+  discountStartAt: yup.string().optional().nullable(),
+  discountEndAt: yup.string().optional().nullable(),
   status: yup.string().oneOf([ACTIVE_STATUS, INACTIVE_STATUS]).required("Status is required"),
   sku: yup.string().trim().optional(),
   brand: yup.string().trim().optional()
@@ -57,6 +66,7 @@ export default function ProductForm(props) {
     slug
   } = props;
   const router = useRouter();
+  const { settings } = useSettings();
   const [categories, setCategories] = useState([]);
   const [product, setProduct] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -72,6 +82,12 @@ export default function ProductForm(props) {
     description: "",
     stockQty: "",
     price: "",
+    baseCurrency: "LYD",
+    comparePrice: "",
+    discountType: "NONE",
+    discountValue: "",
+    discountStartAt: "",
+    discountEndAt: "",
     status: ACTIVE_STATUS,
     sku: "",
     brand: ""
@@ -83,10 +99,32 @@ export default function ProductForm(props) {
   const {
     handleSubmit,
     reset,
+    control,
     formState: {
       isSubmitting
     }
   } = methods;
+
+  // Watch pricing fields for live preview
+  const watchedPrice = useWatch({ control, name: "price" });
+  const watchedBaseCurrency = useWatch({ control, name: "baseCurrency" });
+  const watchedDiscountType = useWatch({ control, name: "discountType" });
+  const watchedDiscountValue = useWatch({ control, name: "discountValue" });
+
+  // Compute live price preview
+  const pricePreview = useMemo(() => {
+    const priceNum = Number(watchedPrice);
+    if (!priceNum || priceNum <= 0) return null;
+    const pricingSettings = buildPricingSettings(settings);
+    const syntheticProduct = {
+      price: priceNum,
+      baseCurrency: watchedBaseCurrency || "LYD",
+      discountType: watchedDiscountType === "NONE" ? undefined : watchedDiscountType,
+      discountValue: watchedDiscountValue ? Number(watchedDiscountValue) : undefined,
+    };
+    return computeStorefrontPrice(syntheticProduct, pricingSettings);
+  }, [watchedPrice, watchedBaseCurrency, watchedDiscountType, watchedDiscountValue, settings]);
+
   const categoryOptions = useMemo(() => [...categories].sort((left, right) => left.name.localeCompare(right.name)), [categories]);
   const pendingImagePreviews = useMemo(() => pendingFiles.map(file => ({
     file,
@@ -125,6 +163,12 @@ export default function ProductForm(props) {
             description: productData.description || "",
             stockQty: String(productData.stockQty ?? ""),
             price: String(productData.price ?? ""),
+            baseCurrency: productData.baseCurrency || "LYD",
+            comparePrice: productData.comparePrice != null ? String(productData.comparePrice) : "",
+            discountType: productData.discountType || "NONE",
+            discountValue: productData.discountValue != null ? String(productData.discountValue) : "",
+            discountStartAt: productData.discountStartAt ? productData.discountStartAt.slice(0, 16) : "",
+            discountEndAt: productData.discountEndAt ? productData.discountEndAt.slice(0, 16) : "",
             status: productData.status || ACTIVE_STATUS,
             sku: productData.sku || "",
             brand: productData.brand || ""
@@ -182,8 +226,23 @@ export default function ProductForm(props) {
       description: values.description.trim(),
       shortDescription: values.shortDescription.trim(),
       price: Number(values.price),
+      baseCurrency: values.baseCurrency || "LYD",
       stockQty: Number(values.stockQty),
       status: values.status,
+      ...(values.comparePrice ? { comparePrice: Number(values.comparePrice) } : { comparePrice: null }),
+      ...(values.discountType && values.discountType !== "NONE"
+        ? {
+            discountType: values.discountType,
+            discountValue: values.discountValue ? Number(values.discountValue) : null,
+            discountStartAt: values.discountStartAt || null,
+            discountEndAt: values.discountEndAt || null,
+          }
+        : {
+            discountType: null,
+            discountValue: null,
+            discountStartAt: null,
+            discountEndAt: null,
+          }),
       ...(values.slug?.trim() ? {
         slug: values.slug.trim()
       } : {}),
@@ -293,6 +352,102 @@ export default function ProductForm(props) {
           xs: 12
         }}>
             <TextField fullWidth name="price" color="info" size="medium" type="number" label="Price" placeholder="Price" />
+          </Grid>
+
+          <Grid size={{
+          sm: 6,
+          xs: 12
+        }}>
+            <TextField select fullWidth color="info" size="medium" name="baseCurrency" label="Base Currency">
+              <MenuItem value="LYD">LYD (Libyan Dinar)</MenuItem>
+              <MenuItem value="USD">USD (US Dollar)</MenuItem>
+            </TextField>
+          </Grid>
+
+          <Grid size={{
+          sm: 6,
+          xs: 12
+        }}>
+            <TextField fullWidth name="comparePrice" color="info" size="medium" type="number" label="Compare Price (optional)" placeholder="Original price before discount" helperText="Show a crossed-out reference price (e.g. RRP). Leave blank to hide." />
+          </Grid>
+
+          <Grid size={{
+          sm: 6,
+          xs: 12
+        }}>
+            <TextField select fullWidth color="info" size="medium" name="discountType" label="Discount Type">
+              <MenuItem value="NONE">No discount</MenuItem>
+              <MenuItem value="PERCENTAGE">Percentage (%)</MenuItem>
+              <MenuItem value="FIXED">Fixed amount</MenuItem>
+            </TextField>
+          </Grid>
+
+          {watchedDiscountType && watchedDiscountType !== "NONE" && <>
+            <Grid size={{
+            sm: 6,
+            xs: 12
+          }}>
+              <TextField fullWidth name="discountValue" color="info" size="medium" type="number" label={watchedDiscountType === "PERCENTAGE" ? "Discount %" : `Discount amount (${watchedBaseCurrency || "LYD"})`} placeholder={watchedDiscountType === "PERCENTAGE" ? "e.g. 20 for 20%" : "e.g. 50"} />
+            </Grid>
+
+            <Grid size={{
+            sm: 6,
+            xs: 12
+          }}>
+              <TextField fullWidth name="discountStartAt" color="info" size="medium" type="datetime-local" label="Discount Start (optional)" InputLabelProps={{ shrink: true }} helperText="Leave blank to start immediately" />
+            </Grid>
+
+            <Grid size={{
+            sm: 6,
+            xs: 12
+          }}>
+              <TextField fullWidth name="discountEndAt" color="info" size="medium" type="datetime-local" label="Discount End (optional)" InputLabelProps={{ shrink: true }} helperText="Leave blank for no expiry" />
+            </Grid>
+          </>}
+
+          {/* LIVE PRICE PREVIEW */}
+          {pricePreview && (
+            <Grid size={12}>
+              <Box sx={{ p: 2, border: "1px solid", borderColor: "divider", borderRadius: 2, bgcolor: "grey.50" }}>
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                  Price Preview ({pricePreview.currency})
+                </Typography>
+                <Box display="flex" gap={3} flexWrap="wrap">
+                  <Box>
+                    <Typography variant="caption" color="text.secondary">Store price</Typography>
+                    <Typography variant="h6" color="primary" fontWeight={700}>
+                      {formatPrice(pricePreview.finalPrice, pricePreview.currency)}
+                    </Typography>
+                  </Box>
+                  {pricePreview.hasActiveDiscount && (
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">Before discount</Typography>
+                      <Typography variant="body2" sx={{ textDecoration: "line-through", color: "grey.500" }}>
+                        {formatPrice(pricePreview.displayBasePrice, pricePreview.currency)}
+                      </Typography>
+                    </Box>
+                  )}
+                  {pricePreview.hasActiveDiscount && (
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">Savings</Typography>
+                      <Typography variant="body2" color="success.main" fontWeight={600}>
+                        -{Math.round(pricePreview.discountPercent)}% ({formatPrice(pricePreview.savings, pricePreview.currency)})
+                      </Typography>
+                    </Box>
+                  )}
+                  <Box>
+                    <Typography variant="caption" color="text.secondary">Rate used</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      1 USD = {pricePreview.exchangeRateUsed} LYD
+                    </Typography>
+                  </Box>
+                </Box>
+              </Box>
+            </Grid>
+          )}
+
+          <Grid size={12}>
+            <Divider />
           </Grid>
 
           <Grid size={{

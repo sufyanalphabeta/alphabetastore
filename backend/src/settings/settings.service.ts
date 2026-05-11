@@ -13,6 +13,7 @@ const DEFAULT_SETTINGS: Record<string, string> = {
   direction: 'rtl',
   default_currency: 'LYD',
   exchange_rate_usd_to_lyd: '5.2',
+  auto_round_prices: 'false',
   shop_phone: '+218000000000',
   shop_address: 'Tripoli, Libya',
   min_order: '0',

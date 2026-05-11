@@ -40,7 +40,7 @@ export default function ProductCard1({
   return <StyledCard>
       <ImageWrapper>
         {/* DISCOUNT PERCENT CHIP IF AVAILABLE */}
-        <DiscountChip discount={discount} />
+        <DiscountChip product={product} discount={discount} />
 
         {/* HOVER ACTION ICONS */}
         <HoverIconWrapper className="hover-box">
@@ -71,7 +71,7 @@ export default function ProductCard1({
           {showProductSize ? <p className="size">Liter</p> : null}
 
           {/* PRODUCT PRICE WITH DISCOUNT */}
-          <ProductPrice discount={discount} price={price} />
+          <ProductPrice product={product} discount={discount} price={price} />
         </div>
 
         {/* ADD TO CART BUTTON */}

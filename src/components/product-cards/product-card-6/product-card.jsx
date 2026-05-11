@@ -36,7 +36,7 @@ export default function ProductCard6({
   return <StyledRoot>
       <ImgBox>
         {/* DISCOUNT PERCENT CHIP IF AVAILABLE */}
-        <DiscountChip discount={discount} shape="square" />
+        <DiscountChip product={product} discount={discount} shape="square" />
 
         {/* PRODUCT IMAGE / THUMBNAIL */}
         <Link href={`/products/${slug}`}>
@@ -53,7 +53,7 @@ export default function ProductCard6({
 
       <ContentWrapper>
         {/* PRODUCT PRICE WITH DISCOUNT */}
-        <ProductPrice discount={discount} price={price} />
+        <ProductPrice product={product} discount={discount} price={price} />
 
         {/* PRODUCT NAME / TITLE */}
         <ProductTitle slug={slug} title={title} />

@@ -35,7 +35,7 @@ export default function ProductCard3({
   return <StyledRoot>
       <ImageWrapper>
         {/* DISCOUNT PERCENT CHIP IF AVAILABLE */}
-        <DiscountChip discount={discount} />
+        <DiscountChip product={product} discount={discount} />
 
         {/* PRODUCT IMAGE / THUMBNAIL */}
         <ImageBox className="hoverImgBox">
@@ -56,7 +56,7 @@ export default function ProductCard3({
         <ProductRating rating={rating} my={0.5} />
 
         {/* PRODUCT PRICE WITH DISCOUNT */}
-        <ProductPrice discount={discount} price={price} />
+        <ProductPrice product={product} discount={discount} price={price} />
       </ContentWrapper>
     </StyledRoot>;
 }

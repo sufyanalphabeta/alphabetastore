@@ -1,6 +1,7 @@
 import {
   ArrayUnique,
   IsArray,
+  IsDateString,
   IsEnum,
   IsInt,
   IsNumber,
@@ -13,7 +14,7 @@ import {
   MinLength,
 } from 'class-validator';
 
-import { ProductStatus } from '../../prisma/prisma-client';
+import { BaseCurrency, DiscountType, ProductStatus } from '../../prisma/prisma-client';
 
 export class UpdateProductDto {
   @IsOptional()
@@ -41,9 +42,35 @@ export class UpdateProductDto {
   shortDescription?: string;
 
   @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsNumber({ maxDecimalPlaces: 4 })
   @Min(0)
   price?: number;
+
+  @IsOptional()
+  @IsEnum(BaseCurrency)
+  baseCurrency?: BaseCurrency;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @Min(0)
+  comparePrice?: number;
+
+  @IsOptional()
+  @IsEnum(DiscountType)
+  discountType?: DiscountType;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @Min(0)
+  discountValue?: number;
+
+  @IsOptional()
+  @IsDateString()
+  discountStartAt?: string;
+
+  @IsOptional()
+  @IsDateString()
+  discountEndAt?: string;
 
   @IsOptional()
   @IsInt()

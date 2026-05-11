@@ -1,5 +1,7 @@
 export {
   PrismaClient,
+  BaseCurrency,
+  DiscountType,
   OrderStatus,
   OrderPaymentStatus,
   PaymentMethodCode,

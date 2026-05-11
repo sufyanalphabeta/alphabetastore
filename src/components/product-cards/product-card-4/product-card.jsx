@@ -36,7 +36,7 @@ export default function ProductCard4({
   return <StyledCard>
       <ImageWrapper>
         {/* DISCOUNT PERCENT CHIP IF AVAILABLE */}
-        <DiscountChip discount={discount} />
+        <DiscountChip product={product} discount={discount} />
 
         {/* PRODUCT IMAGE / THUMBNAIL */}
         <Link href={`/products/${slug}`}>
@@ -56,7 +56,7 @@ export default function ProductCard4({
           <ProductRating my={1} rating={rating} />
 
           {/* PRODUCT PRICE WITH DISCOUNT */}
-          <ProductPrice discount={discount} price={price} />
+          <ProductPrice product={product} discount={discount} price={price} />
         </div>
 
         {/* ADD TO CART BUTTON */}

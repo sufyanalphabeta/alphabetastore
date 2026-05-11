@@ -41,7 +41,7 @@ export default function ProductCard7({
           <ProductStatus status={status} />
 
           {/* DISCOUNT PERCENT CHIP IF AVAILABLE */}
-          <DiscountChip discount={discount} shape="square" />
+          <DiscountChip product={product} discount={discount} shape="square" />
 
           {/* PRODUCT IMAGE / THUMBNAIL */}
           <div className="img-wrapper">
@@ -65,7 +65,7 @@ export default function ProductCard7({
             </ColorsWrapper> : null}
 
           {/* PRODUCT PRICE WITH DISCOUNT */}
-          <ProductPrice discount={discount} price={price} />
+          <ProductPrice product={product} discount={discount} price={price} />
         </div>
 
         {/* ADD TO CART BUTTON */}

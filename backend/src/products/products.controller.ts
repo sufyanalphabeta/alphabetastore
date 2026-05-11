@@ -8,6 +8,7 @@ import {
   Patch,
   Post,
   Query,
+  Request,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
@@ -109,8 +110,12 @@ export class ProductsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateProductDto: UpdateProductDto) {
-    return this.productsService.update(id, updateProductDto);
+  update(
+    @Param('id') id: string,
+    @Body() updateProductDto: UpdateProductDto,
+    @Request() req: { user?: { userId?: string } },
+  ) {
+    return this.productsService.update(id, updateProductDto, req.user?.userId);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

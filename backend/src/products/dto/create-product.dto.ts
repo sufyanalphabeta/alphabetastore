@@ -1,6 +1,7 @@
 import {
   ArrayUnique,
   IsArray,
+  IsDateString,
   IsEnum,
   IsInt,
   IsNumber,
@@ -13,7 +14,7 @@ import {
   MinLength,
 } from 'class-validator';
 
-import { ProductStatus } from '../../prisma/prisma-client';
+import { BaseCurrency, DiscountType, ProductStatus } from '../../prisma/prisma-client';
 
 export class CreateProductDto {
   @IsUUID()
@@ -36,9 +37,39 @@ export class CreateProductDto {
   @MinLength(2)
   shortDescription!: string;
 
-  @IsNumber({ maxDecimalPlaces: 2 })
+  /** Base price stored in baseCurrency */
+  @IsNumber({ maxDecimalPlaces: 4 })
   @Min(0)
   price!: number;
+
+  /** Currency the price is denominated in */
+  @IsOptional()
+  @IsEnum(BaseCurrency)
+  baseCurrency?: BaseCurrency;
+
+  /** Strikethrough / original price (same currency as baseCurrency) */
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @Min(0)
+  comparePrice?: number;
+
+  @IsOptional()
+  @IsEnum(DiscountType)
+  discountType?: DiscountType;
+
+  /** Percentage (0-100) or fixed amount in baseCurrency */
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @Min(0)
+  discountValue?: number;
+
+  @IsOptional()
+  @IsDateString()
+  discountStartAt?: string;
+
+  @IsOptional()
+  @IsDateString()
+  discountEndAt?: string;
 
   @IsInt()
   @Min(0)

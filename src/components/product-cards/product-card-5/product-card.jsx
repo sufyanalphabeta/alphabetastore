@@ -35,7 +35,7 @@ export default function ProductCard5({
   } = product;
   return <StyledCard elevation={0}>
       <ImageWrapper>
-        <DiscountChip discount={discount} sx={{
+        <DiscountChip product={product} discount={discount} sx={{
         left: 0,
         borderTopLeftRadius: 0,
         borderBottomLeftRadius: 0
@@ -55,7 +55,7 @@ export default function ProductCard5({
 
         <ProductRating rating={rating} />
 
-        <ProductPrice discount={discount} price={price} />
+        <ProductPrice product={product} discount={discount} price={price} />
 
         <ButtonActions product={product} />
       </ContentWrapper>

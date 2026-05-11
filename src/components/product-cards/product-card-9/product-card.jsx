@@ -42,7 +42,7 @@ export default function ProductCard9({
       <ContentWrapper>
         <div className="img-wrapper">
           {/* DISCOUNT PERCENT CHIP IF AVAILABLE */}
-          <DiscountChip discount={discount} />
+          <DiscountChip product={product} discount={discount} />
 
           {/* PRODUCT IMAGE / THUMBNAIL */}
           <LazyImage src={thumbnail} alt={title} width={500} height={500} />
@@ -67,7 +67,7 @@ export default function ProductCard9({
             <Rating size="small" value={rating} color="warn" readOnly />
 
             {/* PRODUCT PRICE */}
-            <ProductPrice price={price} discount={discount} />
+            <ProductPrice product={product} price={price} discount={discount} />
           </div>
 
           {/* PRODUCT ADD TO CART BUTTON */}
