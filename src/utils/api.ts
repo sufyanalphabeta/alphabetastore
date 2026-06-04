@@ -102,6 +102,10 @@ function buildHeaders(method: ApiMethod, token?: string | null, body?: unknown) 
     headers["x-session-id"] = sessionId;
   }
 
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    headers["x-request-id"] = crypto.randomUUID();
+  }
+
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }

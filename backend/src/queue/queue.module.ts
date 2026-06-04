@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 
+import { PrismaModule } from '../prisma/prisma.module';
 import { QUEUE_NAMES } from './queue.constants';
 import { NotificationProcessor } from './notification.processor';
 import { NotificationService } from './notification.service';
@@ -17,6 +18,7 @@ import { NotificationService } from './notification.service';
 @Module({
   imports: [
     ConfigModule,
+    PrismaModule,
     BullModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

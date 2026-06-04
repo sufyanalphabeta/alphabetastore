@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
 import { extname } from 'path';
@@ -6,9 +6,11 @@ import {
   S3Client,
   PutObjectCommand,
   DeleteObjectCommand,
+  GetObjectCommand,
 } from '@aws-sdk/client-s3';
+import type { Readable } from 'stream';
 
-import { StorageService, UploadFileOptions } from './local-storage.service';
+import { ReadFileResult, StorageService, UploadFileOptions } from './local-storage.service';
 
 @Injectable()
 export class S3StorageService extends StorageService implements OnModuleInit {
@@ -87,5 +89,28 @@ export class S3StorageService extends StorageService implements OnModuleInit {
     };
 
     return types[extension] ?? 'application/octet-stream';
+  }
+
+  async readFile(fileUrl: string): Promise<ReadFileResult> {
+    const prefix = `${this.publicBaseUrl}/`;
+    if (!fileUrl.startsWith(prefix)) {
+      throw new NotFoundException('File not found.');
+    }
+    const key = fileUrl.slice(prefix.length);
+    try {
+      const result = await this.client.send(
+        new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+      );
+      const body = result.Body as Readable;
+      return {
+        stream: body,
+        contentType: result.ContentType ?? this.resolveContentType(extname(key)),
+        contentLength: result.ContentLength,
+        filename: key.split('/').pop() ?? 'file',
+      };
+    } catch (error) {
+      this.logger.warn(`Failed to read S3 object ${key}: ${(error as Error).message ?? error}`);
+      throw new NotFoundException('File not found.');
+    }
   }
 }

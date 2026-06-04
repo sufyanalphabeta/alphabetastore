@@ -8,6 +8,7 @@ import {
   Patch,
   Post,
   Req,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -16,6 +17,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
 import { memoryStorage } from 'multer';
 import { extname } from 'path';
+import type { Response } from 'express';
 
 import { JwtPayload } from '../auth/types/jwt-payload.type';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -139,5 +141,34 @@ export class PaymentsController {
     @Body() reviewPaymentDto: ReviewPaymentDto,
   ) {
     return this.paymentsService.reviewPayment(id, request.user!.sub, reviewPaymentDto);
+  }
+
+  @Get('payments/receipts/:id/file')
+  @UseGuards(JwtAuthGuard)
+  async streamReceipt(
+    @Req() request: PaymentRequest,
+    @Param('id') id: string,
+    @Res({ passthrough: false }) res: Response,
+  ) {
+    const user = request.user!;
+    const receipt = await this.paymentsService.getReceiptForUser(
+      id,
+      user.sub,
+      user.role === Role.ADMIN,
+    );
+
+    const file = await this.storageService.readFile(receipt.fileUrl);
+
+    res.setHeader('Content-Type', file.contentType);
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="${file.filename.replace(/[^a-zA-Z0-9._-]/g, '_')}"`,
+    );
+    if (file.contentLength) {
+      res.setHeader('Content-Length', String(file.contentLength));
+    }
+    res.setHeader('Cache-Control', 'private, max-age=0, no-store');
+
+    file.stream.pipe(res);
   }
 }

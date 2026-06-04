@@ -7,6 +7,7 @@ import {
   QUEUE_NAMES,
   type OrderPlacedJobData,
   type OrderStatusChangedJobData,
+  type PasswordResetJobData,
   type PaymentJobData,
 } from './queue.constants';
 
@@ -45,6 +46,10 @@ export class NotificationService {
 
   async notifyPaymentRejected(data: PaymentJobData): Promise<void> {
     await this.enqueue(NOTIFICATION_JOBS.PAYMENT_REJECTED, data);
+  }
+
+  async notifyPasswordReset(data: PasswordResetJobData): Promise<void> {
+    await this.enqueue(NOTIFICATION_JOBS.PASSWORD_RESET, data);
   }
 
   private async enqueue(jobName: string, data: unknown): Promise<void> {

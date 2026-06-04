@@ -1,7 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import type { Cache } from 'cache-manager';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateSystemSettingDto } from './dto/update-system-setting.dto';
+
+const SETTINGS_CACHE_KEY = 'settings:all';
+const SETTINGS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 const DEFAULT_SETTINGS: Record<string, string> = {
   site_name: 'Alphabeta Store',
@@ -26,9 +31,17 @@ const DEFAULT_SETTINGS: Record<string, string> = {
 
 @Injectable()
 export class SettingsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(CACHE_MANAGER) private readonly cache: Cache,
+  ) {}
 
   async findAll() {
+    const cached = await this.cache.get<Record<string, string>>(SETTINGS_CACHE_KEY);
+    if (cached) {
+      return cached;
+    }
+
     const settings = await this.prisma.systemSetting.findMany({
       orderBy: {
         key: 'asc',
@@ -41,10 +54,13 @@ export class SettingsService {
       result[setting.key] = setting.value;
     }
 
-    return {
+    const merged = {
       ...DEFAULT_SETTINGS,
       ...result,
     };
+
+    await this.cache.set(SETTINGS_CACHE_KEY, merged, SETTINGS_CACHE_TTL_MS);
+    return merged;
   }
 
   async findGrouped() {
@@ -87,6 +103,9 @@ export class SettingsService {
         value,
       },
     });
+
+    await this.cache.del(SETTINGS_CACHE_KEY);
+    await this.cache.del('pricing:settings');
 
     return {
       key: updated.key,

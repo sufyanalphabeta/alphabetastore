@@ -173,6 +173,84 @@ export class CartService {
     return this.getCart(identity);
   }
 
+  /**
+   * Move guest cart items into the authenticated user's cart and delete the guest cart.
+   * Quantities for the same product are summed and capped to product.stockQty.
+   */
+  async mergeGuestCart(userId: string, sessionId: string): Promise<void> {
+    if (!userId || !sessionId?.trim()) {
+      return;
+    }
+
+    const guestCart = await this.prisma.cart.findUnique({
+      where: { sessionId },
+      include: {
+        items: {
+          include: {
+            product: { select: { id: true, stockQty: true, status: true } },
+          },
+        },
+      },
+    });
+
+    if (!guestCart || guestCart.items.length === 0) {
+      // Nothing to merge; clean up an empty guest cart if it exists.
+      if (guestCart) {
+        await this.prisma.cart.delete({ where: { id: guestCart.id } }).catch(() => undefined);
+      }
+      return;
+    }
+
+    const userCart = await this.prisma.cart.upsert({
+      where: { userId },
+      create: { userId },
+      update: {},
+      select: { id: true },
+    });
+
+    await this.prisma.$transaction(async tx => {
+      for (const guestItem of guestCart.items) {
+        if (!guestItem.product || guestItem.product.status !== 'ACTIVE') {
+          continue;
+        }
+
+        const existing = await tx.cartItem.findUnique({
+          where: {
+            cartId_productId: { cartId: userCart.id, productId: guestItem.productId },
+          },
+          select: { id: true, quantity: true },
+        });
+
+        const desired = (existing?.quantity ?? 0) + guestItem.quantity;
+        const capped = Math.min(desired, guestItem.product.stockQty);
+        if (capped <= 0) continue;
+
+        if (existing) {
+          await tx.cartItem.update({
+            where: { id: existing.id },
+            data: { quantity: capped },
+          });
+        } else {
+          await tx.cartItem.create({
+            data: {
+              cartId: userCart.id,
+              productId: guestItem.productId,
+              quantity: capped,
+              unitPrice: guestItem.unitPrice,
+            },
+          });
+        }
+      }
+
+      await tx.cartItem.deleteMany({ where: { cartId: guestCart.id } });
+      await tx.cart.delete({ where: { id: guestCart.id } });
+      await tx.cart.update({
+        where: { id: userCart.id },
+        data: { updatedAt: new Date() },
+      });
+    });
+  }
+
   private async findOrCreateCart(identity: CartIdentity) {
     const where = this.createOwnerWhere(identity);
     const existingCart = await this.prisma.cart.findUnique({

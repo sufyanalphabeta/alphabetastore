@@ -1,13 +1,19 @@
 import {
   ConflictException,
+  forwardRef,
+  Inject,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { randomBytes } from 'crypto';
 import { StringValue } from 'ms';
 
+import { CartService } from '../cart/cart.service';
+import { NotificationService } from '../queue/notification.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   RefreshToken,
@@ -15,10 +21,12 @@ import {
   User,
 } from '@prisma/client';
 import { UsersService } from '../users/users.service';
-import { AUTH_MESSAGES } from './constants';
+import { AUTH_MESSAGES, PASSWORD_RESET_TOKEN_TTL_MS } from './constants';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterDto } from './dto/register.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { JwtPayload } from './types/jwt-payload.type';
 
 type AuthUser = {
@@ -33,11 +41,16 @@ type MeResponse = NonNullable<Awaited<ReturnType<UsersService['findPublicById']>
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
+    @Inject(forwardRef(() => CartService))
+    private readonly cartService: CartService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async register(registerDto: RegisterDto): Promise<RegisterResponse> {
@@ -62,6 +75,7 @@ export class AuthService {
 
   async login(
     loginDto: LoginDto,
+    sessionId?: string | null,
   ): Promise<{ accessToken: string; refreshToken: string; user: PublicAuthUser }> {
     const user = await this.validateUser(loginDto.email, loginDto.password);
 
@@ -71,6 +85,14 @@ export class AuthService {
 
     const tokens = await this.issueTokens(user);
     await this.storeRefreshToken(user.id, tokens.refreshToken);
+
+    if (sessionId && sessionId.trim()) {
+      try {
+        await this.cartService.mergeGuestCart(user.id, sessionId.trim());
+      } catch (error) {
+        this.logger.warn(`Cart merge on login failed for user ${user.id}: ${error}`);
+      }
+    }
 
     return {
       accessToken: tokens.accessToken,
@@ -114,6 +136,93 @@ export class AuthService {
     }
 
     return user;
+  }
+
+  /**
+   * Always returns the same generic response regardless of whether the email
+   * exists, to avoid account enumeration. The reset link is generated and
+   * delivered out-of-band via the configured mailer.
+   */
+  async requestPasswordReset(dto: ForgotPasswordDto): Promise<{ message: string }> {
+    const email = dto.email.trim().toLowerCase();
+    const user = await this.usersService.findByEmail(email);
+
+    if (user && user.status === 'ACTIVE') {
+      // Invalidate any existing tokens for this user.
+      await this.prisma.passwordResetToken.updateMany({
+        where: { userId: user.id, usedAt: null, expiresAt: { gt: new Date() } },
+        data: { usedAt: new Date() },
+      });
+
+      const rawToken = randomBytes(32).toString('hex');
+      const tokenHash = await bcrypt.hash(rawToken, this.getSaltRounds());
+      const expiresAt = new Date(Date.now() + PASSWORD_RESET_TOKEN_TTL_MS);
+
+      await this.prisma.passwordResetToken.create({
+        data: { userId: user.id, tokenHash, expiresAt },
+      });
+
+      const baseUrl =
+        this.configService.get<string>('PASSWORD_RESET_BASE_URL') ??
+        this.configService.get<string>('PUBLIC_APP_URL') ??
+        'http://localhost:3000';
+      const resetUrl = `${baseUrl.replace(/\/$/, '')}/reset-password/confirm?token=${rawToken}`;
+
+      await this.notificationService.notifyPasswordReset({
+        userId: user.id,
+        email: user.email,
+        resetUrl,
+      });
+    } else {
+      this.logger.debug(`Password reset requested for unknown/disabled email: ${email}`);
+    }
+
+    return {
+      message: 'If an account exists for that email, a reset link has been sent.',
+    };
+  }
+
+  async resetPassword(dto: ResetPasswordDto): Promise<{ message: string }> {
+    const candidates = await this.prisma.passwordResetToken.findMany({
+      where: {
+        usedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 25,
+    });
+
+    let match: (typeof candidates)[number] | null = null;
+    for (const candidate of candidates) {
+      if (await bcrypt.compare(dto.token, candidate.tokenHash)) {
+        match = candidate;
+        break;
+      }
+    }
+
+    if (!match) {
+      throw new UnauthorizedException(AUTH_MESSAGES.RESET_TOKEN_INVALID);
+    }
+
+    const newHash = await this.hashPassword(dto.newPassword);
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: match.userId },
+        data: { passwordHash: newHash },
+      }),
+      this.prisma.passwordResetToken.update({
+        where: { id: match.id },
+        data: { usedAt: new Date() },
+      }),
+      // Force re-login on all devices.
+      this.prisma.refreshToken.updateMany({
+        where: { userId: match.userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+
+    return { message: 'Password updated successfully. Please sign in again.' };
   }
 
   async validateUser(email: string, password: string) {

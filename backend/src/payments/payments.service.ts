@@ -81,6 +81,37 @@ export class PaymentsService {
     private readonly notificationService: NotificationService,
   ) {}
 
+  /**
+   * Look up a receipt and verify the requesting user is allowed to download it.
+   * Returns the file URL so the controller can stream it via the storage layer.
+   */
+  async getReceiptForUser(receiptId: string, userId: string, isAdmin: boolean) {
+    const receipt = await this.prisma.bankTransferReceipt.findUnique({
+      where: { id: receiptId },
+      select: {
+        id: true,
+        fileUrl: true,
+        paymentTransaction: {
+          select: {
+            id: true,
+            order: { select: { id: true, userId: true } },
+          },
+        },
+      },
+    });
+
+    if (!receipt) {
+      throw new NotFoundException('Receipt not found.');
+    }
+
+    const ownerId = receipt.paymentTransaction?.order?.userId ?? null;
+    if (!isAdmin && (!ownerId || ownerId !== userId)) {
+      throw new NotFoundException('Receipt not found.');
+    }
+
+    return receipt;
+  }
+
   async findActiveMethods() {
     const methods = await this.prisma.paymentMethod.findMany({
       where: {

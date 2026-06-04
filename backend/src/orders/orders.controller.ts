@@ -77,4 +77,15 @@ export class OrdersController {
   ) {
     return this.ordersService.updateStatus(id, request.user!.sub, updateOrderStatusDto);
   }
+
+  @Post(':id/cancel')
+  @UseGuards(JwtAuthGuard)
+  cancel(
+    @Req() request: OrderRequest,
+    @Param('id') id: string,
+    @Body() body: { note?: string } = {},
+  ) {
+    const user = request.user!;
+    return this.ordersService.cancelOrder(id, user.sub, user.role === Role.ADMIN, body?.note);
+  }
 }

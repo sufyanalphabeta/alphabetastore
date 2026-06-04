@@ -18,13 +18,20 @@ import FlexRowCenter from "components/flex-box/flex-row-center";
 // LOCAL CUSTOM COMPONENT
 import BoxLink from "../components/box-link";
 
+import { apiPost } from "utils/api";
+
 
 // FORM FIELD VALIDATION SCHEMA
 const validationSchema = yup.object().shape({
   email: yup.string().email("invalid email").required("Email is required")
 });
+
+const GENERIC_SUCCESS_MESSAGE =
+  "إذا كان هذا البريد مرتبطًا بحساب لدينا فستصلك رسالة بإرشادات إعادة تعيين كلمة المرور خلال دقائق. تأكد من فحص مجلد الرسائل غير المرغوب فيها.";
+
 export default function ResetPassword() {
   const [notice, setNotice] = useState("");
+  const [severity, setSeverity] = useState("info");
   const methods = useForm({
     defaultValues: {
       email: ""
@@ -37,9 +44,19 @@ export default function ResetPassword() {
       isSubmitting
     }
   } = methods;
-  const handleSubmitForm = handleSubmit(() => {
-    setNotice("ميزة إعادة التعيين عبر البريد غير مفعلة حاليًا. تواصل مع الدعم الفني.");
+
+  const handleSubmitForm = handleSubmit(async ({ email }) => {
+    try {
+      await apiPost("/auth/forgot-password", { email });
+      setSeverity("success");
+      setNotice(GENERIC_SUCCESS_MESSAGE);
+    } catch {
+      // Show the same generic message even on error to avoid account enumeration.
+      setSeverity("info");
+      setNotice(GENERIC_SUCCESS_MESSAGE);
+    }
   });
+
   return <Fragment>
       <Typography variant="h3" fontWeight={700} sx={{
       mb: 4,
@@ -48,7 +65,7 @@ export default function ResetPassword() {
         استعادة كلمة المرور
       </Typography>
 
-      {notice ? <Alert severity="info" sx={{
+      {notice ? <Alert severity={severity} sx={{
       mb: 3
     }}>{notice}</Alert> : null}
 

@@ -9,5 +9,6 @@ import { CartService } from './cart.service';
   imports: [PricingModule],
   controllers: [CartController],
   providers: [CartService, OptionalJwtAuthGuard],
+  exports: [CartService],
 })
 export class CartModule {}

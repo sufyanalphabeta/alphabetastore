@@ -12,6 +12,7 @@ export const NOTIFICATION_JOBS = {
   PAYMENT_RECEIVED: 'payment.received',
   PAYMENT_APPROVED: 'payment.approved',
   PAYMENT_REJECTED: 'payment.rejected',
+  PASSWORD_RESET: 'auth.password_reset',
 } as const;
 
 export type NotificationJobType = (typeof NOTIFICATION_JOBS)[keyof typeof NOTIFICATION_JOBS];
@@ -35,4 +36,10 @@ export type PaymentJobData = {
   paymentId: string;
   userId: string | null;
   amount: number;
+};
+
+export type PasswordResetJobData = {
+  userId: string;
+  email: string;
+  resetUrl: string;
 };

@@ -1,4 +1,4 @@
-import { apiGet, apiPatch } from "./api";
+import { apiGet, apiPatch, apiPost } from "./api";
 import { FALLBACK_PRODUCT_IMAGE, normalizeProductImageUrl } from "./catalog";
 import { formatPaymentStatus } from "./payments";
 
@@ -146,6 +146,11 @@ export async function fetchCustomerOrdersPage(filters = {}) {
 
 export async function fetchCustomerOrderById(id) {
   const data = await apiGet(`/orders/${id}`);
+  return mapOrder(data);
+}
+
+export async function cancelCustomerOrder(id, note) {
+  const data = await apiPost(`/orders/${id}/cancel`, note ? { note } : {});
   return mapOrder(data);
 }
 

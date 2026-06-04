@@ -1,14 +1,31 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { existsSync, mkdirSync } from 'fs';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { createReadStream, existsSync, mkdirSync, statSync } from 'fs';
 import { writeFile, unlink } from 'fs/promises';
 import { randomUUID } from 'crypto';
-import { extname, join } from 'path';
+import { extname, join, normalize, relative, sep } from 'path';
+import type { Readable } from 'stream';
 
 export type UploadFileOptions = {
   /** Subdirectory within the uploads root, e.g. 'products' or 'payment-receipts' */
   subdirectory: string;
   /** Original filename – used only for extension extraction */
   originalname: string;
+};
+
+export type ReadFileResult = {
+  stream: Readable;
+  contentType: string;
+  contentLength?: number;
+  filename: string;
+};
+
+const MIME_BY_EXT: Record<string, string> = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.pdf': 'application/pdf',
 };
 
 /**
@@ -30,6 +47,12 @@ export abstract class StorageService {
    * should not throw.
    */
   abstract deleteFile(fileUrl: string): Promise<void>;
+
+  /**
+   * Open a stream to a previously saved file. Used for serving private
+   * (non-statically-served) assets via authenticated controllers.
+   */
+  abstract readFile(fileUrl: string): Promise<ReadFileResult>;
 }
 
 // ─── Local implementation ────────────────────────────────────────────────────
@@ -60,8 +83,8 @@ export class LocalStorageService extends StorageService {
       return;
     }
 
-    const segments = fileUrl.replace(/^\//, '').split('/');
-    const filePath = join(process.cwd(), ...segments);
+    const filePath = this.resolvePath(fileUrl);
+    if (!filePath) return;
 
     try {
       await unlink(filePath);
@@ -71,5 +94,33 @@ export class LocalStorageService extends StorageService {
         throw error;
       }
     }
+  }
+
+  async readFile(fileUrl: string): Promise<ReadFileResult> {
+    const filePath = this.resolvePath(fileUrl);
+    if (!filePath || !existsSync(filePath)) {
+      throw new NotFoundException('File not found.');
+    }
+
+    const ext = extname(filePath).toLowerCase();
+    const stats = statSync(filePath);
+    return {
+      stream: createReadStream(filePath),
+      contentType: MIME_BY_EXT[ext] ?? 'application/octet-stream',
+      contentLength: stats.size,
+      filename: filePath.split(sep).pop() ?? 'file',
+    };
+  }
+
+  private resolvePath(fileUrl: string): string | null {
+    if (!fileUrl.startsWith('/uploads/')) return null;
+    const relPath = fileUrl.replace(/^\/uploads\//, '');
+    const target = normalize(join(this.uploadsRoot, relPath));
+    // Defense in depth against path traversal.
+    const rel = relative(this.uploadsRoot, target);
+    if (rel.startsWith('..') || rel.includes(`..${sep}`)) {
+      return null;
+    }
+    return target;
   }
 }

@@ -29,8 +29,11 @@ async function bootstrap() {
   app.setGlobalPrefix(configService.get<string>('API_PREFIX', 'api/v1'), {
     exclude: ['health'],
   });
-  app.useStaticAssets(uploadsPath, {
-    prefix: '/uploads/',
+  // Only product images are served statically. Private uploads (payment
+  // receipts, etc.) are exposed via authenticated controllers — do NOT add
+  // additional static prefixes here.
+  app.useStaticAssets(join(uploadsPath, 'products'), {
+    prefix: '/uploads/products/',
   });
 
   app.use(helmet({

@@ -1,4 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import type { Cache } from 'cache-manager';
 import { Decimal } from '@prisma/client/runtime/library';
 
 import { BaseCurrency, DiscountType } from '../prisma/prisma-client';
@@ -47,13 +49,37 @@ const SETTINGS_KEYS = [
   'auto_round_prices',
 ] as const;
 
+const PRICING_CACHE_KEY = 'pricing:settings';
+const PRICING_CACHE_TTL_MS = 5 * 60 * 1000;
+
 @Injectable()
 export class PricingService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(CACHE_MANAGER) private readonly cache: Cache,
+  ) {}
 
-  // ─── Settings ────────────────────────────────────────────────────────────────
+  // ─── Settings ────────────────────────────────────────────────────────────────────────
+
+  invalidatePricingCache(): Promise<void> {
+    return this.cache.del(PRICING_CACHE_KEY) as unknown as Promise<void>;
+  }
 
   async getPricingSettings(): Promise<PricingSettings> {
+    const cached = await this.cache.get<{
+      rate: string;
+      defaultCurrency: string;
+      autoRound: boolean;
+    }>(PRICING_CACHE_KEY);
+
+    if (cached) {
+      return {
+        exchangeRate: new Decimal(cached.rate),
+        defaultCurrency: cached.defaultCurrency,
+        autoRound: cached.autoRound,
+      };
+    }
+
     const rows = await this.prisma.systemSetting.findMany({
       where: { key: { in: [...SETTINGS_KEYS] } },
       select: { key: true, value: true },
@@ -77,11 +103,26 @@ export class PricingService {
       rate = new Decimal('5.2');
     }
 
-    return {
+    const result: PricingSettings = {
       exchangeRate: rate.isFinite() && rate.gt(0) ? rate : new Decimal('5.2'),
       defaultCurrency: map['default_currency'] === 'USD' ? 'USD' : 'LYD',
       autoRound: map['auto_round_prices'] === 'true',
     };
+
+    await this.cachePricingSettings(result);
+    return result;
+  }
+
+  private async cachePricingSettings(settings: PricingSettings): Promise<void> {
+    await this.cache.set(
+      PRICING_CACHE_KEY,
+      {
+        rate: settings.exchangeRate.toString(),
+        defaultCurrency: settings.defaultCurrency,
+        autoRound: settings.autoRound,
+      },
+      PRICING_CACHE_TTL_MS,
+    );
   }
 
   // ─── Core Price Calculation ────────────────────────────────────────────────

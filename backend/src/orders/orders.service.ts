@@ -313,6 +313,80 @@ export class OrdersService {
     return this.serializeOrder(updatedOrder);
   }
 
+  /**
+   * Customer-initiated cancellation. Only allowed while the order is still PENDING.
+   * Restores stock for every line item, marks the order CANCELLED, voids any pending
+   * payment, and writes an audit row to OrderStatusHistory in the same transaction.
+   */
+  async cancelOrder(orderId: string, userId: string, isAdmin: boolean, note?: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { items: { select: { productId: true, quantity: true } } },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found.');
+    }
+
+    if (!isAdmin && order.userId !== userId) {
+      throw new NotFoundException('Order not found.');
+    }
+
+    if (order.status !== OrderStatus.PENDING) {
+      throw new BadRequestException(
+        'Only orders in PENDING status can be cancelled.',
+      );
+    }
+
+    await this.prisma.$transaction(async tx => {
+      await tx.order.update({
+        where: { id: orderId },
+        data: {
+          status: OrderStatus.CANCELLED,
+          paymentStatus:
+            order.paymentStatus === OrderPaymentStatus.PAID
+              ? order.paymentStatus
+              : OrderPaymentStatus.REJECTED,
+        },
+      });
+
+      for (const item of order.items) {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: { stockQty: { increment: item.quantity } },
+        });
+      }
+
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId,
+          status: OrderStatus.CANCELLED,
+          note: note?.trim() || (isAdmin ? 'Cancelled by admin' : 'Cancelled by customer'),
+          changedByUserId: userId,
+        },
+      });
+
+      // Mark any still-pending payment transactions as REJECTED for this order.
+      await tx.paymentTransaction.updateMany({
+        where: { orderId, status: 'PENDING' },
+        data: { status: 'REJECTED' },
+      });
+    });
+
+    const fresh = await this.prisma.order.findUniqueOrThrow({
+      where: { id: orderId },
+      include: orderInclude,
+    });
+
+    void this.notificationService.notifyOrderStatusChanged({
+      orderId: fresh.id,
+      userId: fresh.userId,
+      status: fresh.status,
+    });
+
+    return this.serializeOrder(fresh);
+  }
+
   private async findCartWithItems(identity: OrderIdentity) {
     return this.prisma.cart.findFirst({
       where: identity.userId
