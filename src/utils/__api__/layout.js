@@ -1,16 +1,16 @@
 import { cache } from "react";
 import axios from "utils/axiosInstance";
-import { buildCategoryMenus, fetchCategories } from "utils/catalog";
+import { buildCategoryMenusFromTree, fetchCategoriesTree } from "utils/catalog";
 
 const getLayoutData = cache(async () => {
-  const [categories, settingsResponse] = await Promise.all([fetchCategories(true), axios.get("/settings")]);
+  const [categoryTree, settingsResponse] = await Promise.all([fetchCategoriesTree(true), axios.get("/settings")]);
   const settings = settingsResponse.data;
   const siteName = settings?.site_name || "Alphabeta Store";
   const logoUrl = settings?.site_logo_url?.trim() || "";
   const defaultLanguage = settings?.default_language === "en" ? "en" : "ar";
   const isArabic = defaultLanguage === "ar";
 
-  const navigation = buildCategoryMenus(categories).map(item => ({
+  const navigation = buildCategoryMenusFromTree(categoryTree).map(item => ({
     title: item.title,
     href: item.href
   }));

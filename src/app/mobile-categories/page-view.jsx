@@ -14,7 +14,7 @@ import OverlayScrollbar from "components/overlay-scrollbar";
 import { MobileNavigationBar } from "components/mobile-navigation";
 import { HeaderCart, HeaderLogin, MobileHeader, HeaderSearch } from "components/header";
 import { MobileMenu } from "components/mobile-navbar/mobile-menu";
-import { buildMobileCategoryMenus, fetchCategories } from "utils/catalog";
+import { buildMobileCategoryMenus, fetchCategoriesTree } from "utils/catalog";
 
 // STYLES
 import { CategoryListItem, StyledRoot } from "./styles";
@@ -47,7 +47,7 @@ export default function MobileCategoriesPageView({
       try {
         setLoading(true);
         setError("");
-        const response = await fetchCategories();
+        const response = await fetchCategoriesTree(true);
 
         if (!active) return;
 

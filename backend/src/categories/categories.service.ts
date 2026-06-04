@@ -66,13 +66,16 @@ export class CategoriesService {
           parentId: createCategoryDto.parentId,
           isActive: createCategoryDto.isActive ?? true,
           isVisible: createCategoryDto.isVisible ?? true,
+          isFeatured: createCategoryDto.isFeatured ?? false,
           sortOrder: createCategoryDto.sortOrder ?? 0,
           icon: createCategoryDto.icon,
+          imageUrl: createCategoryDto.imageUrl,
+          description: createCategoryDto.description,
         },
         include: categoryInclude,
       });
 
-      await this.cacheManager.del(CATEGORIES_CACHE_KEY);
+      await this.invalidateCache();
 
       return category;
     } catch (error) {
@@ -105,13 +108,16 @@ export class CategoriesService {
           parentId: updateCategoryDto.parentId,
           isActive: updateCategoryDto.isActive,
           isVisible: updateCategoryDto.isVisible,
+          isFeatured: updateCategoryDto.isFeatured,
           sortOrder: updateCategoryDto.sortOrder,
           icon: updateCategoryDto.icon,
+          imageUrl: updateCategoryDto.imageUrl,
+          description: updateCategoryDto.description,
         },
         include: categoryInclude,
       });
 
-      await this.cacheManager.del(CATEGORIES_CACHE_KEY);
+      await this.invalidateCache();
 
       return category;
     } catch (error) {
@@ -145,11 +151,95 @@ export class CategoriesService {
       where: { id },
     });
 
-    await this.cacheManager.del(CATEGORIES_CACHE_KEY);
+    await this.invalidateCache();
 
     return {
       message: 'Category deleted successfully.',
     };
+  }
+
+  /**
+   * Build a hierarchical tree from a flat list. The root nodes are those with
+   * no parent. Children are nested under each parent's `children` field.
+   */
+  async findTree(opts: { onlyVisible?: boolean } = {}) {
+    const cacheKey = opts.onlyVisible ? 'categories:tree:visible' : 'categories:tree:all';
+    const cached = await this.cacheManager.get(cacheKey);
+    if (cached) return cached;
+
+    const categories = await this.prisma.category.findMany({
+      where: opts.onlyVisible ? { isActive: true, isVisible: true } : undefined,
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        parentId: true,
+        isActive: true,
+        isVisible: true,
+        isFeatured: true,
+        sortOrder: true,
+        icon: true,
+        imageUrl: true,
+        description: true,
+      },
+    });
+
+    type Node = (typeof categories)[number] & { children: Node[] };
+    const byId = new Map<string, Node>();
+    const roots: Node[] = [];
+    for (const c of categories) {
+      byId.set(c.id, { ...c, children: [] });
+    }
+    for (const c of categories) {
+      const node = byId.get(c.id)!;
+      if (c.parentId && byId.has(c.parentId)) {
+        byId.get(c.parentId)!.children.push(node);
+      } else {
+        roots.push(node);
+      }
+    }
+
+    await this.cacheManager.set(cacheKey, roots, CATEGORIES_CACHE_TTL_MS);
+    return roots;
+  }
+
+  async findFeatured(limit = 12) {
+    return this.prisma.category.findMany({
+      where: { isActive: true, isVisible: true, isFeatured: true },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      take: limit,
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        icon: true,
+        imageUrl: true,
+        description: true,
+      },
+    });
+  }
+
+  async reorder(items: Array<{ id: string; sortOrder: number }>) {
+    await this.prisma.$transaction(
+      items.map((i) =>
+        this.prisma.category.update({
+          where: { id: i.id },
+          data: { sortOrder: i.sortOrder },
+        }),
+      ),
+    );
+    await this.invalidateCache();
+    return { message: 'Categories reordered.' };
+  }
+
+  private async invalidateCache() {
+    await Promise.all([
+      this.cacheManager.del(CATEGORIES_CACHE_KEY),
+      this.cacheManager.del(`${CATEGORIES_CACHE_KEY}:visible`),
+      this.cacheManager.del('categories:tree:all'),
+      this.cacheManager.del('categories:tree:visible'),
+    ]);
   }
 
   private async ensureParentExists(parentId?: string) {

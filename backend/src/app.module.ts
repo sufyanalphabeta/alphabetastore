@@ -7,6 +7,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { randomUUID } from 'crypto';
 
 import { AuthModule } from './auth/auth.module';
+import { BrandsModule } from './brands/brands.module';
 import { CartModule } from './cart/cart.module';
 import { CategoriesModule } from './categories/categories.module';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
@@ -14,6 +15,7 @@ import { MailerModule } from './common/mailer/mailer.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { validationSchema } from './config/env.validation';
 import { HealthModule } from './health/health.module';
+import { HomepageModule } from './homepage/homepage.module';
 import { OrdersModule } from './orders/orders.module';
 import { PaymentsModule } from './payments/payments.module';
 import { PricingModule } from './pricing/pricing.module';
@@ -104,7 +106,9 @@ import { WishlistModule } from './wishlist/wishlist.module';
     AuthModule,
     DashboardModule,
     CategoriesModule,
+    BrandsModule,
     ProductsModule,
+    HomepageModule,
     ServicesModule,
     CartModule,
     OrdersModule,

@@ -31,7 +31,13 @@ export default function ColumnList({
             {list.map((item, ind) => <Grid size={{
             md: 3
           }} key={ind}>
-                <div className="title-link">{item.title}</div>
+                {item.href ? (
+                  <Link href={item.href} className="title-link" style={{ textDecoration: "none" }}>
+                    {item.title}
+                  </Link>
+                ) : (
+                  <div className="title-link">{item.title}</div>
+                )}
 
                 {item.children?.map((sub, ind) => <NavLink className="child-link" href={sub.href} key={ind}>
                     {sub.title}

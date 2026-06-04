@@ -37,6 +37,20 @@ export class FindProductsQueryDto {
   brand?: string;
 
   @IsOptional()
+  @IsString()
+  @MinLength(1)
+  brandSlug?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  brandId?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === '1' || value === true)
+  featured?: boolean;
+
+  @IsOptional()
   @Transform(({ value }) => Number(value))
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)

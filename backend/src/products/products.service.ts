@@ -28,6 +28,14 @@ const productInclude = {
       isActive: true,
     },
   },
+  brandRef: {
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      logoUrl: true,
+    },
+  },
   images: {
     orderBy: {
       sortOrder: 'asc',
@@ -65,7 +73,9 @@ const productListSelect = {
   stockQty: true,
   status: true,
   brand: true,
+  brandId: true,
   sku: true,
+  isFeatured: true,
   createdAt: true,
   category: {
     select: {
@@ -73,6 +83,14 @@ const productListSelect = {
       name: true,
       slug: true,
       isActive: true,
+    },
+  },
+  brandRef: {
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      logoUrl: true,
     },
   },
   images: {
@@ -135,6 +153,18 @@ export class ProductsService {
           mode: 'insensitive',
         },
       });
+    }
+
+    if (query.brandId) {
+      whereClauses.push({ brandId: query.brandId });
+    }
+
+    if (query.brandSlug) {
+      whereClauses.push({ brandRef: { slug: query.brandSlug } });
+    }
+
+    if (query.featured) {
+      whereClauses.push({ isFeatured: true });
     }
 
     if (query.minPrice !== undefined || query.maxPrice !== undefined) {
@@ -362,8 +392,11 @@ export class ProductsService {
           stockQty: createProductDto.stockQty,
           status: createProductDto.status ?? ProductStatus.ACTIVE,
           brand: createProductDto.brand,
+          brandId: createProductDto.brandId,
           sku: createProductDto.sku,
           specs: createProductDto.specs as any,
+          highlights: createProductDto.highlights as any,
+          isFeatured: createProductDto.isFeatured ?? false,
           images: createProductDto.imageUrls?.length
             ? {
                 create: createProductDto.imageUrls.map((imageUrl, index) => ({
@@ -415,8 +448,11 @@ export class ProductsService {
           stockQty: updateProductDto.stockQty,
           status: updateProductDto.status,
           brand: updateProductDto.brand,
+          brandId: updateProductDto.brandId,
           sku: updateProductDto.sku,
           specs: updateProductDto.specs as any,
+          highlights: updateProductDto.highlights as any,
+          isFeatured: updateProductDto.isFeatured,
           images: updateProductDto.imageUrls
             ? {
                 deleteMany: {},
@@ -656,5 +692,126 @@ export class ProductsService {
     }
 
     return { createdAt: 'desc' };
+  }
+
+  /** Same-category and same-brand products, excluding the source product. */
+  async findRelated(productId: string, limit = 8) {
+    const source = await this.prisma.product.findUnique({
+      where: { id: productId },
+      select: { id: true, categoryId: true, brandId: true },
+    });
+    if (!source) {
+      throw new NotFoundException('Product not found.');
+    }
+
+    const same = await this.prisma.product.findMany({
+      where: {
+        id: { not: source.id },
+        status: ProductStatus.ACTIVE,
+        OR: [
+          { categoryId: source.categoryId },
+          source.brandId ? { brandId: source.brandId } : undefined,
+        ].filter(Boolean) as Prisma.ProductWhereInput[],
+      },
+      select: productListSelect,
+      orderBy: [{ salesCount: 'desc' }, { createdAt: 'desc' }],
+      take: limit,
+    });
+
+    return same;
+  }
+
+  async findFeatured(limit = 12) {
+    return this.prisma.product.findMany({
+      where: { status: ProductStatus.ACTIVE, isFeatured: true },
+      select: productListSelect,
+      orderBy: [{ salesCount: 'desc' }, { createdAt: 'desc' }],
+      take: limit,
+    });
+  }
+
+  async findBestSellers(limit = 12) {
+    return this.prisma.product.findMany({
+      where: { status: ProductStatus.ACTIVE },
+      select: productListSelect,
+      orderBy: [{ salesCount: 'desc' }, { viewCount: 'desc' }],
+      take: limit,
+    });
+  }
+
+  async findNewArrivals(limit = 12) {
+    return this.prisma.product.findMany({
+      where: { status: ProductStatus.ACTIVE },
+      select: productListSelect,
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+  }
+
+  /**
+   * Idempotently bumps the product's viewCount and (when identifiable)
+   * records a "recently viewed" entry per user/session.
+   */
+  async recordView(
+    productId: string,
+    actor: { userId?: string | null; sessionId?: string | null },
+  ): Promise<void> {
+    const exists = await this.prisma.product.findUnique({
+      where: { id: productId },
+      select: { id: true },
+    });
+    if (!exists) return;
+
+    await this.prisma.product.update({
+      where: { id: productId },
+      data: { viewCount: { increment: 1 } },
+    });
+
+    if (actor.userId) {
+      await this.prisma.recentlyViewedItem.upsert({
+        where: { userId_productId: { userId: actor.userId, productId } },
+        create: { userId: actor.userId, productId },
+        update: { viewedAt: new Date() },
+      });
+    } else if (actor.sessionId) {
+      await this.prisma.recentlyViewedItem.upsert({
+        where: { sessionId_productId: { sessionId: actor.sessionId, productId } },
+        create: { sessionId: actor.sessionId, productId },
+        update: { viewedAt: new Date() },
+      });
+    }
+  }
+
+  async getRecentlyViewed(
+    actor: { userId?: string | null; sessionId?: string | null },
+    limit = 12,
+  ) {
+    const where = actor.userId
+      ? { userId: actor.userId }
+      : actor.sessionId
+      ? { sessionId: actor.sessionId, userId: null }
+      : null;
+    if (!where) return [];
+
+    const rows = await this.prisma.recentlyViewedItem.findMany({
+      where,
+      orderBy: { viewedAt: 'desc' },
+      take: limit,
+      include: { product: { select: productListSelect } },
+    });
+    return rows
+      .map((r: { product: unknown }) => r.product)
+      .filter((p) => Boolean(p));
+  }
+
+  async findByIds(ids: string[]) {
+    if (!ids.length) return [];
+    const rows = await this.prisma.product.findMany({
+      where: { id: { in: ids } },
+      select: productListSelect,
+    });
+    // Preserve caller's order
+    const byId = new Map(rows.map((r: { id: string }) => [r.id, r]));
+    return ids.map((id) => byId.get(id)).filter(Boolean);
   }
 }

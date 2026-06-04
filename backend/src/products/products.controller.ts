@@ -63,6 +63,65 @@ export class ProductsController {
     return this.productsService.findAll(query);
   }
 
+  @Get('featured')
+  findFeatured(@Query('limit') limit?: string) {
+    return this.productsService.findFeatured(limit ? Number(limit) : undefined);
+  }
+
+  @Get('best-sellers')
+  findBestSellers(@Query('limit') limit?: string) {
+    return this.productsService.findBestSellers(limit ? Number(limit) : undefined);
+  }
+
+  @Get('new-arrivals')
+  findNewArrivals(@Query('limit') limit?: string) {
+    return this.productsService.findNewArrivals(limit ? Number(limit) : undefined);
+  }
+
+  @Get('recently-viewed')
+  findRecentlyViewed(
+    @Request() req: { user?: { userId?: string }; headers: Record<string, string | undefined> },
+    @Query('sessionId') sessionId?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.productsService.getRecentlyViewed(
+      {
+        userId: req.user?.userId ?? null,
+        sessionId: sessionId ?? req.headers['x-session-id'] ?? null,
+      },
+      limit ? Number(limit) : undefined,
+    );
+  }
+
+  @Get('by-ids')
+  findByIds(@Query('ids') ids?: string) {
+    const list = (ids ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+    return this.productsService.findByIds(list);
+  }
+
+  @Get(':slugOrId/related')
+  async findRelated(
+    @Param('slugOrId') slugOrId: string,
+    @Query('limit') limit?: string,
+  ) {
+    const product = (await this.productsService.findOneBySlug(slugOrId)) as { id: string };
+    return this.productsService.findRelated(product.id, limit ? Number(limit) : undefined);
+  }
+
+  @Post(':id/view')
+  recordView(
+    @Param('id') id: string,
+    @Request() req: { user?: { userId?: string }; headers: Record<string, string | undefined> },
+    @Body() body: { sessionId?: string } = {},
+  ) {
+    return this.productsService
+      .recordView(id, {
+        userId: req.user?.userId ?? null,
+        sessionId: body.sessionId ?? req.headers['x-session-id'] ?? null,
+      })
+      .then(() => ({ ok: true }));
+  }
+
   @Get(':slugOrId')
   findOne(@Param('slugOrId') slugOrId: string) {
     return this.productsService.findOneBySlug(slugOrId);

@@ -30,6 +30,24 @@ export const navigation = [{
     path: "/admin/categories/create"
   }]
 }, {
+  name: "Brands",
+  icon: duotone.Accounts,
+  children: [{
+    name: "Brand List",
+    path: "/admin/brands"
+  }, {
+    name: "Create Brand",
+    path: "/admin/brands/create"
+  }]
+}, {
+  name: "Homepage",
+  icon: duotone.Dashboard,
+  path: "/admin/homepage"
+}, {
+  name: "Catalog Verification",
+  icon: duotone.Dashboard,
+  path: "/admin/catalog-verification"
+}, {
   name: "Orders",
   icon: duotone.Order,
   path: "/admin/orders"

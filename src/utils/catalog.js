@@ -157,6 +157,44 @@ export async function fetchCategories(onlyVisible = false) {
   });
 }
 
+export async function fetchCategoriesTree(onlyVisible = true) {
+  const url = onlyVisible ? "/categories/tree?visible=true" : "/categories/tree";
+  return fetchCatalog(url, "Failed to load category tree", [], {
+    cacheMode: "force-cache",
+    revalidate: 120
+  });
+}
+
+export async function fetchFeaturedCategories(limit = 8) {
+  return fetchCatalog(`/categories/featured?limit=${limit}`, "Failed to load featured categories", [], {
+    cacheMode: "force-cache",
+    revalidate: 120
+  });
+}
+
+export async function fetchBrandsPublic({ onlyVisible = true, onlyFeatured = false } = {}) {
+  const params = new URLSearchParams();
+  if (onlyVisible) params.set("visible", "true");
+  if (onlyFeatured) params.set("featured", "true");
+  const qs = params.toString();
+  return fetchCatalog(`/brands${qs ? `?${qs}` : ""}`, "Failed to load brands", [], {
+    cacheMode: "force-cache",
+    revalidate: 120
+  });
+}
+
+export async function fetchBrandBySlugPublic(slug) {
+  return fetchCatalog(`/brands/slug/${encodeURIComponent(slug)}`, "Failed to load brand", null, {
+    cacheMode: "no-store"
+  });
+}
+
+export async function fetchHomepageLayout() {
+  return fetchCatalog("/homepage/layout", "Failed to load homepage", [], {
+    cacheMode: "no-store"
+  });
+}
+
 export async function fetchProducts(filters = {}) {
   const response = await fetchCatalog(`/products${buildCatalogQueryString(filters)}`, "Failed to load products", [], {
     cacheMode: filters.noStore ? "no-store" : "force-cache",
@@ -226,6 +264,11 @@ export function mapCatalogProduct(product) {
 }
 
 export function buildCategoryMenus(categories) {
+  // Accept either flat list or tree (nodes with `children`).
+  const looksLikeTree = Array.isArray(categories) && categories.some(c => Array.isArray(c?.children));
+  if (looksLikeTree) {
+    return buildCategoryMenusFromTree(categories);
+  }
   const normalized = normalizeCategories(categories);
   const topLevel = sortByName(normalized.filter(item => !item.parentId));
 
@@ -238,16 +281,73 @@ export function buildCategoryMenus(categories) {
     return {
       title: parent.name,
       href: children[0]?.href || createCategoryHref(parent.slug),
+      icon: parent.icon || undefined,
       component: children.length ? "Grid" : undefined,
       children: children.length ? [{
         title: parent.name,
+        href: createCategoryHref(parent.slug),
         children
       }] : undefined
     };
   });
 }
 
+export function buildCategoryMenusFromTree(tree) {
+  const visibleNodes = (Array.isArray(tree) ? tree : []).filter(n => n?.isActive !== false && n?.isVisible !== false);
+  return [...visibleNodes]
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name))
+    .map(parent => {
+      const childGroups = (parent.children || [])
+        .filter(c => c?.isActive !== false && c?.isVisible !== false)
+        .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name))
+        .map(child => {
+          const grandchildren = (child.children || [])
+            .filter(g => g?.isActive !== false && g?.isVisible !== false)
+            .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name))
+            .map(g => ({ title: g.name, href: createCategoryHref(g.slug) }));
+          return {
+            title: child.name,
+            href: createCategoryHref(child.slug),
+            children: grandchildren
+          };
+        });
+      return {
+        title: parent.name,
+        href: createCategoryHref(parent.slug),
+        icon: parent.icon || undefined,
+        component: childGroups.length ? "Grid" : undefined,
+        children: childGroups.length ? childGroups : undefined
+      };
+    });
+}
+
+export function buildMobileCategoryMenusFromTree(tree) {
+  const visibleNodes = (Array.isArray(tree) ? tree : []).filter(n => n?.isActive !== false && n?.isVisible !== false);
+  return [...visibleNodes]
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name))
+    .map(parent => ({
+      icon: parent.icon || "CategoryOutline",
+      title: parent.name,
+      href: createCategoryHref(parent.slug),
+      children: (parent.children || [])
+        .filter(c => c?.isActive !== false && c?.isVisible !== false)
+        .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+        .map(child => ({
+          title: child.name,
+          href: createCategoryHref(child.slug),
+          children: (child.children || [])
+            .filter(g => g?.isActive !== false && g?.isVisible !== false)
+            .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+            .map(g => ({ title: g.name, href: createCategoryHref(g.slug) }))
+        }))
+    }));
+}
+
 export function buildMobileCategoryMenus(categories) {
+  const looksLikeTree = Array.isArray(categories) && categories.some(c => Array.isArray(c?.children));
+  if (looksLikeTree) {
+    return buildMobileCategoryMenusFromTree(categories);
+  }
   const normalized = normalizeCategories(categories);
   const topLevel = sortByName(normalized.filter(item => !item.parentId));
 

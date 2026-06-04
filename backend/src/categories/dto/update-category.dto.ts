@@ -24,6 +24,10 @@ export class UpdateCategoryDto {
   isVisible?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  isFeatured?: boolean;
+
+  @IsOptional()
   @IsInt()
   @Min(0)
   sortOrder?: number;
@@ -32,4 +36,14 @@ export class UpdateCategoryDto {
   @IsString()
   @MaxLength(120)
   icon?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  imageUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  description?: string;
 }

@@ -81,6 +81,24 @@ enum DiscountType {
   FIXED
 }
 
+enum HomepageBlockType {
+  FEATURED_CATEGORIES
+  NEW_ARRIVALS
+  BEST_SELLERS
+  PROMOTIONS
+  RECENTLY_ADDED
+  FEATURED_BRANDS
+  HERO_BANNER
+  CUSTOM_PRODUCTS
+}
+
+enum NotificationType {
+  ORDER_UPDATE
+  PAYMENT_UPDATE
+  TICKET_UPDATE
+  SYSTEM
+}
+
 model User {
   id                     String                  @id @default(uuid()) @db.Uuid
   name                   String                  @db.VarChar(120)
@@ -167,8 +185,11 @@ model Category {
   parentId   String?     @map("parent_id") @db.Uuid
   isActive   Boolean     @default(true) @map("is_active")
   isVisible  Boolean     @default(true) @map("is_visible")
+  isFeatured Boolean     @default(false) @map("is_featured")
   sortOrder  Int         @default(0) @map("sort_order")
   icon       String?     @db.VarChar(120)
+  imageUrl   String?     @map("image_url") @db.VarChar(500)
+  description String?    @db.Text
   createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
   parent     Category?   @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
   children   Category[]  @relation("CategoryTree")
@@ -177,8 +198,28 @@ model Category {
   @@index([parentId])
   @@index([isActive])
   @@index([isVisible])
+  @@index([isFeatured])
   @@index([sortOrder])
   @@map("categories")
+}
+
+model Brand {
+  id          String    @id @default(uuid()) @db.Uuid
+  name        String    @db.VarChar(120)
+  slug        String    @unique @db.VarChar(160)
+  logoUrl     String?   @map("logo_url") @db.VarChar(500)
+  description String?   @db.Text
+  isVisible   Boolean   @default(true) @map("is_visible")
+  isFeatured  Boolean   @default(false) @map("is_featured")
+  sortOrder   Int       @default(0) @map("sort_order")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  products    Product[]
+
+  @@index([isVisible])
+  @@index([isFeatured])
+  @@index([sortOrder])
+  @@map("brands")
 }
 
 model Product {
@@ -198,23 +239,97 @@ model Product {
   stockQty         Int            @map("stock_qty")
   status           ProductStatus  @default(ACTIVE)
   brand            String?        @db.VarChar(120)
+  brandId          String?        @map("brand_id") @db.Uuid
   sku              String?        @unique @db.VarChar(120)
   specs            Json?          @db.JsonB
+  highlights       Json?          @db.JsonB
+  isFeatured       Boolean        @default(false) @map("is_featured")
+  viewCount        Int            @default(0) @map("view_count")
+  salesCount       Int            @default(0) @map("sales_count")
   createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   cartItems        CartItem[]
   orderItems       OrderItem[]
   category         Category       @relation(fields: [categoryId], references: [id])
+  brandRef         Brand?         @relation(fields: [brandId], references: [id], onDelete: SetNull)
   images           ProductImage[]
   wishlistItems    WishlistItem[]
   priceHistory     PriceHistory[]
+  recentlyViewed   RecentlyViewedItem[]
 
   @@index([categoryId])
   @@index([status])
   @@index([brand])
+  @@index([brandId])
   @@index([sku])
   @@index([baseCurrency])
   @@index([categoryId, status])
+  @@index([isFeatured])
+  @@index([salesCount])
+  @@index([viewCount])
   @@map("products")
+}
+
+model HomepageBlock {
+  id        String             @id @default(uuid()) @db.Uuid
+  type      HomepageBlockType
+  title     String             @db.VarChar(160)
+  subtitle  String?            @db.VarChar(255)
+  config    Json?              @db.JsonB
+  isActive  Boolean            @default(true) @map("is_active")
+  sortOrder Int                @default(0) @map("sort_order")
+  createdAt DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([isActive])
+  @@index([sortOrder])
+  @@index([type])
+  @@map("homepage_blocks")
+}
+
+model RecentlyViewedItem {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid
+  sessionId String?  @map("session_id") @db.VarChar(191)
+  productId String   @map("product_id") @db.Uuid
+  viewedAt  DateTime @default(now()) @map("viewed_at") @db.Timestamptz(6)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@unique([sessionId, productId])
+  @@index([userId, viewedAt])
+  @@index([sessionId, viewedAt])
+  @@map("recently_viewed_items")
+}
+
+model Notification {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @map("user_id") @db.Uuid
+  type      NotificationType
+  title     String           @db.VarChar(255)
+  body      String?          @db.Text
+  link      String?          @db.VarChar(500)
+  metadata  Json?            @db.JsonB
+  readAt    DateTime?        @map("read_at") @db.Timestamptz(6)
+  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+model Theme {
+  id          String   @id @default(uuid()) @db.Uuid
+  key         String   @unique @db.VarChar(60)
+  name        String   @db.VarChar(120)
+  description String?  @db.Text
+  isActive    Boolean  @default(false) @map("is_active")
+  config      Json     @db.JsonB
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([isActive])
+  @@map("themes")
 }
 
 model ProductImage {

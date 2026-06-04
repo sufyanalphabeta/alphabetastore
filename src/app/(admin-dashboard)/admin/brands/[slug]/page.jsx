@@ -1,13 +1,14 @@
-import { EditBrandPageView } from "pages-sections/vendor-dashboard/brands/page-view";
+import { BrandFormView } from "pages-sections/vendor-dashboard/brands/page-view";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export const metadata = {
   title: "Edit Brand - Alphabeta Store",
-  description: `Alphabeta Store for the Libya market.`,
-  authors: [{
-    name: "Alphabeta Store",
-    url: "https://alphabeta.com"
-  }],
-  keywords: ["e-commerce", "e-commerce template", "next.js", "react"]
+  description: "Edit brand details."
 };
-export default function BrandEdit() {
-  return <EditBrandPageView />;
+
+export default async function EditBrand({ params }) {
+  const resolvedParams = await params;
+  return <BrandFormView slug={resolvedParams.slug} />;
 }

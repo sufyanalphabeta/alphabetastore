@@ -7,7 +7,7 @@ import { styled } from "@mui/material/styles";
 import MegaMenu1 from "./components/mega-menu/mega-menu-1";
 import MegaMenu2 from "./components/mega-menu/mega-menu-2";
 import CategoryListItem from "./components/category-list-item";
-import { buildCategoryMenus, fetchCategories } from "utils/catalog";
+import { buildCategoryMenusFromTree, fetchCategoriesTree } from "utils/catalog";
 
 // CUSTOM DATA MODEL
 
@@ -51,11 +51,11 @@ export function CategoryList({
       try {
         setLoading(true);
         setError("");
-        const response = await fetchCategories();
+        const tree = await fetchCategoriesTree(true);
 
         if (!active) return;
 
-        setCategories(buildCategoryMenus(response));
+        setCategories(buildCategoryMenusFromTree(tree));
       } catch (loadError) {
         if (!active) return;
 

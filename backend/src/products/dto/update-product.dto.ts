@@ -1,6 +1,7 @@
 import {
   ArrayUnique,
   IsArray,
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsInt,
@@ -87,6 +88,10 @@ export class UpdateProductDto {
   brand?: string;
 
   @IsOptional()
+  @IsUUID()
+  brandId?: string;
+
+  @IsOptional()
   @IsString()
   @MaxLength(120)
   sku?: string;
@@ -94,6 +99,16 @@ export class UpdateProductDto {
   @IsOptional()
   @IsObject()
   specs?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @ArrayUnique()
+  highlights?: string[];
+
+  @IsOptional()
+  @IsBoolean()
+  isFeatured?: boolean;
 
   @IsOptional()
   @IsArray()

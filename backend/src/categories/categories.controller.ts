@@ -28,11 +28,31 @@ export class CategoriesController {
     return this.categoriesService.findAll(onlyVisible);
   }
 
+  @Get('tree')
+  findTree(@Query('visible') visible?: string) {
+    return this.categoriesService.findTree({
+      onlyVisible: visible === 'true' || visible === '1',
+    });
+  }
+
+  @Get('featured')
+  findFeatured(@Query('limit') limit?: string) {
+    const n = Number(limit);
+    return this.categoriesService.findFeatured(Number.isFinite(n) && n > 0 ? n : 12);
+  }
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
   @Post()
   create(@Body() createCategoryDto: CreateCategoryDto) {
     return this.categoriesService.create(createCategoryDto);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @Patch('reorder')
+  reorder(@Body() body: { items: Array<{ id: string; sortOrder: number }> }) {
+    return this.categoriesService.reorder(body?.items ?? []);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
