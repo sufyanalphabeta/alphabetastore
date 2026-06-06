@@ -14,6 +14,7 @@ import ThemeProvider from "theme/theme-provider";
 // PRODUCT CART PROVIDER
 import CartProvider from "contexts/CartContext";
 import { AuthProvider } from "contexts/AuthContext";
+import { CompareProvider } from "contexts/CompareContext";
 
 
 // SITE SETTINGS PROVIDER
@@ -26,6 +27,7 @@ import ReactQueryProvider from "contexts/ReactQueryProvider";
 // GLOBAL CUSTOM COMPONENTS
 import RTL from "components/rtl";
 import ProgressBar from "components/progress";
+import CompareBar from "components/compare/CompareBar";
 
 
 // IMPORT i18n SUPPORT FILE
@@ -52,6 +54,7 @@ export default function RootLayout({
         <ReactQueryProvider>
           <AuthProvider>
             <CartProvider>
+              <CompareProvider>
               <SettingsProvider>
                 <ThemeProvider>
                   <RTL>
@@ -59,9 +62,11 @@ export default function RootLayout({
                     {children}
                   </RTL>
 
+                  <CompareBar />
                   <ProgressBar />
                 </ThemeProvider>
               </SettingsProvider>
+              </CompareProvider>
             </CartProvider>
           </AuthProvider>
         </ReactQueryProvider>

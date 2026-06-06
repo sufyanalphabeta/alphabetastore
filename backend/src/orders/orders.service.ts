@@ -103,6 +103,7 @@ const cartForOrderInclude = {
     include: {
       product: {
         select: {
+          id: true,
           name: true,
           stockQty: true,
           baseCurrency: true,
@@ -111,6 +112,14 @@ const cartForOrderInclude = {
           discountValue: true,
           discountStartAt: true,
           discountEndAt: true,
+        },
+      },
+      variant: {
+        select: {
+          id: true,
+          name: true,
+          attributes: true,
+          stockQty: true,
         },
       },
     },
@@ -145,10 +154,24 @@ export class OrdersService {
       throw new BadRequestException('Cart is empty.');
     }
 
+    // Idempotency: if a key was provided, return any existing order with that key.
+    if (createOrderDto.idempotencyKey) {
+      const existing = await this.prisma.order.findUnique({
+        where: { idempotencyKey: createOrderDto.idempotencyKey },
+        include: orderInclude,
+      });
+      if (existing) {
+        return this.serializeOrder(existing);
+      }
+    }
+
+    // Pre-check stock outside the transaction (fast path — can be stale under load,
+    // but the authoritative check is inside the transaction below).
     for (const item of cart.items) {
-      if (item.product.stockQty < item.quantity) {
+      const effectiveStock = item.variant ? item.variant.stockQty : item.product.stockQty;
+      if (effectiveStock < item.quantity) {
         throw new BadRequestException(
-          `"${item.product.name}" has insufficient stock (available: ${item.product.stockQty}).`,
+          `"${item.product.name}" has insufficient stock (available: ${effectiveStock}).`,
         );
       }
     }
@@ -174,13 +197,50 @@ export class OrdersService {
     // Lock exchange rate at time of order
     const pricingSettings = await this.pricingService.getPricingSettings();
 
-    const [order] = await this.prisma.$transaction([
-      this.prisma.order.create({
+    // Use an interactive transaction so we can atomically decrement stock
+    // with an UPDATE ... WHERE stock_qty >= qty check that prevents overselling.
+    const order = await this.prisma.$transaction(async (tx) => {
+      // Atomically decrement stock for each line item.
+      // If stockQty < quantity, updateMany returns count=0 → throw immediately.
+      for (const item of cart.items) {
+        if (item.variantId && item.variant) {
+          // Decrement variant stock
+          const variantResult = await tx.productVariant.updateMany({
+            where: {
+              id: item.variantId,
+              stockQty: { gte: item.quantity },
+            },
+            data: { stockQty: { decrement: item.quantity } },
+          });
+          if (variantResult.count === 0) {
+            throw new BadRequestException(
+              `Selected variant of "${item.product.name}" is out of stock.`,
+            );
+          }
+        } else {
+          // Decrement product stock
+          const productResult = await tx.product.updateMany({
+            where: {
+              id: item.productId,
+              stockQty: { gte: item.quantity },
+            },
+            data: { stockQty: { decrement: item.quantity } },
+          });
+          if (productResult.count === 0) {
+            throw new BadRequestException(
+              `"${item.product.name}" is out of stock or has insufficient stock.`,
+            );
+          }
+        }
+      }
+
+      const newOrder = await tx.order.create({
         data: {
           userId: identity.userId,
           sessionId: identity.userId ? null : this.requireSessionId(identity),
           addressId: savedAddress?.id ?? null,
           orderNumber,
+          idempotencyKey: createOrderDto.idempotencyKey ?? null,
           fullName: createOrderDto.fullName,
           phone: createOrderDto.phone,
           city: createOrderDto.city,
@@ -192,6 +252,13 @@ export class OrdersService {
           items: {
             create: cart.items.map((item: CartForOrder['items'][number]) => ({
               productId: item.productId,
+              variantId: item.variantId ?? null,
+              variantName: item.variantName ?? item.variant?.name ?? null,
+              variantAttributes: item.variantAttributes
+                ? (item.variantAttributes as Prisma.InputJsonValue)
+                : (item.variant?.attributes
+                    ? (item.variant.attributes as Prisma.InputJsonValue)
+                    : undefined),
               productName: item.product.name,
               quantity: item.quantity,
               unitPrice: item.unitPrice,
@@ -209,27 +276,13 @@ export class OrdersService {
           },
         },
         include: orderInclude,
-      }),
-      ...cart.items.map((item: CartForOrder['items'][number]) =>
-        this.prisma.product.update({
-          where: { id: item.productId },
-          data: {
-            stockQty: { decrement: item.quantity },
-          },
-        }),
-      ),
-      this.prisma.cartItem.deleteMany({
-        where: {
-          cartId: cart.id,
-        },
-      }),
-      this.prisma.cart.update({
-        where: { id: cart.id },
-        data: {
-          updatedAt: new Date(),
-        },
-      }),
-    ]);
+      });
+
+      await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
+      await tx.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } });
+
+      return newOrder;
+    });
 
     void this.notificationService.notifyOrderPlaced({
       orderId: order.id,
@@ -528,6 +581,9 @@ export class OrdersService {
       items: order.items.map((item: OrderWithRelations['items'][number]) => ({
         id: item.id,
         productId: item.productId,
+        variantId: item.variantId ?? null,
+        variantName: item.variantName ?? null,
+        variantAttributes: item.variantAttributes ?? null,
         productName: item.productName,
         quantity: item.quantity,
         unitPrice: Number(item.unitPrice),

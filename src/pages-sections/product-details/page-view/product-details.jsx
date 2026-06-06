@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Box from "@mui/material/Box";
-import Grid from "@mui/material/Grid";
 import Container from "@mui/material/Container";
+import Divider from "@mui/material/Divider";
+import Grid from "@mui/material/Grid";
 import Skeleton from "@mui/material/Skeleton";
 import Typography from "@mui/material/Typography";
 
@@ -11,39 +12,78 @@ import Typography from "@mui/material/Typography";
 import ProductTabs from "../product-tabs";
 import ProductIntro from "../product-intro";
 import RelatedProducts from "../related-products";
+import RecentlyViewed from "../recently-viewed";
 import ProductDescription from "../product-description";
-import { fetchProductBySlug, fetchProducts } from "utils/catalog";
+import ProductReviews from "../reviews/ProductReviews";
+import ProductQnA from "../qna/ProductQnA";
+import FrequentlyBoughtTogether from "../FrequentlyBoughtTogether";
+import ProductAccessories from "../ProductAccessories";
+import ProductBundles from "../ProductBundles";
+import {
+  fetchProductBySlug,
+  fetchRelatedProducts,
+  fetchRecentlyViewed,
+  recordProductView,
+  fetchActiveBundles,
+} from "utils/catalog";
 
-// ==============================================================
+// Session ID helper (stored in sessionStorage so it persists across PDP visits)
+function getSessionId() {
+  if (typeof window === "undefined") return null;
+  try {
+    let id = sessionStorage.getItem("ab_sid");
+    if (!id) {
+      id = crypto.randomUUID ? crypto.randomUUID() : `sid-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      sessionStorage.setItem("ab_sid", id);
+    }
+    return id;
+  } catch { return null; }
+}
+
 // ==============================================================
 
 export default function ProductDetailsPageView({ slug }) {
   const [product, setProduct] = useState(null);
-  const [relatedProducts, setRelatedProducts] = useState([]);
+  const [related, setRelated] = useState([]);
+  const [recentlyViewed, setRecentlyViewed] = useState([]);
+  const [bundles, setBundles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const viewRecorded = useRef(false);
 
   useEffect(() => {
     let active = true;
+    viewRecorded.current = false;
 
     const loadProduct = async () => {
       try {
         setLoading(true);
         setError("");
         const response = await fetchProductBySlug(slug);
-
         if (!active) return;
 
         setProduct(response);
 
-        // Load related products from the same category (exclude this product)
-        if (response?.categories?.length > 0) {
-          fetchProducts({ category: response.categories[0], limit: 4 })
-            .then(all => {
-              if (!active) return;
-              setRelatedProducts(all.filter(p => p.id !== response.id).slice(0, 4));
-            })
-            .catch(() => {});
+        // Record this view (fire-and-forget)
+        if (!viewRecorded.current && response?.id) {
+          viewRecorded.current = true;
+          const sid = getSessionId();
+          recordProductView(response.id, sid);
+
+          // Parallel: related + recently viewed + bundles
+          Promise.all([
+            fetchRelatedProducts(response.slug || response.id, 8),
+            fetchRecentlyViewed(sid, 8),
+            fetchActiveBundles(),
+          ]).then(([rel, rv, bndl]) => {
+            if (!active) return;
+            setRelated(rel.filter(p => p.id !== response.id));
+            setRecentlyViewed(rv.filter(p => p.id !== response.id));
+            // Filter bundles to only those containing this product
+            setBundles((bndl || []).filter(b =>
+              b.items?.some(item => item.productId === response.id || item.product?.id === response.id)
+            ));
+          }).catch(() => {});
         }
       } catch {
         if (!active) return;
@@ -62,7 +102,6 @@ export default function ProductDetailsPageView({ slug }) {
     return (
       <Container className="mt-2 mb-2">
         <Grid container spacing={3}>
-          {/* Left: image skeleton */}
           <Grid size={{ md: 6, xs: 12 }}>
             <Skeleton variant="rounded" height={400} animation="wave" />
             <Box display="flex" gap={1} mt={1.5}>
@@ -71,7 +110,6 @@ export default function ProductDetailsPageView({ slug }) {
               ))}
             </Box>
           </Grid>
-          {/* Right: info skeleton */}
           <Grid size={{ md: 6, xs: 12 }}>
             <Skeleton variant="text" width="80%" height={40} animation="wave" />
             <Skeleton variant="text" width="40%" height={28} animation="wave" sx={{ mt: 1 }} />
@@ -86,7 +124,7 @@ export default function ProductDetailsPageView({ slug }) {
   if (error || !product) {
     return (
       <Container className="mt-2 mb-2">
-        <Typography color="text.secondary">تعذر تحميل المنتج.</Typography>
+        <Typography color="text.secondary">Failed to load product.</Typography>
       </Container>
     );
   }
@@ -96,18 +134,46 @@ export default function ProductDetailsPageView({ slug }) {
       {/* PRODUCT DETAILS INFO AREA */}
       <ProductIntro product={product} />
 
-      {/* PRODUCT DESCRIPTION AND REVIEW */}
+      {/* DESCRIPTION / SPECS / REVIEWS / Q&A TABS */}
       <ProductTabs
-        reviewCount={0}
+        reviewCount={product.ratingCount ?? 0}
         description={<ProductDescription description={product.description} />}
-        reviews={<Typography color="text.secondary">No reviews available.</Typography>}
+        reviews={<ProductReviews productId={product.id} />}
+        qna={<ProductQnA productId={product.id} />}
         specs={product.specs}
       />
 
+      <Divider sx={{ my: 6 }} />
+
+      {/* FREQUENTLY BOUGHT TOGETHER */}
+      {product.relations?.FREQUENTLY_BOUGHT_TOGETHER?.length > 0 && (
+        <FrequentlyBoughtTogether
+          mainProduct={product}
+          relatedProducts={product.relations.FREQUENTLY_BOUGHT_TOGETHER}
+        />
+      )}
+
+      {/* ACCESSORIES */}
+      {product.relations?.ACCESSORY?.length > 0 && (
+        <ProductAccessories accessories={product.relations.ACCESSORY} />
+      )}
+
+      {/* BUNDLES */}
+      {bundles.length > 0 && (
+        <ProductBundles bundles={bundles} />
+      )}
+
       {/* RELATED PRODUCTS */}
-      {relatedProducts.length > 0 && (
+      {related.length > 0 && (
         <Box mt={6}>
-          <RelatedProducts products={relatedProducts} />
+          <RelatedProducts products={related} />
+        </Box>
+      )}
+
+      {/* RECENTLY VIEWED */}
+      {recentlyViewed.length > 0 && (
+        <Box mt={4}>
+          <RecentlyViewed products={recentlyViewed} />
         </Box>
       )}
     </Container>

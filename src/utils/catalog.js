@@ -189,6 +189,12 @@ export async function fetchBrandBySlugPublic(slug) {
   });
 }
 
+export async function fetchCategoryBySlug(slug) {
+  return fetchCatalog(`/categories/slug/${encodeURIComponent(slug)}`, "Failed to load category", null, {
+    cacheMode: "no-store"
+  });
+}
+
 export async function fetchHomepageLayout() {
   return fetchCatalog("/homepage/layout", "Failed to load homepage", [], {
     cacheMode: "no-store"
@@ -236,6 +242,20 @@ export async function fetchProductBySlug(slug) {
   return mapCatalogProduct(product);
 }
 
+/**
+ * Returns a Map of categoryId → product count using a single backend query
+ * (no N+1).  Falls back to an empty Map on error.
+ */
+export async function fetchProductCountsByCategory() {
+  try {
+    const rows = await fetchCatalog("/products/counts-by-category", "Failed to load category counts", [], { cacheMode: "no-store" });
+    if (!Array.isArray(rows)) return new Map();
+    return new Map(rows.map(r => [r.categoryId, r.count]));
+  } catch {
+    return new Map();
+  }
+}
+
 export function mapCatalogProduct(product) {
   const imageUrls = Array.isArray(product?.images) ? product.images.map(item => normalizeProductImageUrl(item?.imageUrl)).filter(Boolean) : [];
   const images = imageUrls.length ? imageUrls : [FALLBACK_PRODUCT_IMAGE];
@@ -253,14 +273,308 @@ export function mapCatalogProduct(product) {
     categories,
     price: Number.isFinite(price) ? price : 0,
     discount: 0,
-    rating: 0,
+    rating: Number(product?.ratingAvg ?? 0),
+    ratingCount: Number(product?.ratingCount ?? 0),
     reviews: [],
     brand: product?.brand || null,
+    brandRef: product?.brandRef || null,
     sku: product?.sku || null,
     specs: product?.specs || null,
+    highlights: Array.isArray(product?.highlights) ? product.highlights : null,
     shop: null,
-    categoryName
+    categoryName,
+    categorySlug: product?.category?.slug || null,
+    hasVariants: Boolean(product?.hasVariants),
+    variants: Array.isArray(product?.variants) ? product.variants : [],
+    relations: product?.sourceRelations
+      ? buildRelationsMap(product.sourceRelations)
+      : {},
   };
+}
+
+function buildRelationsMap(sourceRelations) {
+  const map = {};
+  for (const rel of sourceRelations) {
+    if (!map[rel.relationType]) map[rel.relationType] = [];
+    map[rel.relationType].push(rel.target);
+  }
+  return map;
+}
+
+export async function fetchRelatedProducts(slugOrId, limit = 8) {
+  try {
+    const rows = await fetchCatalog(
+      `/products/${encodeURIComponent(slugOrId)}/related?limit=${limit}`,
+      "Failed to load related products",
+      [],
+      { cacheMode: "no-store" }
+    );
+    const items = Array.isArray(rows) ? rows : (Array.isArray(rows?.items) ? rows.items : []);
+    return items.map(mapCatalogProduct);
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchRecentlyViewed(sessionId, limit = 8) {
+  try {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (sessionId) params.set("sessionId", sessionId);
+    const rows = await fetchCatalog(
+      `/products/recently-viewed?${params}`,
+      "Failed to load recently viewed",
+      [],
+      { cacheMode: "no-store" }
+    );
+    const items = Array.isArray(rows) ? rows : (Array.isArray(rows?.items) ? rows.items : []);
+    return items.map(mapCatalogProduct);
+  } catch {
+    return [];
+  }
+}
+
+export async function recordProductView(productId, sessionId) {
+  try {
+    const headers = { "Content-Type": "application/json" };
+    if (sessionId) headers["x-session-id"] = sessionId;
+    await fetch(`${API_BASE_URL}/products/${encodeURIComponent(productId)}/view`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ sessionId: sessionId || undefined }),
+      cache: "no-store"
+    });
+  } catch {
+    // fire-and-forget; never throw
+  }
+}
+
+export async function fetchAutocomplete(q, limit = 5) {
+  if (!q || q.trim().length < 2) return { products: [], brands: [], categories: [] };
+  try {
+    const params = new URLSearchParams({ q: q.trim(), limit: String(limit) });
+    const res = await fetch(`${API_BASE_URL}/products/autocomplete?${params}`, { cache: "no-store" });
+    if (!res.ok) return { products: [], brands: [], categories: [] };
+    return res.json();
+  } catch {
+    return { products: [], brands: [], categories: [] };
+  }
+}
+
+export async function fetchPopularSearches(limit = 8) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/products/popular-searches?limit=${limit}`, { next: { revalidate: 300 } });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function trackSearchTerm(term) {
+  if (!term || term.trim().length < 2) return;
+  try {
+    await fetch(`${API_BASE_URL}/products/track-search`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ term: term.trim().toLowerCase().slice(0, 255) }),
+      cache: "no-store"
+    });
+  } catch {
+    // fire-and-forget
+  }
+}
+
+// ── Reviews ─────────────────────────────────────────────────────────────────
+
+export async function fetchProductReviews(productId, { page = 1, limit = 10, sort = "newest" } = {}) {
+  try {
+    const params = new URLSearchParams({ page: String(page), limit: String(limit), sort });
+    const res = await fetch(`${API_BASE_URL}/products/${encodeURIComponent(productId)}/reviews?${params}`, { cache: "no-store" });
+    if (!res.ok) return { items: [], pagination: { page: 1, limit, total: 0, totalPages: 1 } };
+    return res.json();
+  } catch {
+    return { items: [], pagination: { page: 1, limit, total: 0, totalPages: 1 } };
+  }
+}
+
+export async function fetchRatingSummary(productId) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/products/${encodeURIComponent(productId)}/reviews/summary`, { cache: "no-store" });
+    if (!res.ok) return { average: 0, total: 0, distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } };
+    return res.json();
+  } catch {
+    return { average: 0, total: 0, distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } };
+  }
+}
+
+export async function fetchMyReview(productId, token) {
+  if (!token) return null;
+  try {
+    const res = await fetch(`${API_BASE_URL}/products/${encodeURIComponent(productId)}/reviews/mine`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store"
+    });
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function submitReview(productId, data, token) {
+  const formData = new FormData();
+  formData.append("rating", String(data.rating));
+  if (data.title) formData.append("title", data.title);
+  if (data.comment) formData.append("comment", data.comment);
+  if (data.images?.length) {
+    for (const file of data.images) formData.append("images", file);
+  }
+  const res = await fetch(`${API_BASE_URL}/products/${encodeURIComponent(productId)}/reviews`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+    cache: "no-store"
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.message || "Failed to submit review");
+  }
+  return res.json();
+}
+
+export async function updateReview(reviewId, productId, data, token) {
+  const formData = new FormData();
+  if (data.rating !== undefined) formData.append("rating", String(data.rating));
+  if (data.title !== undefined) formData.append("title", data.title);
+  if (data.comment !== undefined) formData.append("comment", data.comment);
+  if (data.images?.length) {
+    for (const file of data.images) formData.append("images", file);
+  }
+  const res = await fetch(`${API_BASE_URL}/products/${encodeURIComponent(productId)}/reviews/${reviewId}`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+    cache: "no-store"
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.message || "Failed to update review");
+  }
+  return res.json();
+}
+
+export async function deleteReview(reviewId, productId, token) {
+  const res = await fetch(`${API_BASE_URL}/products/${encodeURIComponent(productId)}/reviews/${reviewId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store"
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.message || "Failed to delete review");
+  }
+  return res.json();
+}
+
+// ── Q&A ──────────────────────────────────────────────────────────────────────
+
+export async function fetchProductQnA(productId, { page = 1, limit = 10 } = {}) {
+  try {
+    const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+    const res = await fetch(`${API_BASE_URL}/products/${encodeURIComponent(productId)}/qna?${params}`, { cache: "no-store" });
+    if (!res.ok) return { items: [], pagination: { page: 1, limit, total: 0, totalPages: 1 } };
+    return res.json();
+  } catch {
+    return { items: [], pagination: { page: 1, limit, total: 0, totalPages: 1 } };
+  }
+}
+
+export async function submitQuestion(productId, question, token) {
+  const res = await fetch(`${API_BASE_URL}/products/${encodeURIComponent(productId)}/qna`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ question }),
+    cache: "no-store"
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.message || "Failed to submit question");
+  }
+  return res.json();
+}
+
+export async function deleteQuestion(productId, questionId, token) {
+  const res = await fetch(
+    `${API_BASE_URL}/products/${encodeURIComponent(productId)}/qna/${encodeURIComponent(questionId)}`,
+    {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    }
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.message || "Failed to delete question");
+  }
+}
+
+// ── Phase E: Variants ────────────────────────────────────────────────────────
+
+export async function fetchProductVariants(productId) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/products/${encodeURIComponent(productId)}/variants`, { cache: "no-store" });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+}
+
+// ── Phase E: Bundles ─────────────────────────────────────────────────────────
+
+export async function fetchActiveBundles() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/bundles`, { next: { revalidate: 60 } });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchBundle(slugOrId) {
+  try {
+    // Try slug-based lookup first (for bundle detail pages)
+    const res = await fetch(`${API_BASE_URL}/bundles/by-slug/${encodeURIComponent(slugOrId)}`, { cache: "no-store" });
+    if (res.ok) return res.json();
+    // Fallback to ID-based lookup
+    const res2 = await fetch(`${API_BASE_URL}/bundles/${encodeURIComponent(slugOrId)}`, { cache: "no-store" });
+    if (!res2.ok) return null;
+    return res2.json();
+  } catch {
+    return null;
+  }
+}
+
+// ── Phase E: Product Relations ───────────────────────────────────────────────
+
+export async function fetchProductRelations(productId) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/products/${encodeURIComponent(productId)}/relations`, { cache: "no-store" });
+    if (!res.ok) return {};
+    const data = await res.json();
+    // Normalize: map product images inside each relation
+    const normalized = {};
+    for (const [type, items] of Object.entries(data)) {
+      normalized[type] = Array.isArray(items) ? items.map(mapCatalogProduct) : [];
+    }
+    return normalized;
+  } catch {
+    return {};
+  }
 }
 
 export function buildCategoryMenus(categories) {

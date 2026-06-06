@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
@@ -42,6 +42,8 @@ export default function CheckoutForm() {
     ready
   } = useCart();
   const [submitError, setSubmitError] = useState("");
+  // Stable per-attempt idempotency key — regenerated only after a successful order.
+  const idempotencyKeyRef = useRef(typeof crypto !== "undefined" ? crypto.randomUUID() : null);
   const [addresses, setAddresses] = useState([]);
   const [addressesLoading, setAddressesLoading] = useState(false);
   const [paymentMethods, setPaymentMethods] = useState([]);
@@ -208,12 +210,15 @@ export default function CheckoutForm() {
         phone: formatLibyaPhone(values.phone),
         city: values.city.trim(),
         address: values.address.trim(),
-        notes: values.notes?.trim() || undefined
+        notes: values.notes?.trim() || undefined,
+        ...(idempotencyKeyRef.current ? { idempotencyKey: idempotencyKeyRef.current } : {})
       });
 
       const payment = await createOrderPayment(order.id, selectedPaymentCode);
 
       await refreshCart();
+      // Rotate the key so a subsequent order (e.g. after cart refill) gets a fresh key.
+      idempotencyKeyRef.current = typeof crypto !== "undefined" ? crypto.randomUUID() : null;
 
       const nextParams = new URLSearchParams({
         orderId: order.id,

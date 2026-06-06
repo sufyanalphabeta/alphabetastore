@@ -55,6 +55,7 @@ function SpecsTable({ specs }) {
 export default function ProductTabs({
   reviews,
   description,
+  qna,
   reviewCount = 0,
   specs = null
 }) {
@@ -63,17 +64,26 @@ export default function ProductTabs({
 
   const hasSpecs = specs && typeof specs === "object" && Object.keys(specs).length > 0;
 
+  // Build tabs dynamically
+  const tabs = ["Description"];
+  if (hasSpecs) tabs.push("Specifications");
+  tabs.push(`Reviews (${reviewCount})`);
+  tabs.push("Q&A");
+
+  const panels = [description];
+  if (hasSpecs) panels.push(<SpecsTable specs={specs} />);
+  panels.push(reviews);
+  panels.push(qna);
+
   return <Fragment>
       <StyledTabs textColor="primary" value={selectedOption} indicatorColor="primary" onChange={handleChangeTab}>
-        <Tab className="inner-tab" label="Description" />
-        {hasSpecs && <Tab className="inner-tab" label="Specifications" />}
-        <Tab className="inner-tab" label={`Review (${reviewCount})`} />
+        {tabs.map((label, i) => (
+          <Tab key={i} className="inner-tab" label={label} />
+        ))}
       </StyledTabs>
 
       <div className="mb-3">
-        {selectedOption === 0 && description}
-        {hasSpecs && selectedOption === 1 && <SpecsTable specs={specs} />}
-        {selectedOption === (hasSpecs ? 2 : 1) && reviews}
+        {panels[selectedOption]}
       </div>
     </Fragment>;
 }

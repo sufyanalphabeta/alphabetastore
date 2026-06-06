@@ -27,6 +27,11 @@ import { SettingsModule } from './settings/settings.module';
 import { TicketsModule } from './tickets/tickets.module';
 import { UsersModule } from './users/users.module';
 import { WishlistModule } from './wishlist/wishlist.module';
+import { ReviewsModule } from './reviews/reviews.module';
+import { QnaModule } from './qna/qna.module';
+import { VariantsModule } from './variants/variants.module';
+import { BundlesModule } from './bundles/bundles.module';
+import { ProductRelationsModule } from './product-relations/product-relations.module';
 
 @Module({
   imports: [
@@ -117,6 +122,11 @@ import { WishlistModule } from './wishlist/wishlist.module';
     SettingsModule,
     TicketsModule,
     WishlistModule,
+    ReviewsModule,
+    QnaModule,
+    VariantsModule,
+    BundlesModule,
+    ProductRelationsModule,
     QueueModule,
     HealthModule,
   ],

@@ -15,6 +15,7 @@ import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
+import Divider from "@mui/material/Divider";
 import IconButton from "@mui/material/IconButton";
 import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
@@ -40,6 +41,106 @@ import {
 
 const TYPE_LABEL = Object.fromEntries(HOMEPAGE_BLOCK_TYPES.map(t => [t.value, t.label]));
 
+/** Product-list blocks that only need a "limit" field. */
+const PRODUCT_LIST_TYPES = new Set([
+  "NEW_ARRIVALS",
+  "BEST_SELLERS",
+  "PROMOTIONS",
+  "RECENTLY_ADDED"
+]);
+
+function defaultConfig(type) {
+  if (type === "HERO_BANNER") return { imageUrl: "", href: "", headline: "" };
+  if (type === "CUSTOM_PRODUCTS") return { productIds: "" };
+  if (type === "FEATURED_CATEGORIES") return { limit: 12 };
+  if (type === "FEATURED_BRANDS") return { limit: 12 };
+  return { limit: 12 };
+}
+
+/** Typed config editor — renders different fields per block type. */
+function BlockConfigEditor({ type, config, onChange }) {
+  const set = (key, value) => onChange({ ...config, [key]: value });
+
+  if (type === "HERO_BANNER") {
+    return (
+      <Stack spacing={2}>
+        <Typography variant="subtitle2" color="text.secondary">Hero Banner</Typography>
+        <TextField
+          label="Image URL"
+          value={config.imageUrl || ""}
+          onChange={e => set("imageUrl", e.target.value)}
+          fullWidth
+          placeholder="https://example.com/banner.jpg"
+        />
+        <TextField
+          label="Link (href)"
+          value={config.href || ""}
+          onChange={e => set("href", e.target.value)}
+          fullWidth
+          placeholder="/products/search?category=laptops"
+        />
+        <TextField
+          label="Headline (optional)"
+          value={config.headline || ""}
+          onChange={e => set("headline", e.target.value)}
+          fullWidth
+        />
+      </Stack>
+    );
+  }
+
+  if (type === "CUSTOM_PRODUCTS") {
+    return (
+      <Stack spacing={1}>
+        <Typography variant="subtitle2" color="text.secondary">Custom Products</Typography>
+        <TextField
+          label="Product IDs (comma-separated)"
+          value={Array.isArray(config.productIds) ? config.productIds.join(", ") : (config.productIds || "")}
+          onChange={e => set("productIds", e.target.value)}
+          multiline
+          minRows={3}
+          fullWidth
+          helperText="Paste product UUIDs separated by commas"
+        />
+      </Stack>
+    );
+  }
+
+  if (type === "FEATURED_CATEGORIES" || type === "FEATURED_BRANDS" || PRODUCT_LIST_TYPES.has(type)) {
+    return (
+      <Stack spacing={1}>
+        <Typography variant="subtitle2" color="text.secondary">Display Settings</Typography>
+        <TextField
+          label="Max items to display"
+          type="number"
+          value={config.limit ?? 12}
+          onChange={e => set("limit", Math.max(1, Math.min(50, Number(e.target.value) || 12)))}
+          inputProps={{ min: 1, max: 50 }}
+          sx={{ width: 180 }}
+        />
+      </Stack>
+    );
+  }
+
+  return null;
+}
+
+function normalizeConfigForSave(type, config) {
+  if (type === "CUSTOM_PRODUCTS") {
+    const raw = Array.isArray(config.productIds) ? config.productIds : String(config.productIds || "");
+    const ids = (Array.isArray(raw) ? raw : raw.split(",")).map(s => s.trim()).filter(Boolean);
+    return { productIds: ids };
+  }
+  if (type === "HERO_BANNER") {
+    return {
+      imageUrl: (config.imageUrl || "").trim(),
+      href: (config.href || "").trim(),
+      headline: (config.headline || "").trim() || undefined
+    };
+  }
+  return { limit: Number(config.limit) || 12 };
+}
+
 function emptyBlock(type = "NEW_ARRIVALS") {
   return {
     id: null,
@@ -48,20 +149,8 @@ function emptyBlock(type = "NEW_ARRIVALS") {
     subtitle: "",
     isActive: true,
     sortOrder: 0,
-    config: { limit: 12 }
+    config: defaultConfig(type)
   };
-}
-
-function parseConfigText(value) {
-  const text = String(value || "").trim();
-  if (!text) return {};
-  try {
-    const parsed = JSON.parse(text);
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed;
-    throw new Error("Config must be a JSON object");
-  } catch (e) {
-    throw new Error(e instanceof Error ? e.message : "Invalid JSON");
-  }
 }
 
 export default function HomepageBlocksPageView() {
@@ -69,9 +158,8 @@ export default function HomepageBlocksPageView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState("");
-  const [editing, setEditing] = useState(null); // block being edited (or new draft)
+  const [editing, setEditing] = useState(null);
   const [formError, setFormError] = useState("");
-  const [configText, setConfigText] = useState("{}");
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
@@ -98,15 +186,15 @@ export default function HomepageBlocksPageView() {
   );
 
   const startCreate = () => {
-    const draft = emptyBlock();
-    setEditing(draft);
-    setConfigText(JSON.stringify(draft.config || {}, null, 2));
+    setEditing(emptyBlock());
     setFormError("");
   };
 
   const startEdit = block => {
-    setEditing({ ...block });
-    setConfigText(JSON.stringify(block.config || {}, null, 2));
+    setEditing({
+      ...block,
+      config: block.config && typeof block.config === "object" ? { ...block.config } : defaultConfig(block.type)
+    });
     setFormError("");
   };
 
@@ -115,15 +203,17 @@ export default function HomepageBlocksPageView() {
     setFormError("");
   };
 
+  const onTypeChange = newType => {
+    setEditing(curr => ({ ...curr, type: newType, config: defaultConfig(newType) }));
+  };
+
+  const onConfigChange = newConfig => {
+    setEditing(curr => ({ ...curr, config: newConfig }));
+  };
+
   const onSave = async () => {
     if (!editing) return;
-    let config;
-    try {
-      config = parseConfigText(configText);
-    } catch (e) {
-      setFormError(e.message);
-      return;
-    }
+    const config = normalizeConfigForSave(editing.type, editing.config || {});
     const payload = {
       type: editing.type,
       title: editing.title?.trim() || undefined,
@@ -291,7 +381,7 @@ export default function HomepageBlocksPageView() {
               select
               label="Type"
               value={editing?.type || "NEW_ARRIVALS"}
-              onChange={e => setEditing(curr => ({ ...curr, type: e.target.value }))}
+              onChange={e => onTypeChange(e.target.value)}
               fullWidth
             >
               {HOMEPAGE_BLOCK_TYPES.map(t => (
@@ -324,14 +414,11 @@ export default function HomepageBlocksPageView() {
               />
               <Typography variant="body2">Active</Typography>
             </Stack>
-            <TextField
-              label="Config (JSON)"
-              value={configText}
-              onChange={e => setConfigText(e.target.value)}
-              multiline
-              minRows={6}
-              fullWidth
-              helperText='Examples: {"limit":12} · {"productIds":["…"]} · {"categoryIds":["…"]}'
+            <Divider />
+            <BlockConfigEditor
+              type={editing?.type || "NEW_ARRIVALS"}
+              config={editing?.config || defaultConfig(editing?.type || "NEW_ARRIVALS")}
+              onChange={onConfigChange}
             />
           </Stack>
         </DialogContent>

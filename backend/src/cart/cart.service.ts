@@ -36,6 +36,14 @@ const cartInclude = {
           },
         },
       },
+      variant: {
+        select: {
+          id: true,
+          name: true,
+          attributes: true,
+          imageUrl: true,
+        },
+      },
     },
   },
 } satisfies Prisma.CartInclude;
@@ -72,6 +80,7 @@ export class CartService {
         discountEndAt: true,
         stockQty: true,
         status: true,
+        hasVariants: true,
       },
     });
 
@@ -83,12 +92,49 @@ export class CartService {
       throw new BadRequestException('Product is not available.');
     }
 
-    const existingItem = await this.prisma.cartItem.findUnique({
-      where: {
-        cartId_productId: {
-          cartId: cart.id,
+    // Variant validation: if the product has variants, a variantId is required.
+    let variantSnapshot: {
+      id: string;
+      name: string | null;
+      attributes: unknown;
+      imageUrl: string | null;
+      price: unknown;
+      stockQty: number;
+    } | null = null;
+
+    if (addCartItemDto.variantId) {
+      const variant = await this.prisma.productVariant.findFirst({
+        where: {
+          id: addCartItemDto.variantId,
           productId: addCartItemDto.productId,
         },
+        select: {
+          id: true,
+          name: true,
+          attributes: true,
+          imageUrl: true,
+          price: true,
+          stockQty: true,
+        },
+      });
+
+      if (!variant) {
+        throw new NotFoundException('Variant not found for this product.');
+      }
+
+      variantSnapshot = variant;
+    }
+
+    // Determine effective stock for the quantity check
+    const effectiveStockQty = variantSnapshot
+      ? variantSnapshot.stockQty
+      : product.stockQty;
+
+    const existingItem = await this.prisma.cartItem.findFirst({
+      where: {
+        cartId: cart.id,
+        productId: addCartItemDto.productId,
+        variantId: addCartItemDto.variantId ?? null,
       },
       select: {
         id: true,
@@ -98,9 +144,9 @@ export class CartService {
 
     const nextQuantity = (existingItem?.quantity ?? 0) + addCartItemDto.quantity;
 
-    if (nextQuantity > product.stockQty) {
+    if (nextQuantity > effectiveStockQty) {
       throw new BadRequestException(
-        `Only ${product.stockQty} unit(s) available in stock.`,
+        `Only ${effectiveStockQty} unit(s) available in stock.`,
       );
     }
 
@@ -112,17 +158,29 @@ export class CartService {
         },
       });
     } else {
-      // Use the pricing engine for the effective price
-      const computedPrice = await this.pricingService.computePrice(
-        product,
-        await this.pricingService.getPricingSettings(),
-      );
+      // Use variant price when provided, otherwise compute from pricing engine.
+      let unitPrice: number;
+      if (variantSnapshot) {
+        unitPrice = Number(variantSnapshot.price);
+      } else {
+        const computedPrice = await this.pricingService.computePrice(
+          product,
+          await this.pricingService.getPricingSettings(),
+        );
+        unitPrice = Number(computedPrice.finalPrice);
+      }
+
       await this.prisma.cartItem.create({
         data: {
           cartId: cart.id,
           productId: addCartItemDto.productId,
+          variantId: addCartItemDto.variantId ?? null,
+          variantName: variantSnapshot?.name ?? null,
+          variantAttributes: variantSnapshot?.attributes
+            ? (variantSnapshot.attributes as Prisma.InputJsonValue)
+            : undefined,
           quantity: addCartItemDto.quantity,
-          unitPrice: computedPrice.finalPrice,
+          unitPrice,
         },
       });
     }
@@ -214,9 +272,11 @@ export class CartService {
           continue;
         }
 
-        const existing = await tx.cartItem.findUnique({
+        const existing = await tx.cartItem.findFirst({
           where: {
-            cartId_productId: { cartId: userCart.id, productId: guestItem.productId },
+            cartId: userCart.id,
+            productId: guestItem.productId,
+            variantId: guestItem.variantId ?? null,
           },
           select: { id: true, quantity: true },
         });
@@ -235,6 +295,11 @@ export class CartService {
             data: {
               cartId: userCart.id,
               productId: guestItem.productId,
+              variantId: guestItem.variantId ?? null,
+              variantName: guestItem.variantName ?? null,
+              variantAttributes: guestItem.variantAttributes
+                ? (guestItem.variantAttributes as Prisma.InputJsonValue)
+                : undefined,
               quantity: capped,
               unitPrice: guestItem.unitPrice,
             },
@@ -349,6 +414,9 @@ export class CartService {
       return {
         id: item.id,
         productId: item.productId,
+        variantId: item.variantId ?? null,
+        variantName: item.variantName ?? null,
+        variantAttributes: item.variantAttributes ?? null,
         quantity: item.quantity,
         unitPrice,
         total,
@@ -356,7 +424,10 @@ export class CartService {
           id: item.product.id,
           name: item.product.name,
           slug: item.product.slug,
-          imageUrl: item.product.images[0]?.imageUrl ?? null,
+          imageUrl:
+            item.variant?.imageUrl ??
+            item.product.images[0]?.imageUrl ??
+            null,
         },
       };
       },

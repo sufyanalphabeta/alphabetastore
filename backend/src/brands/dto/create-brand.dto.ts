@@ -26,8 +26,23 @@ export class CreateBrandDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(500)
+  bannerUrl?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(2000)
   description?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  metaTitle?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(320)
+  metaDesc?: string;
 
   @IsOptional()
   @IsBoolean()

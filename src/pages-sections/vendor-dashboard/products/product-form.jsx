@@ -15,14 +15,19 @@ import MenuItem from "@mui/material/MenuItem";
 import Alert from "@mui/material/Alert";
 import CircularProgress from "@mui/material/CircularProgress";
 import IconButton from "@mui/material/IconButton";
+import InputAdornment from "@mui/material/InputAdornment";
+import Stack from "@mui/material/Stack";
+import MuiTextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import Divider from "@mui/material/Divider";
+import Add from "@mui/icons-material/Add";
 import Delete from "@mui/icons-material/Delete";
 
 import DropZone from "components/DropZone";
 import { FormProvider, TextField } from "components/form-hook";
 import useSettings from "hooks/useSettings";
 import { buildPricingSettings, computeStorefrontPrice, formatPrice } from "utils/pricing";
+import { fetchBrands } from "utils/admin-brands";
 import {
   ACTIVE_STATUS,
   INACTIVE_STATUS,
@@ -52,7 +57,8 @@ const validationSchema = yup.object({
   discountEndAt: yup.string().optional().nullable(),
   status: yup.string().oneOf([ACTIVE_STATUS, INACTIVE_STATUS]).required("Status is required"),
   sku: yup.string().trim().optional(),
-  brand: yup.string().trim().optional()
+  brand: yup.string().trim().optional(),
+  brandId: yup.string().optional().nullable()
 });
 
 
@@ -68,12 +74,42 @@ export default function ProductForm(props) {
   const router = useRouter();
   const { settings } = useSettings();
   const [categories, setCategories] = useState([]);
+  const [brands, setBrands] = useState([]);
   const [product, setProduct] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [pageError, setPageError] = useState("");
   const [existingImages, setExistingImages] = useState([]);
   const [removedImageIds, setRemovedImageIds] = useState([]);
   const [pendingFiles, setPendingFiles] = useState([]);
+
+  // ── Highlights state ──────────────────────────────────────────────────────
+  const [highlights, setHighlights] = useState([]); // string[]
+  const [highlightInput, setHighlightInput] = useState("");
+
+  const addHighlight = () => {
+    const trimmed = highlightInput.trim();
+    if (trimmed) { setHighlights(h => [...h, trimmed]); setHighlightInput(""); }
+  };
+  const removeHighlight = i => setHighlights(h => h.filter((_, idx) => idx !== i));
+
+  // ── Specs state ───────────────────────────────────────────────────────────
+  const [specs, setSpecs] = useState([]); // { key, value }[]
+  const [specKey, setSpecKey] = useState("");
+  const [specValue, setSpecValue] = useState("");
+
+  const addSpec = () => {
+    const k = specKey.trim(); const v = specValue.trim();
+    if (k) {
+      setSpecs(s => {
+        const existing = s.findIndex(r => r.key === k);
+        if (existing >= 0) { const next = [...s]; next[existing] = { key: k, value: v }; return next; }
+        return [...s, { key: k, value: v }];
+      });
+      setSpecKey(""); setSpecValue("");
+    }
+  };
+  const removeSpec = i => setSpecs(s => s.filter((_, idx) => idx !== i));
+
   const initialValues = {
     name: "",
     slug: "",
@@ -90,7 +126,8 @@ export default function ProductForm(props) {
     discountEndAt: "",
     status: ACTIVE_STATUS,
     sku: "",
-    brand: ""
+    brand: "",
+    brandId: ""
   };
   const methods = useForm({
     defaultValues: initialValues,
@@ -144,15 +181,29 @@ export default function ProductForm(props) {
       setIsLoading(true);
 
       try {
-        const [categoryData, productData] = await Promise.all([fetchAdminCategories(), slug ? fetchAdminProductBySlug(slug) : Promise.resolve(null)]);
+        const [categoryData, productData, brandData] = await Promise.all([
+            fetchAdminCategories(),
+            slug ? fetchAdminProductBySlug(slug) : Promise.resolve(null),
+            fetchBrands()
+          ]);
 
         if (!isMounted) return;
 
         setCategories(Array.isArray(categoryData) ? categoryData : []);
+        setBrands(Array.isArray(brandData) ? brandData : []);
         setProduct(productData);
         setExistingImages(Array.isArray(productData?.images) ? productData.images : []);
         setRemovedImageIds([]);
         setPendingFiles([]);
+
+        // Hydrate highlights and specs
+        setHighlights(Array.isArray(productData?.highlights) ? productData.highlights : []);
+        const rawSpecs = productData?.specs;
+        setSpecs(
+          rawSpecs && typeof rawSpecs === "object" && !Array.isArray(rawSpecs)
+            ? Object.entries(rawSpecs).map(([key, value]) => ({ key, value: String(value) }))
+            : []
+        );
 
         if (productData) {
           reset({
@@ -171,7 +222,8 @@ export default function ProductForm(props) {
             discountEndAt: productData.discountEndAt ? productData.discountEndAt.slice(0, 16) : "",
             status: productData.status || ACTIVE_STATUS,
             sku: productData.sku || "",
-            brand: productData.brand || ""
+            brand: productData.brand || "",
+            brandId: productData.brandId || ""
           });
         } else {
           reset(initialValues);
@@ -243,15 +295,12 @@ export default function ProductForm(props) {
             discountStartAt: null,
             discountEndAt: null,
           }),
-      ...(values.slug?.trim() ? {
-        slug: values.slug.trim()
-      } : {}),
-      ...(values.sku?.trim() ? {
-        sku: values.sku.trim()
-      } : {}),
-      ...(values.brand?.trim() ? {
-        brand: values.brand.trim()
-      } : {})
+      ...(values.slug?.trim() ? { slug: values.slug.trim() } : {}),
+      ...(values.sku?.trim() ? { sku: values.sku.trim() } : {}),
+      ...(values.brand?.trim() ? { brand: values.brand.trim() } : {}),
+      ...(values.brandId ? { brandId: values.brandId } : { brandId: null }),
+      highlights: highlights.length ? highlights : null,
+      specs: specs.length ? Object.fromEntries(specs.map(r => [r.key, r.value])) : null
     };
 
     setPageError("");
@@ -461,7 +510,94 @@ export default function ProductForm(props) {
           sm: 6,
           xs: 12
         }}>
-            <TextField fullWidth name="brand" color="info" size="medium" label="Brand" placeholder="e.g. Samsung" />
+            <TextField fullWidth name="brand" color="info" size="medium" label="Brand (text)" placeholder="e.g. Samsung" helperText="Free-text brand name. Use Brand selector below to link to a brand record." />
+          </Grid>
+
+          <Grid size={{ sm: 6, xs: 12 }}>
+            <TextField select fullWidth color="info" size="medium" name="brandId" label="Brand (linked record)">
+              <MenuItem value="">— None —</MenuItem>
+              {brands.map(b => (
+                <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>
+              ))}
+            </TextField>
+          </Grid>
+
+          <Grid size={12}>
+            <Divider />
+          </Grid>
+
+          {/* ── Highlights ── */}
+          <Grid size={12}>
+            <Typography variant="h6" sx={{ mb: 1 }}>Key Features / Highlights</Typography>
+            <Stack spacing={1}>
+              {highlights.map((h, i) => (
+                <Stack key={i} direction="row" alignItems="center" spacing={1}>
+                  <Typography variant="body2" sx={{ flex: 1, bgcolor: "grey.100", px: 1.5, py: 0.75, borderRadius: 1 }}>{h}</Typography>
+                  <IconButton size="small" color="error" onClick={() => removeHighlight(i)}><Delete fontSize="small" /></IconButton>
+                </Stack>
+              ))}
+              <Stack direction="row" spacing={1}>
+                <MuiTextField
+                  size="small"
+                  fullWidth
+                  placeholder="e.g. Intel Core i7-1355U"
+                  value={highlightInput}
+                  onChange={e => setHighlightInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addHighlight(); } }}
+                  InputProps={{ endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton size="small" onClick={addHighlight} disabled={!highlightInput.trim()}>
+                        <Add fontSize="small" />
+                      </IconButton>
+                    </InputAdornment>
+                  )}}
+                />
+              </Stack>
+            </Stack>
+          </Grid>
+
+          <Grid size={12}>
+            <Divider />
+          </Grid>
+
+          {/* ── Specifications ── */}
+          <Grid size={12}>
+            <Typography variant="h6" sx={{ mb: 1 }}>Specifications</Typography>
+            {specs.length > 0 && (
+              <Box sx={{ mb: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 1, overflow: "hidden" }}>
+                {specs.map((row, i) => (
+                  <Stack key={i} direction="row" alignItems="center"
+                    sx={{ px: 1.5, py: 0.75, borderBottom: i < specs.length - 1 ? "1px solid" : "none", borderColor: "divider", "&:hover": { bgcolor: "grey.50" } }}
+                  >
+                    <Typography variant="body2" fontWeight={600} sx={{ width: "35%", color: "text.secondary" }}>{row.key}</Typography>
+                    <Typography variant="body2" sx={{ flex: 1 }}>{row.value}</Typography>
+                    <IconButton size="small" color="error" onClick={() => removeSpec(i)}><Delete fontSize="small" /></IconButton>
+                  </Stack>
+                ))}
+              </Box>
+            )}
+            <Stack direction={{ sm: "row", xs: "column" }} spacing={1}>
+              <MuiTextField
+                size="small"
+                placeholder="Spec name (e.g. CPU)"
+                value={specKey}
+                onChange={e => setSpecKey(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addSpec(); } }}
+                sx={{ width: { sm: "35%", xs: "100%" } }}
+              />
+              <MuiTextField
+                size="small"
+                fullWidth
+                placeholder="Value (e.g. Intel Core i7)"
+                value={specValue}
+                onChange={e => setSpecValue(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addSpec(); } }}
+              />
+              <Button variant="outlined" size="small" onClick={addSpec} disabled={!specKey.trim()} startIcon={<Add />}
+                sx={{ flexShrink: 0, height: 40 }}>
+                Add
+              </Button>
+            </Stack>
           </Grid>
 
           <Grid size={12}>

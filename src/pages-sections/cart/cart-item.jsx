@@ -16,36 +16,28 @@ import { ContentWrapper, ImageWrapper, QuantityButton, Wrapper } from "./styles"
 
 // =========================================================
 
-export default function CartItem({
-  item
-}) {
-  const {
-    id,
-    productId,
-    title,
-    price,
-    thumbnail,
-    slug,
-    qty
-  } = item;
-  const {
-    dispatch
-  } = useCart();
+export default function CartItem({ item }) {
+  const { id, productId, title, price, thumbnail, slug, qty, variantId, variantName, variantAttributes } = item;
+  const { dispatch } = useCart();
+
   const handleCartAmountChange = amount => () => {
     dispatch({
       type: "CHANGE_CART_AMOUNT",
-      payload: {
-        id,
-        productId,
-        title,
-        price,
-        thumbnail,
-        slug,
-        qty: amount
-      }
+      payload: { id, productId, title, price, thumbnail, slug, qty: amount, variantId: variantId ?? null },
     });
   };
-  return <Wrapper elevation={0}>
+
+  // Build a human-readable variant summary from attributes object
+  const variantSummary = variantName
+    ? variantName
+    : variantAttributes && typeof variantAttributes === "object"
+    ? Object.entries(variantAttributes)
+        .map(([k, v]) => `${k}: ${v}`)
+        .join(" · ")
+    : null;
+
+  return (
+    <Wrapper elevation={0}>
       <ImageWrapper>
         <Image alt={title} fill src={thumbnail} sizes="100px" />
       </ImageWrapper>
@@ -57,6 +49,12 @@ export default function CartItem({
               {title}
             </Typography>
           </Link>
+
+          {variantSummary && (
+            <Typography noWrap variant="caption" color="text.secondary">
+              {variantSummary}
+            </Typography>
+          )}
 
           <Typography noWrap variant="body1" fontWeight={600}>
             {currency(price)}
@@ -83,5 +81,6 @@ export default function CartItem({
           <Trash fontSize="small" color="error" />
         </IconButton>
       </ContentWrapper>
-    </Wrapper>;
+    </Wrapper>
+  );
 }

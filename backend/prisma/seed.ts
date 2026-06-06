@@ -260,6 +260,253 @@ async function main() {
       console.log(`[seed]   └─ Subcategory upserted: ${child.name}`);
     }
   }
+
+  // ─── Electronics Brands ────────────────────────────────────────────────────
+  type BrandSeed = {
+    name: string;
+    slug: string;
+    description: string;
+    isVisible: boolean;
+    isFeatured: boolean;
+    sortOrder: number;
+  };
+
+  const brands: BrandSeed[] = [
+    { name: 'Dell', slug: 'dell', description: 'Laptops, desktops, and workstations for business and home.', isVisible: true, isFeatured: true, sortOrder: 1 },
+    { name: 'HP', slug: 'hp', description: 'Printers, laptops, and enterprise hardware.', isVisible: true, isFeatured: true, sortOrder: 2 },
+    { name: 'Lenovo', slug: 'lenovo', description: 'ThinkPad and IdeaPad laptops, plus data centre solutions.', isVisible: true, isFeatured: true, sortOrder: 3 },
+    { name: 'Cisco', slug: 'cisco', description: 'Enterprise networking: routers, switches, and security.', isVisible: true, isFeatured: true, sortOrder: 4 },
+    { name: 'Hikvision', slug: 'hikvision', description: 'IP cameras, NVRs, and security solutions.', isVisible: true, isFeatured: true, sortOrder: 5 },
+    { name: 'TP-Link', slug: 'tp-link', description: 'Affordable networking: routers, switches, and access points.', isVisible: true, isFeatured: false, sortOrder: 6 },
+    { name: 'Samsung', slug: 'samsung', description: 'Monitors, SSDs, phones, and peripherals.', isVisible: true, isFeatured: true, sortOrder: 7 },
+    { name: 'Seagate', slug: 'seagate', description: 'Hard drives and storage solutions for consumers and enterprise.', isVisible: true, isFeatured: false, sortOrder: 8 },
+    { name: 'WD (Western Digital)', slug: 'wd', description: 'HDDs, SSDs, and NAS solutions.', isVisible: true, isFeatured: false, sortOrder: 9 },
+    { name: 'Dahua', slug: 'dahua', description: 'CCTV systems, NVR, and smart security products.', isVisible: true, isFeatured: false, sortOrder: 10 },
+  ];
+
+  const brandRecords: Record<string, { id: string }> = {};
+
+  for (const brand of brands) {
+    const record = await prisma.brand.upsert({
+      where: { slug: brand.slug },
+      update: {
+        name: brand.name,
+        description: brand.description,
+        isVisible: brand.isVisible,
+        isFeatured: brand.isFeatured,
+        sortOrder: brand.sortOrder,
+      },
+      create: {
+        name: brand.name,
+        slug: brand.slug,
+        description: brand.description,
+        isVisible: brand.isVisible,
+        isFeatured: brand.isFeatured,
+        sortOrder: brand.sortOrder,
+      },
+    });
+    brandRecords[brand.slug] = { id: record.id };
+    console.log(`[seed] Brand upserted: ${brand.name}`);
+  }
+
+  // ─── Sample Products ───────────────────────────────────────────────────────
+  // Look up category IDs needed for products.
+  const catMap: Record<string, string> = {};
+  const targetSlugs = ['laptops', 'desktops', 'routers', 'switches', 'access-points', 'ip-cameras', 'dvr-nvr', 'hdd', 'ssd', 'barcode-scanners'];
+  for (const slug of targetSlugs) {
+    const cat = await prisma.category.findUnique({ where: { slug } });
+    if (cat) catMap[slug] = cat.id;
+  }
+
+  type ProductSeed = {
+    name: string;
+    slug: string;
+    shortDescription: string;
+    description: string;
+    price: number;
+    stockQty: number;
+    categorySlug: string;
+    brandSlug: string;
+    isFeatured: boolean;
+    highlights: string[];
+    specs: Record<string, string>;
+  };
+
+  const sampleProducts: ProductSeed[] = [
+    {
+      name: 'Dell Latitude 5540 Laptop',
+      slug: 'dell-latitude-5540',
+      shortDescription: '15.6" business laptop with Intel Core i5 and 16 GB RAM.',
+      description: 'The Dell Latitude 5540 is designed for business productivity with strong security features, a comfortable keyboard, and long battery life.',
+      price: 4200,
+      stockQty: 25,
+      categorySlug: 'laptops',
+      brandSlug: 'dell',
+      isFeatured: true,
+      highlights: ['Intel Core i5-1345U', '16 GB DDR4', '512 GB SSD', 'Windows 11 Pro'],
+      specs: { CPU: 'Intel Core i5-1345U', RAM: '16 GB', Storage: '512 GB NVMe SSD', Display: '15.6" FHD', OS: 'Windows 11 Pro' },
+    },
+    {
+      name: 'Lenovo ThinkPad E14 Gen 5',
+      slug: 'lenovo-thinkpad-e14-gen5',
+      shortDescription: 'Slim 14" business laptop, AMD Ryzen 5, 8 GB RAM.',
+      description: 'The ThinkPad E14 Gen 5 delivers everyday performance in a sleek chassis with AMD Ryzen processors and rapid charging.',
+      price: 3500,
+      stockQty: 18,
+      categorySlug: 'laptops',
+      brandSlug: 'lenovo',
+      isFeatured: true,
+      highlights: ['AMD Ryzen 5 7530U', '8 GB LPDDR5', '256 GB SSD', 'Rapid Charge'],
+      specs: { CPU: 'AMD Ryzen 5 7530U', RAM: '8 GB', Storage: '256 GB SSD', Display: '14" FHD IPS', Battery: '57 Wh' },
+    },
+    {
+      name: 'HP EliteDesk 800 G9 Mini',
+      slug: 'hp-elitedesk-800-g9-mini',
+      shortDescription: 'Compact mini PC for enterprise desktops, Core i7.',
+      description: 'A tiny-footprint desktop built for enterprise reliability with Intel vPro and TPM 2.0 security.',
+      price: 5800,
+      stockQty: 10,
+      categorySlug: 'desktops',
+      brandSlug: 'hp',
+      isFeatured: false,
+      highlights: ['Intel Core i7-12700', '16 GB DDR5', '512 GB SSD', 'Intel vPro'],
+      specs: { CPU: 'Intel Core i7-12700', RAM: '16 GB DDR5', Storage: '512 GB SSD', Form: 'Mini PC', TPM: '2.0' },
+    },
+    {
+      name: 'Cisco RV340 Dual WAN Router',
+      slug: 'cisco-rv340-dual-wan',
+      shortDescription: 'Small-business router with dual WAN and VPN support.',
+      description: 'The Cisco RV340 provides advanced routing, firewall, and VPN features tailored for small-to-medium businesses.',
+      price: 1850,
+      stockQty: 30,
+      categorySlug: 'routers',
+      brandSlug: 'cisco',
+      isFeatured: true,
+      highlights: ['Dual WAN failover', 'IPSec/SSL VPN', 'Firewall', 'Gigabit ports'],
+      specs: { WAN: 'Dual Gigabit', VPN: 'IPSec / SSL / PPTP', Firewall: 'SPI', Ports: '4× Gigabit LAN' },
+    },
+    {
+      name: 'TP-Link TL-SG108 8-Port Switch',
+      slug: 'tp-link-sg108',
+      shortDescription: 'Unmanaged 8-port Gigabit switch for home and office.',
+      description: 'Plug-and-play Gigabit switch offering reliable and fast network connectivity with zero configuration.',
+      price: 280,
+      stockQty: 60,
+      categorySlug: 'switches',
+      brandSlug: 'tp-link',
+      isFeatured: false,
+      highlights: ['8× Gigabit ports', 'Plug-and-play', 'Metal casing', 'Energy-efficient'],
+      specs: { Ports: '8× 10/100/1000 Mbps', Power: '8.4 W max', Dimensions: '158×101×25 mm', Standard: 'IEEE 802.3ab' },
+    },
+    {
+      name: 'TP-Link EAP670 Wi-Fi 6 Access Point',
+      slug: 'tp-link-eap670',
+      shortDescription: 'Wi-Fi 6 ceiling AP, up to 5.4 Gbps dual-band.',
+      description: 'The EAP670 delivers blazing-fast Wi-Fi 6 speeds with MU-MIMO and OFDMA for dense environments.',
+      price: 620,
+      stockQty: 40,
+      categorySlug: 'access-points',
+      brandSlug: 'tp-link',
+      isFeatured: true,
+      highlights: ['Wi-Fi 6 (802.11ax)', '5.4 Gbps combined', 'MU-MIMO 4×4', 'PoE powered'],
+      specs: { Standard: '802.11ax (Wi-Fi 6)', Speed: '5.4 Gbps', Antennas: '8× internal', PoE: '802.3at' },
+    },
+    {
+      name: 'Hikvision DS-2CD2143G2-I Dome Camera',
+      slug: 'hikvision-ds-2cd2143g2',
+      shortDescription: '4 MP AcuSense fixed dome, 2.8 mm, IR 40 m.',
+      description: 'AcuSense technology reduces false alarms by accurately distinguishing humans and vehicles.',
+      price: 480,
+      stockQty: 50,
+      categorySlug: 'ip-cameras',
+      brandSlug: 'hikvision',
+      isFeatured: true,
+      highlights: ['4 MP resolution', 'AcuSense AI detection', 'IR range 40 m', 'IP67 weatherproof'],
+      specs: { Resolution: '4 MP (2688×1520)', Lens: '2.8 mm', IR: '40 m', Protection: 'IP67 / IK10' },
+    },
+    {
+      name: 'Dahua NVR4108HS-8P-4KS2 8-Ch NVR',
+      slug: 'dahua-nvr4108hs-8p',
+      shortDescription: '8-channel PoE NVR, H.265+, 4K decoding.',
+      description: 'Supports up to 8 IP cameras with built-in PoE, H.265+ compression, and 4K decoding capability.',
+      price: 950,
+      stockQty: 20,
+      categorySlug: 'dvr-nvr',
+      brandSlug: 'dahua',
+      isFeatured: false,
+      highlights: ['8× PoE ports', 'H.265+ compression', '4K decoding', '2× HDD bays'],
+      specs: { Channels: '8', Compression: 'H.265+ / H.265', PoE: '8 ports (total 120 W)', Resolution: 'Up to 4K' },
+    },
+    {
+      name: 'Seagate BarraCuda 2 TB HDD',
+      slug: 'seagate-barracuda-2tb',
+      shortDescription: '3.5" SATA hard drive, 2 TB, 7200 RPM.',
+      description: 'Reliable storage for desktops and NAS with high transfer speeds and a 2-year warranty.',
+      price: 380,
+      stockQty: 80,
+      categorySlug: 'hdd',
+      brandSlug: 'seagate',
+      isFeatured: false,
+      highlights: ['2 TB capacity', '7200 RPM', '256 MB cache', 'SATA 6 Gb/s'],
+      specs: { Capacity: '2 TB', Interface: 'SATA 6 Gb/s', RPM: '7200', Cache: '256 MB' },
+    },
+    {
+      name: 'Samsung 870 EVO 1 TB SSD',
+      slug: 'samsung-870-evo-1tb',
+      shortDescription: 'SATA III 2.5" SSD with up to 560 MB/s read speed.',
+      description: 'The Samsung 870 EVO offers best-in-class sequential speeds and endurance for everyday computing.',
+      price: 650,
+      stockQty: 45,
+      categorySlug: 'ssd',
+      brandSlug: 'samsung',
+      isFeatured: true,
+      highlights: ['1 TB capacity', '560 MB/s read', '530 MB/s write', '600 TBW endurance'],
+      specs: { Capacity: '1 TB', Interface: 'SATA III', 'Read Speed': '560 MB/s', 'Write Speed': '530 MB/s', Endurance: '600 TBW' },
+    },
+  ];
+
+  for (const p of sampleProducts) {
+    const categoryId = catMap[p.categorySlug];
+    const brandId = brandRecords[p.brandSlug]?.id;
+    if (!categoryId) {
+      console.warn(`[seed] Category not found for slug: ${p.categorySlug} — skipping ${p.name}`);
+      continue;
+    }
+    await prisma.product.upsert({
+      where: { slug: p.slug },
+      update: {
+        name: p.name,
+        shortDescription: p.shortDescription,
+        description: p.description,
+        price: p.price,
+        stockQty: p.stockQty,
+        categoryId,
+        brandId: brandId ?? null,
+        brand: p.brandSlug,
+        isFeatured: p.isFeatured,
+        highlights: p.highlights,
+        specs: p.specs,
+        status: 'ACTIVE',
+      },
+      create: {
+        name: p.name,
+        slug: p.slug,
+        shortDescription: p.shortDescription,
+        description: p.description,
+        price: p.price,
+        stockQty: p.stockQty,
+        categoryId,
+        brandId: brandId ?? null,
+        brand: p.brandSlug,
+        isFeatured: p.isFeatured,
+        highlights: p.highlights,
+        specs: p.specs,
+        status: 'ACTIVE',
+        baseCurrency: 'LYD',
+      },
+    });
+    console.log(`[seed] Product upserted: ${p.name}`);
+  }
 }
 
 

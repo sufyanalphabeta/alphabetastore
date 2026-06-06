@@ -52,6 +52,31 @@ const productInclude = {
       createdAt: true,
     },
   },
+  variants: {
+    orderBy: [{ isDefault: 'desc' as const }, { sortOrder: 'asc' as const }],
+  },
+  sourceRelations: {
+    include: {
+      target: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          price: true,
+          comparePrice: true,
+          stockQty: true,
+          ratingAvg: true,
+          ratingCount: true,
+          images: {
+            select: { imageUrl: true },
+            orderBy: { sortOrder: 'asc' as const },
+            take: 1,
+          },
+        },
+      },
+    },
+    orderBy: { sortOrder: 'asc' as const },
+  },
 } satisfies Prisma.ProductInclude;
 
 /**
@@ -76,6 +101,9 @@ const productListSelect = {
   brandId: true,
   sku: true,
   isFeatured: true,
+  hasVariants: true,
+  ratingAvg: true,
+  ratingCount: true,
   createdAt: true,
   category: {
     select: {
@@ -167,6 +195,10 @@ export class ProductsService {
       whereClauses.push({ isFeatured: true });
     }
 
+    if (query.inStock) {
+      whereClauses.push({ stockQty: { gt: 0 } });
+    }
+
     if (query.minPrice !== undefined || query.maxPrice !== undefined) {
       const priceClause: Prisma.DecimalFilter = {};
       if (query.minPrice !== undefined) priceClause.gte = query.minPrice;
@@ -230,6 +262,18 @@ export class ProductsService {
           },
           {
             shortDescription: {
+              contains: searchTerm,
+              mode: 'insensitive',
+            },
+          },
+          {
+            sku: {
+              contains: searchTerm,
+              mode: 'insensitive',
+            },
+          },
+          {
+            brand: {
               contains: searchTerm,
               mode: 'insensitive',
             },
@@ -691,6 +735,11 @@ export class ProductsService {
       return { price: 'desc' };
     }
 
+    if (sort === 'date' || sort === 'newest') {
+      return { createdAt: 'desc' };
+    }
+
+    // 'relevance' or default: newest first
     return { createdAt: 'desc' };
   }
 
@@ -813,5 +862,83 @@ export class ProductsService {
     // Preserve caller's order
     const byId = new Map(rows.map((r: { id: string }) => [r.id, r]));
     return ids.map((id) => byId.get(id)).filter(Boolean);
+  }
+
+  /** Single-query product counts per category (no N+1). */
+  async countsByCategory(): Promise<Array<{ categoryId: string; count: number }>> {
+    const rows = await this.prisma.product.groupBy({
+      by: ['categoryId'],
+      _count: { _all: true },
+    });
+    return rows.map((r) => ({ categoryId: r.categoryId, count: r._count._all }));
+  }
+
+  /** Autocomplete: returns products, brands, categories matching a term. */
+  async autocomplete(term: string, limit = 5) {
+    const pattern = `%${term}%`;
+
+    const [products, brands, categories] = await Promise.all([
+      this.prisma.product.findMany({
+        where: {
+          status: 'ACTIVE',
+          OR: [
+            { name: { contains: term, mode: 'insensitive' } },
+            { sku: { contains: term, mode: 'insensitive' } },
+            { brand: { contains: term, mode: 'insensitive' } },
+          ],
+        },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          sku: true,
+          brand: true,
+          images: { select: { imageUrl: true, sortOrder: true }, orderBy: { sortOrder: 'asc' }, take: 1 },
+          price: true,
+          baseCurrency: true,
+        },
+        take: limit,
+        orderBy: { viewCount: 'desc' },
+      }),
+      this.prisma.brand.findMany({
+        where: {
+          isVisible: true,
+          name: { contains: term, mode: 'insensitive' },
+        },
+        select: { id: true, name: true, slug: true, logoUrl: true },
+        take: Math.ceil(limit / 2),
+      }),
+      this.prisma.category.findMany({
+        where: {
+          isVisible: true,
+          isActive: true,
+          name: { contains: term, mode: 'insensitive' },
+        },
+        select: { id: true, name: true, slug: true, icon: true },
+        take: Math.ceil(limit / 2),
+        orderBy: { sortOrder: 'asc' },
+      }),
+    ]);
+
+    return { products, brands, categories };
+  }
+
+  /** Top N searched terms by hit count. */
+  async popularSearches(limit = 8): Promise<Array<{ term: string; hitCount: number }>> {
+    const rows = await this.prisma.searchTerm.findMany({
+      orderBy: { hitCount: 'desc' },
+      take: limit,
+      select: { term: true, hitCount: true },
+    });
+    return rows;
+  }
+
+  /** Upsert a search term to increment its hit count. */
+  async trackSearch(term: string): Promise<void> {
+    await this.prisma.searchTerm.upsert({
+      where: { term },
+      update: { hitCount: { increment: 1 } },
+      create: { term, hitCount: 1 },
+    });
   }
 }

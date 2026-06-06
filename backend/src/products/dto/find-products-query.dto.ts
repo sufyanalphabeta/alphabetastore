@@ -13,7 +13,7 @@ import { Transform } from 'class-transformer';
 
 import { ProductStatus } from '../../prisma/prisma-client';
 
-const PRODUCT_SORT_VALUES = ['relevance', 'date', 'asc', 'desc'] as const;
+const PRODUCT_SORT_VALUES = ['relevance', 'date', 'newest', 'asc', 'desc'] as const;
 
 export class FindProductsQueryDto {
   @IsOptional()
@@ -69,6 +69,11 @@ export class FindProductsQueryDto {
   @IsOptional()
   @IsIn(PRODUCT_SORT_VALUES)
   sort?: (typeof PRODUCT_SORT_VALUES)[number];
+
+  /** Filter to only in-stock products (stock_qty > 0) */
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === '1' || value === true)
+  inStock?: boolean;
 
   @IsOptional()
   @Transform(({ value }) => parseInt(value))

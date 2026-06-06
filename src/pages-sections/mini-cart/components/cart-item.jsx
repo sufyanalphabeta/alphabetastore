@@ -84,6 +84,18 @@ export default function MiniCartItem({
           {item.title}
         </Typography>
 
+        {/* Variant summary */}
+        {(item.variantName || item.variantAttributes) && (
+          <Typography noWrap variant="caption" color="text.secondary" display="block">
+            {item.variantName ||
+              (item.variantAttributes && typeof item.variantAttributes === "object"
+                ? Object.entries(item.variantAttributes)
+                    .map(([k, v]) => `${k}: ${v}`)
+                    .join(" · ")
+                : null)}
+          </Typography>
+        )}
+
         <Typography variant="body1" fontWeight={500} sx={{
         mt: 0.25,
         mb: 1.5

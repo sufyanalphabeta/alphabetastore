@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import Button from "@mui/material/Button";
 import IconButton from "@mui/material/IconButton";
 import CircularProgress from "@mui/material/CircularProgress";
+import Snackbar from "@mui/material/Snackbar";
+import Alert from "@mui/material/Alert";
 import Favorite from "@mui/icons-material/Favorite";
 import FavoriteBorder from "@mui/icons-material/FavoriteBorder";
 
@@ -24,6 +26,7 @@ export default function WishlistToggleButton({
   const router = useRouter();
   const [isInWishlist, setIsInWishlist] = useState(initialInWishlist);
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
     setIsInWishlist(initialInWishlist);
@@ -52,19 +55,63 @@ export default function WishlistToggleButton({
       setIsInWishlist(nextValue);
       onChange?.(nextValue);
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Failed to update wishlist.");
+      setErrorMsg(error instanceof Error ? error.message : "Failed to update wishlist.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  if (variant === "button") {
-    return <Button color={isInWishlist ? "secondary" : "primary"} variant={isInWishlist ? "outlined" : "contained"} onClick={handleToggle} disabled={isLoading} startIcon={isLoading ? <CircularProgress color="inherit" size={16} /> : isInWishlist ? <Favorite fontSize="small" /> : <FavoriteBorder fontSize="small" />} sx={sx} fullWidth={fullWidth}>
-        {isInWishlist ? "Remove from Wishlist" : "Add to Wishlist"}
-      </Button>;
-  }
+  const buttonContent = variant === "button" ? (
+    <Button
+      color={isInWishlist ? "secondary" : "primary"}
+      variant={isInWishlist ? "outlined" : "contained"}
+      onClick={handleToggle}
+      disabled={isLoading}
+      startIcon={
+        isLoading ? (
+          <CircularProgress color="inherit" size={16} />
+        ) : isInWishlist ? (
+          <Favorite fontSize="small" />
+        ) : (
+          <FavoriteBorder fontSize="small" />
+        )
+      }
+      sx={sx}
+      fullWidth={fullWidth}
+    >
+      {isInWishlist ? "Remove from Wishlist" : "Add to Wishlist"}
+    </Button>
+  ) : (
+    <IconButton
+      size={size}
+      onClick={handleToggle}
+      disabled={isLoading}
+      sx={sx}
+      aria-label={isInWishlist ? "Remove from wishlist" : "Add to wishlist"}
+    >
+      {isLoading ? (
+        <CircularProgress size={18} color="inherit" />
+      ) : isInWishlist ? (
+        <Favorite color="primary" fontSize="small" />
+      ) : (
+        <FavoriteBorder fontSize="small" />
+      )}
+    </IconButton>
+  );
 
-  return <IconButton size={size} onClick={handleToggle} disabled={isLoading} sx={sx} aria-label={isInWishlist ? "Remove from wishlist" : "Add to wishlist"}>
-      {isLoading ? <CircularProgress size={18} color="inherit" /> : isInWishlist ? <Favorite color="primary" fontSize="small" /> : <FavoriteBorder fontSize="small" />}
-    </IconButton>;
+  return (
+    <>
+      {buttonContent}
+      <Snackbar
+        open={Boolean(errorMsg)}
+        autoHideDuration={4000}
+        onClose={() => setErrorMsg("")}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert onClose={() => setErrorMsg("")} severity="error" variant="filled">
+          {errorMsg}
+        </Alert>
+      </Snackbar>
+    </>
+  );
 }

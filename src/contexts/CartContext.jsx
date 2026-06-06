@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useEffect, useMemo, useState } from "react";
+import { createContext, use, useCallback, useEffect, useMemo, useState } from "react";
 
 import { useAuth } from "contexts/AuthContext";
 import { apiDelete, apiGet, apiPatch, apiPost } from "utils/api";
@@ -34,6 +34,9 @@ function normalizeCart(apiCart) {
   const items = Array.isArray(apiCart?.items) ? apiCart.items.map(item => ({
     id: item.id,
     productId: item.productId,
+    variantId: item.variantId ?? null,
+    variantName: item.variantName ?? null,
+    variantAttributes: item.variantAttributes ?? null,
     slug: item.product?.slug || item.product?.id || item.productId || "",
     title: item.product?.name || "Product",
     thumbnail: normalizeProductImageUrl(item.product?.imageUrl || FALLBACK_PRODUCT_IMAGE),
@@ -68,11 +71,10 @@ export default function CartProvider({
     return cart;
   }, [isAuthenticated]);
 
-  const addItem = useCallback(async (productId, quantity) => {
-    const cart = await apiPost("/cart/items", {
-      productId,
-      quantity
-    });
+  const addItem = useCallback(async (productId, quantity, variantId = null) => {
+    const body = { productId, quantity };
+    if (variantId) body.variantId = variantId;
+    const cart = await apiPost("/cart/items", body);
 
     setState(normalizeCart(cart));
     return cart;
@@ -125,7 +127,7 @@ export default function CartProvider({
           return;
         }
 
-        await addItem(cartItem.id, nextQuantity);
+        await addItem(cartItem.id, nextQuantity, cartItem.variantId ?? null);
         return;
       }
 
@@ -188,7 +190,13 @@ export default function CartProvider({
     state,
     dispatch,
     ready,
-    refreshCart: syncCart
-  }), [dispatch, ready, state, syncCart]);
+    refreshCart: syncCart,
+    addItem,
+  }), [addItem, dispatch, ready, state, syncCart]);
   return <CartContext value={contextValue}>{children}</CartContext>;
+}
+
+/** Named convenience hook — mirrors the default hooks/useCart.js */
+export function useCart() {
+  return use(CartContext);
 }

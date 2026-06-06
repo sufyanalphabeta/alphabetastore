@@ -1,6 +1,9 @@
 import axios from "axios";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL?.trim() || "http://localhost:3001/api/v1";
+const API_BASE_URL =
+	(typeof window === "undefined" ? process.env.INTERNAL_API_BASE_URL?.trim() : undefined) ||
+	process.env.NEXT_PUBLIC_API_BASE_URL?.trim() ||
+	"http://localhost:3001/api/v1";
 
 /**
  * Strip the legacy `/api/` prefix that some Bazaar template files add to

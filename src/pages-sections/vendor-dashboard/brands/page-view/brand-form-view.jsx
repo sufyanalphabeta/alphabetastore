@@ -27,6 +27,9 @@ const schema = yup.object().shape({
   name: yup.string().trim().min(2).required("Name required"),
   slug: yup.string().trim().min(2).required("Slug required"),
   description: yup.string().max(2000).nullable(),
+  bannerUrl: yup.string().max(500).nullable(),
+  metaTitle: yup.string().max(160).nullable(),
+  metaDesc: yup.string().max(320).nullable(),
   isVisible: yup.boolean().required(),
   isFeatured: yup.boolean().required(),
   sortOrder: yup.number().integer().min(0).required()
@@ -54,6 +57,9 @@ export default function BrandFormView({ slug }) {
       name: "",
       slug: "",
       description: "",
+      bannerUrl: "",
+      metaTitle: "",
+      metaDesc: "",
       isVisible: true,
       isFeatured: false,
       sortOrder: 0
@@ -84,6 +90,9 @@ export default function BrandFormView({ slug }) {
           name: data?.name || "",
           slug: data?.slug || "",
           description: data?.description || "",
+          bannerUrl: data?.bannerUrl || "",
+          metaTitle: data?.metaTitle || "",
+          metaDesc: data?.metaDesc || "",
           isVisible: data?.isVisible !== false,
           isFeatured: Boolean(data?.isFeatured),
           sortOrder: data?.sortOrder ?? 0
@@ -126,6 +135,9 @@ export default function BrandFormView({ slug }) {
       name: values.name.trim(),
       slug: values.slug.trim() || slugify(values.name),
       description: values.description?.trim() || undefined,
+      bannerUrl: values.bannerUrl?.trim() || undefined,
+      metaTitle: values.metaTitle?.trim() || undefined,
+      metaDesc: values.metaDesc?.trim() || undefined,
       isVisible: Boolean(values.isVisible),
       isFeatured: Boolean(values.isFeatured),
       sortOrder: Number(values.sortOrder) || 0
@@ -183,6 +195,18 @@ export default function BrandFormView({ slug }) {
               color="info"
               size="medium"
             />
+          </Grid>
+
+          <Grid size={{ sm: 6, xs: 12 }}>
+            <TextField fullWidth name="bannerUrl" label="Banner Image URL" color="info" size="medium" placeholder="https://…/banner.jpg" />
+          </Grid>
+
+          <Grid size={{ sm: 6, xs: 12 }}>
+            <TextField fullWidth name="metaTitle" label="SEO Meta Title" color="info" size="medium" placeholder="Optional page title for search engines" />
+          </Grid>
+
+          <Grid size={12}>
+            <TextField fullWidth name="metaDesc" label="SEO Meta Description" color="info" size="medium" placeholder="Optional 1–2 sentence description for search engines" />
           </Grid>
 
           <Grid size={{ sm: 4, xs: 6 }}>

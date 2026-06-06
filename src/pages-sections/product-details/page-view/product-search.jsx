@@ -27,7 +27,7 @@ import ProductsGridView from "components/products-view/products-grid-view";
 import ProductsListView from "components/products-view/products-list-view";
 import ProductCardSkeleton from "components/product-cards/ProductCardSkeleton";
 import EmptyState from "components/empty-state/EmptyState";
-import { buildProductFilters, fetchCategories, fetchProductsPage } from "utils/catalog";
+import { buildProductFilters, fetchBrandsPublic, fetchCategories, fetchProductsPage, trackSearchTerm } from "utils/catalog";
 
 // TYPES
 
@@ -35,8 +35,8 @@ const SORT_OPTIONS = [{
   label: "Relevance",
   value: "relevance"
 }, {
-  label: "Date",
-  value: "date"
+  label: "Newest",
+  value: "newest"
 }, {
   label: "Price Low to High",
   value: "asc"
@@ -70,11 +70,13 @@ export default function ProductSearchPageView() {
   const sort = searchParams.get("sort") || "relevance";
   const category = searchParams.get("category");
   const brand = searchParams.get("brand");
+  const brandId = searchParams.get("brandId");
   const minPrice = searchParams.get("minPrice");
   const maxPrice = searchParams.get("maxPrice");
+  const inStock = searchParams.get("inStock") === "true";
   const [products, setProducts] = useState([]);
   const [filters, setFilters] = useState(EMPTY_FILTERS);
-  const [availableBrands, setAvailableBrands] = useState([]);
+  const [allBrands, setAllBrands] = useState([]);
   const [pagination, setPagination] = useState({
     page: 1,
     limit: PAGE_SIZE,
@@ -89,15 +91,20 @@ export default function ProductSearchPageView() {
 
     const loadFilters = async () => {
       try {
-        const categoriesResponse = await fetchCategories();
+        const [categoriesResponse, brandsResponse] = await Promise.all([
+          fetchCategories(),
+          fetchBrandsPublic(),
+        ]);
 
         if (!active) return;
 
         setFilters(buildProductFilters(categoriesResponse));
+        setAllBrands(Array.isArray(brandsResponse) ? brandsResponse : []);
       } catch {
         if (!active) return;
 
         setFilters(EMPTY_FILTERS);
+        setAllBrands([]);
       }
     };
 
@@ -120,8 +127,10 @@ export default function ProductSearchPageView() {
           q: query,
           category,
           brand,
+          brandId,
           minPrice: minPrice ? Number(minPrice) : undefined,
           maxPrice: maxPrice ? Number(maxPrice) : undefined,
+          inStock: inStock || undefined,
           sort,
           status: "ACTIVE",
           page: Number(page) || 1,
@@ -133,14 +142,10 @@ export default function ProductSearchPageView() {
         setProducts(productsResponse.products);
         setPagination(productsResponse.pagination);
 
-        // Extract unique brands from loaded products
-        const brands = [...new Set(
-          productsResponse.products
-            .map(p => p.brand)
-            .filter(Boolean)
-        )].sort();
-
-        setAvailableBrands(brands);
+        // Track search term analytics (fire-and-forget)
+        if (query && query.trim().length >= 2) {
+          trackSearchTerm(query.trim()).catch(() => {});
+        }
       } catch {
         if (!active) return;
 
@@ -164,7 +169,7 @@ export default function ProductSearchPageView() {
     return () => {
       active = false;
     };
-  }, [category, brand, minPrice, maxPrice, page, query, sort]);
+  }, [category, brand, brandId, inStock, minPrice, maxPrice, page, query, sort]);
 
   const handleChangeSearchParams = (key, value) => {
     if (!key || !value) return;
@@ -281,7 +286,7 @@ export default function ProductSearchPageView() {
                       <FilterList fontSize="small" />
                     </IconButton>}>
                   <Box px={3} py={2}>
-                    <ProductFilters filters={{ ...filters, brands: availableBrands }} />
+                    <ProductFilters filters={{ ...filters, brands: allBrands, inStock }} />
                   </Box>
                 </Sidenav>
               </Box>
@@ -300,7 +305,7 @@ export default function ProductSearchPageView() {
             xs: "none"
           }
         }}>
-            <ProductFilters filters={{ ...filters, brands: availableBrands }} />
+            <ProductFilters filters={{ ...filters, brands: allBrands, inStock }} />
           </Grid>
 
           {/* PRODUCT VIEW AREA */}

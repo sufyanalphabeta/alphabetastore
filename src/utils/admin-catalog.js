@@ -152,3 +152,61 @@ export async function updateAdminProductStatus(id, isActive) {
 export async function deleteAdminProduct(id) {
   return apiDelete(`/products/${id}`);
 }
+
+// ── Phase E: Variants ─────────────────────────────────────────────────────────
+
+export async function adminFetchVariants(productId) {
+  return apiGet(`/products/${productId}/variants`);
+}
+
+export async function adminCreateVariant(productId, data) {
+  return apiPost(`/products/${productId}/variants`, data);
+}
+
+export async function adminUpdateVariant(productId, variantId, data) {
+  return apiPatch(`/products/${productId}/variants/${variantId}`, data);
+}
+
+export async function adminDeleteVariant(productId, variantId) {
+  return apiDelete(`/products/${productId}/variants/${variantId}`);
+}
+
+// ── Phase E: Bundles ──────────────────────────────────────────────────────────
+
+export async function adminFetchBundles() {
+  return apiGet("/admin/bundles");
+}
+
+export async function adminCreateBundle(data) {
+  return apiPost("/admin/bundles", data);
+}
+
+export async function adminUpdateBundle(id, data) {
+  return apiPatch(`/admin/bundles/${id}`, data);
+}
+
+export async function adminDeleteBundle(id) {
+  return apiDelete(`/admin/bundles/${id}`);
+}
+
+export async function adminAddBundleItem(bundleId, data) {
+  return apiPost(`/admin/bundles/${bundleId}/items`, data);
+}
+
+export async function adminRemoveBundleItem(bundleId, productId) {
+  return apiDelete(`/admin/bundles/${bundleId}/items/${productId}`);
+}
+
+// ── Phase E: Product Relations ────────────────────────────────────────────────
+
+export async function adminFetchRelations(productId) {
+  return apiGet(`/products/${productId}/relations`);
+}
+
+export async function adminAddRelation(productId, data) {
+  return apiPost(`/products/${productId}/relations`, data);
+}
+
+export async function adminRemoveRelation(productId, targetId, relationType) {
+  return apiDelete(`/products/${productId}/relations/${targetId}?type=${relationType}`);
+}

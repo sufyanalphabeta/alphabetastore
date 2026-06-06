@@ -13,6 +13,7 @@ import {
   fetchBrandsPublic,
   fetchCategoriesTree,
   fetchHomepageLayout,
+  fetchProductCountsByCategory,
   fetchProductsPage
 } from "utils/catalog";
 
@@ -38,23 +39,25 @@ async function safeCount(filters) {
 }
 
 export default async function CatalogVerificationView() {
-  const [tree, brands, layout] = await Promise.all([
+  const [tree, brands, layout, countMap] = await Promise.all([
     fetchCategoriesTree(false).catch(() => []),
     fetchBrandsPublic({ onlyVisible: false }).catch(() => []),
-    fetchHomepageLayout().catch(() => [])
+    fetchHomepageLayout().catch(() => []),
+    fetchProductCountsByCategory().catch(() => new Map())
   ]);
 
   const categories = flattenCategoryTree(tree);
-  const totalProducts = await safeCount({});
-  const featuredCount = await safeCount({ featured: true });
-  const newArrivalsCount = await safeCount({ sortBy: "newest" });
+  const [totalProducts, featuredCount, newArrivalsCount] = await Promise.all([
+    safeCount({}),
+    safeCount({ featured: true }),
+    safeCount({ sortBy: "newest" })
+  ]);
 
-  const categoryCounts = await Promise.all(
-    categories.slice(0, 50).map(async cat => ({
-      ...cat,
-      count: await safeCount({ category: cat.slug })
-    }))
-  );
+  // Annotate categories with counts from the single bulk call (no N+1)
+  const categoryCounts = categories.slice(0, 50).map(cat => ({
+    ...cat,
+    count: countMap.get(cat.id) ?? 0
+  }));
 
   return (
     <PageWrapper title="Catalog Verification">

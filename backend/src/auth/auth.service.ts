@@ -232,9 +232,41 @@ export class AuthService {
       return null;
     }
 
+    // Check lockout before verifying password to avoid bcrypt timing leaks.
+    if (user.loginLockedUntil && user.loginLockedUntil > new Date()) {
+      return null;
+    }
+
     const passwordMatches = await this.comparePassword(password, user.passwordHash);
 
-    return passwordMatches ? user : null;
+    if (!passwordMatches) {
+      const MAX_ATTEMPTS = 5;
+      const LOCKOUT_MINUTES = 15;
+      const newFailCount = (user.loginFailCount ?? 0) + 1;
+      const shouldLock = newFailCount >= MAX_ATTEMPTS;
+
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          loginFailCount: newFailCount,
+          loginLockedUntil: shouldLock
+            ? new Date(Date.now() + LOCKOUT_MINUTES * 60 * 1000)
+            : null,
+        },
+      });
+
+      return null;
+    }
+
+    // Successful login — reset lockout counters.
+    if ((user.loginFailCount ?? 0) > 0 || user.loginLockedUntil) {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { loginFailCount: 0, loginLockedUntil: null },
+      });
+    }
+
+    return user;
   }
 
   async hashPassword(password: string): Promise<string> {

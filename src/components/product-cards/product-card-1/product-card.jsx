@@ -1,5 +1,7 @@
 import Link from "next/link";
 import Rating from "@mui/material/Rating";
+import Typography from "@mui/material/Typography";
+import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
 import RemoveRedEye from "@mui/icons-material/RemoveRedEye";
 
@@ -26,7 +28,6 @@ import { ImageWrapper, ContentWrapper, StyledCard, HoverIconWrapper } from "./st
 
 export default function ProductCard1({
   product,
-  showProductSize,
   showRating = true
 }) {
   const {
@@ -35,6 +36,7 @@ export default function ProductCard1({
     price,
     thumbnail,
     rating,
+    ratingCount,
     discount
   } = product;
   return <StyledCard>
@@ -65,10 +67,16 @@ export default function ProductCard1({
           <ProductTitle title={title} slug={slug} />
 
           {/* PRODUCT RATINGS IF AVAILABLE */}
-          {showRating && <Rating size="small" value={rating} color="warn" readOnly />}
-
-          {/* PRODUCT SIZE IF AVAILABLE */}
-          {showProductSize ? <p className="size">Liter</p> : null}
+          {showRating && rating > 0 && (
+            <Box display="flex" alignItems="center" gap={0.5} mt={0.25}>
+              <Rating size="small" value={rating} color="warn" readOnly precision={0.5} />
+              {ratingCount > 0 && (
+                <Typography variant="caption" sx={{ color: "grey.600" }}>
+                  ({ratingCount})
+                </Typography>
+              )}
+            </Box>
+          )}
 
           {/* PRODUCT PRICE WITH DISCOUNT */}
           <ProductPrice product={product} discount={discount} price={price} />

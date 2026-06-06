@@ -99,6 +99,32 @@ export class ProductsController {
     return this.productsService.findByIds(list);
   }
 
+  @Get('counts-by-category')
+  countsByCategory() {
+    return this.productsService.countsByCategory();
+  }
+
+  @Get('autocomplete')
+  autocomplete(@Query('q') q?: string, @Query('limit') limit?: string) {
+    const term = (q ?? '').trim();
+    if (!term) return { products: [], brands: [], categories: [] };
+    return this.productsService.autocomplete(term, limit ? Math.min(Number(limit) || 5, 10) : 5);
+  }
+
+  @Get('popular-searches')
+  popularSearches(@Query('limit') limit?: string) {
+    return this.productsService.popularSearches(limit ? Math.min(Number(limit) || 8, 20) : 8);
+  }
+
+  @Post('track-search')
+  trackSearch(@Body() body: { term?: string }) {
+    const term = (body?.term ?? '').trim().toLowerCase().slice(0, 255);
+    if (term.length < 2) return { ok: false };
+    // fire-and-forget — don't await
+    this.productsService.trackSearch(term).catch(() => null);
+    return { ok: true };
+  }
+
   @Get(':slugOrId/related')
   async findRelated(
     @Param('slugOrId') slugOrId: string,

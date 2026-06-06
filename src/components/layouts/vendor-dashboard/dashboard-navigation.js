@@ -64,6 +64,26 @@ export const navigation = [{
   icon: duotone.ElementHub,
   path: "/admin/tickets"
 }, {
+  name: "Reviews",
+  icon: duotone.Accounts,
+  path: "/admin/reviews"
+}, {
+  name: "Product Q&A",
+  icon: duotone.Accounts,
+  path: "/admin/qna"
+}, {
+  name: "Bundles",
+  icon: duotone.Products,
+  path: "/admin/bundles"
+}, {
+  name: "Variants",
+  icon: duotone.Products,
+  path: "/admin/variants"
+}, {
+  name: "Relations",
+  icon: duotone.Products,
+  path: "/admin/relations"
+}, {
   type: "label",
   label: "Settings"
 }, {

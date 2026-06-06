@@ -220,6 +220,39 @@ export class CategoriesService {
     });
   }
 
+  /** Find a single category by its slug along with its parent and children. */
+  async findBySlug(slug: string) {
+    const category = await this.prisma.category.findUnique({
+      where: { slug },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        parentId: true,
+        isActive: true,
+        isVisible: true,
+        isFeatured: true,
+        icon: true,
+        imageUrl: true,
+        description: true,
+        parent: {
+          select: { id: true, name: true, slug: true },
+        },
+        children: {
+          where: { isActive: true, isVisible: true },
+          orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+          select: { id: true, name: true, slug: true, icon: true, imageUrl: true },
+        },
+      },
+    });
+
+    if (!category) {
+      throw new NotFoundException('Category not found.');
+    }
+
+    return category;
+  }
+
   async reorder(items: Array<{ id: string; sortOrder: number }>) {
     await this.prisma.$transaction(
       items.map((i) =>

@@ -36,15 +36,18 @@ function ProductFiltersInner({
 }) {
   const {
     categories: CATEGORIES = [],
-    brands: BRANDS = []
+    brands: BRANDS = [],
+    inStock: inStockProp = false,
   } = filters || {};
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const selectedCategory = searchParams.get("category") || "";
   const selectedBrand = searchParams.get("brand") || "";
+  const selectedBrandId = searchParams.get("brandId") || "";
   const initialMinPrice = Number(searchParams.get("minPrice") || 0);
   const initialMaxPrice = Number(searchParams.get("maxPrice") || 0);
+  const currentInStock = searchParams.get("inStock") === "true";
   const [priceRange, setPriceRange] = useState([initialMinPrice, initialMaxPrice || 5000]);
   const [maxPriceInput, setMaxPriceInput] = useState(initialMaxPrice || "");
   const [minPriceInput, setMinPriceInput] = useState(initialMinPrice || "");
@@ -59,8 +62,39 @@ function ProductFiltersInner({
     handleChangeSearchParams("category", selectedCategory === slug ? "" : slug);
   };
 
-  const handleSelectBrand = brand => {
-    handleChangeSearchParams("brand", selectedBrand === brand ? "" : brand);
+  const handleSelectBrand = (brand) => {
+    const params = new URLSearchParams(searchParams);
+    // Determine if brand is object (from API) or legacy string
+    if (brand && typeof brand === "object") {
+      const isSelected = selectedBrandId === brand.id;
+      if (isSelected) {
+        params.delete("brandId");
+        params.delete("brand");
+      } else {
+        params.set("brandId", brand.id);
+        params.set("brand", brand.slug);
+      }
+    } else {
+      const isSelected = selectedBrand === brand;
+      if (isSelected) {
+        params.delete("brand");
+      } else {
+        params.set("brand", brand);
+      }
+    }
+    params.delete("page");
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
+  const handleToggleInStock = () => {
+    const params = new URLSearchParams(searchParams);
+    if (currentInStock) {
+      params.delete("inStock");
+    } else {
+      params.set("inStock", "true");
+    }
+    params.delete("page");
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
   const handleApplyPriceFilter = () => {
@@ -140,6 +174,23 @@ function ProductFiltersInner({
 
       <Divider sx={{ my: 2 }} />
 
+      {/* AVAILABILITY FILTER */}
+      <Typography variant="h6" sx={{ mb: 1 }}>
+        التوفر
+      </Typography>
+      <FormControlLabel
+        label="متوفر في المخزون"
+        control={<Checkbox
+          size="small"
+          color="success"
+          checked={currentInStock}
+          onChange={handleToggleInStock}
+        />}
+        sx={{ display: "flex", "& .MuiFormControlLabel-label": { fontSize: 14 } }}
+      />
+
+      <Divider sx={{ my: 2 }} />
+
       {/* PRICE RANGE FILTER */}
       <Typography variant="h6" sx={{ mb: 1.5 }}>
         نطاق السعر
@@ -178,17 +229,23 @@ function ProductFiltersInner({
           الماركة / العلامة التجارية
         </Typography>
 
-        {BRANDS.map(brand => <FormControlLabel
-          key={brand}
-          label={brand}
-          control={<Checkbox
-            size="small"
-            color="info"
-            checked={selectedBrand === brand}
-            onChange={() => handleSelectBrand(brand)}
-          />}
-          sx={{ display: "flex", "& .MuiFormControlLabel-label": { fontSize: 14 } }}
-        />)}
+        {BRANDS.map(brand => {
+          const isObj = brand && typeof brand === "object";
+          const key = isObj ? brand.id : brand;
+          const label = isObj ? brand.name : brand;
+          const isSelected = isObj ? selectedBrandId === brand.id : selectedBrand === brand;
+          return <FormControlLabel
+            key={key}
+            label={label}
+            control={<Checkbox
+              size="small"
+              color="info"
+              checked={isSelected}
+              onChange={() => handleSelectBrand(brand)}
+            />}
+            sx={{ display: "flex", "& .MuiFormControlLabel-label": { fontSize: 14 } }}
+          />;
+        })}
       </>}
 
       {hasActiveFilters && <Button fullWidth disableElevation color="error" variant="contained" onClick={handleClearFilters} sx={{ mt: 3 }}>

@@ -1,4 +1,4 @@
-import { IsIn, IsOptional, IsString, IsUUID, Matches, MinLength } from 'class-validator';
+import { IsIn, IsOptional, IsString, IsUUID, Matches, MaxLength, MinLength } from 'class-validator';
 
 import { LIBYAN_CITIES } from '../../common/constants/libya';
 
@@ -33,5 +33,11 @@ export class CreateOrderDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(1000)
   notes?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  idempotencyKey?: string;
 }

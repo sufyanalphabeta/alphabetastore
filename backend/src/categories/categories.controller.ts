@@ -41,6 +41,11 @@ export class CategoriesController {
     return this.categoriesService.findFeatured(Number.isFinite(n) && n > 0 ? n : 12);
   }
 
+  @Get('slug/:slug')
+  findBySlug(@Param('slug') slug: string) {
+    return this.categoriesService.findBySlug(slug);
+  }
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
   @Post()
