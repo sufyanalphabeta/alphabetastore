@@ -1,0 +1,3 @@
+ALTER TABLE "products"
+ADD COLUMN IF NOT EXISTS "warranty_text" VARCHAR(120),
+ADD COLUMN IF NOT EXISTS "datasheet_url" VARCHAR(500);
