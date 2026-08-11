@@ -44,6 +44,10 @@ export const navigation = [{
   icon: duotone.Dashboard,
   path: "/admin/homepage"
 }, {
+  name: "Import Products",
+  icon: duotone.Products,
+  path: "/admin/catalog-imports"
+}, {
   name: "Catalog Verification",
   icon: duotone.Dashboard,
   path: "/admin/catalog-verification"
