@@ -71,10 +71,12 @@ export const StyledRoot = styled(Card, {
   theme,
   border
 }) => ({
-  height: "60px",
+  height: "58px",
   display: "block",
   overflow: "unset",
   borderRadius: "0px",
+  background: "#263d66",
+  color: theme.palette.common.white,
   position: "relative",
   ...(border && {
     borderBottom: `1px solid ${theme.palette.grey[100]}`
@@ -94,7 +96,8 @@ export const CategoryMenuButton = styled(Button)(({
 }) => ({
   width: 278,
   borderRadius: 4,
-  backgroundColor: theme.palette.grey[50],
+  backgroundColor: "rgba(255,255,255,0.12)",
+  color: theme.palette.common.white,
   paddingBlock: 8,
   ".prefix": {
     gap: 8,
