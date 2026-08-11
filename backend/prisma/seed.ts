@@ -220,6 +220,7 @@ async function main() {
         name: parent.name,
         icon: parent.icon,
         sortOrder: parent.sortOrder,
+        isFeatured: true,
         isActive: true,
         isVisible: true,
       },
@@ -228,6 +229,7 @@ async function main() {
         slug: parent.slug,
         icon: parent.icon,
         sortOrder: parent.sortOrder,
+        isFeatured: true,
         isActive: true,
         isVisible: true,
       },
@@ -324,12 +326,14 @@ async function main() {
     shortDescription: string;
     description: string;
     price: number;
+    baseCurrency: 'LYD' | 'USD';
     stockQty: number;
     categorySlug: string;
     brandSlug: string;
     isFeatured: boolean;
     highlights: string[];
     specs: Record<string, string>;
+    imageUrls?: string[];
   };
 
   const sampleProducts: ProductSeed[] = [
@@ -339,12 +343,14 @@ async function main() {
       shortDescription: '15.6" business laptop with Intel Core i5 and 16 GB RAM.',
       description: 'The Dell Latitude 5540 is designed for business productivity with strong security features, a comfortable keyboard, and long battery life.',
       price: 4200,
+      baseCurrency: 'USD',
       stockQty: 25,
       categorySlug: 'laptops',
       brandSlug: 'dell',
       isFeatured: true,
       highlights: ['Intel Core i5-1345U', '16 GB DDR4', '512 GB SSD', 'Windows 11 Pro'],
       specs: { CPU: 'Intel Core i5-1345U', RAM: '16 GB', Storage: '512 GB NVMe SSD', Display: '15.6" FHD', OS: 'Windows 11 Pro' },
+      imageUrls: ['/assets/images/products/demo/tech-laptop.jpg'],
     },
     {
       name: 'Lenovo ThinkPad E14 Gen 5',
@@ -352,12 +358,14 @@ async function main() {
       shortDescription: 'Slim 14" business laptop, AMD Ryzen 5, 8 GB RAM.',
       description: 'The ThinkPad E14 Gen 5 delivers everyday performance in a sleek chassis with AMD Ryzen processors and rapid charging.',
       price: 3500,
+      baseCurrency: 'USD',
       stockQty: 18,
       categorySlug: 'laptops',
       brandSlug: 'lenovo',
       isFeatured: true,
       highlights: ['AMD Ryzen 5 7530U', '8 GB LPDDR5', '256 GB SSD', 'Rapid Charge'],
       specs: { CPU: 'AMD Ryzen 5 7530U', RAM: '8 GB', Storage: '256 GB SSD', Display: '14" FHD IPS', Battery: '57 Wh' },
+      imageUrls: ['/assets/images/products/demo/office-laptop.jpg'],
     },
     {
       name: 'HP EliteDesk 800 G9 Mini',
@@ -365,12 +373,14 @@ async function main() {
       shortDescription: 'Compact mini PC for enterprise desktops, Core i7.',
       description: 'A tiny-footprint desktop built for enterprise reliability with Intel vPro and TPM 2.0 security.',
       price: 5800,
+      baseCurrency: 'USD',
       stockQty: 10,
       categorySlug: 'desktops',
       brandSlug: 'hp',
       isFeatured: false,
       highlights: ['Intel Core i7-12700', '16 GB DDR5', '512 GB SSD', 'Intel vPro'],
       specs: { CPU: 'Intel Core i7-12700', RAM: '16 GB DDR5', Storage: '512 GB SSD', Form: 'Mini PC', TPM: '2.0' },
+      imageUrls: ['/assets/images/products/demo/blue-laptop.jpg'],
     },
     {
       name: 'Cisco RV340 Dual WAN Router',
@@ -378,6 +388,7 @@ async function main() {
       shortDescription: 'Small-business router with dual WAN and VPN support.',
       description: 'The Cisco RV340 provides advanced routing, firewall, and VPN features tailored for small-to-medium businesses.',
       price: 1850,
+      baseCurrency: 'USD',
       stockQty: 30,
       categorySlug: 'routers',
       brandSlug: 'cisco',
@@ -391,6 +402,7 @@ async function main() {
       shortDescription: 'Unmanaged 8-port Gigabit switch for home and office.',
       description: 'Plug-and-play Gigabit switch offering reliable and fast network connectivity with zero configuration.',
       price: 280,
+      baseCurrency: 'USD',
       stockQty: 60,
       categorySlug: 'switches',
       brandSlug: 'tp-link',
@@ -404,6 +416,7 @@ async function main() {
       shortDescription: 'Wi-Fi 6 ceiling AP, up to 5.4 Gbps dual-band.',
       description: 'The EAP670 delivers blazing-fast Wi-Fi 6 speeds with MU-MIMO and OFDMA for dense environments.',
       price: 620,
+      baseCurrency: 'USD',
       stockQty: 40,
       categorySlug: 'access-points',
       brandSlug: 'tp-link',
@@ -417,6 +430,7 @@ async function main() {
       shortDescription: '4 MP AcuSense fixed dome, 2.8 mm, IR 40 m.',
       description: 'AcuSense technology reduces false alarms by accurately distinguishing humans and vehicles.',
       price: 480,
+      baseCurrency: 'USD',
       stockQty: 50,
       categorySlug: 'ip-cameras',
       brandSlug: 'hikvision',
@@ -430,6 +444,7 @@ async function main() {
       shortDescription: '8-channel PoE NVR, H.265+, 4K decoding.',
       description: 'Supports up to 8 IP cameras with built-in PoE, H.265+ compression, and 4K decoding capability.',
       price: 950,
+      baseCurrency: 'USD',
       stockQty: 20,
       categorySlug: 'dvr-nvr',
       brandSlug: 'dahua',
@@ -443,6 +458,7 @@ async function main() {
       shortDescription: '3.5" SATA hard drive, 2 TB, 7200 RPM.',
       description: 'Reliable storage for desktops and NAS with high transfer speeds and a 2-year warranty.',
       price: 380,
+      baseCurrency: 'USD',
       stockQty: 80,
       categorySlug: 'hdd',
       brandSlug: 'seagate',
@@ -456,6 +472,7 @@ async function main() {
       shortDescription: 'SATA III 2.5" SSD with up to 560 MB/s read speed.',
       description: 'The Samsung 870 EVO offers best-in-class sequential speeds and endurance for everyday computing.',
       price: 650,
+      baseCurrency: 'USD',
       stockQty: 45,
       categorySlug: 'ssd',
       brandSlug: 'samsung',
@@ -479,6 +496,7 @@ async function main() {
         shortDescription: p.shortDescription,
         description: p.description,
         price: p.price,
+        baseCurrency: p.baseCurrency,
         stockQty: p.stockQty,
         categoryId,
         brandId: brandId ?? null,
@@ -502,10 +520,52 @@ async function main() {
         highlights: p.highlights,
         specs: p.specs,
         status: 'ACTIVE',
-        baseCurrency: 'LYD',
+        baseCurrency: p.baseCurrency,
+        images: p.imageUrls?.length
+          ? { create: p.imageUrls.map((imageUrl, index) => ({ imageUrl, sortOrder: index })) }
+          : undefined,
       },
     });
     console.log(`[seed] Product upserted: ${p.name}`);
+  }
+
+  // Provide a useful storefront immediately after a fresh install. Admins can
+  // later edit, reorder, or remove these blocks from /admin/homepage.
+  if ((await prisma.homepageBlock.count()) === 0) {
+    const defaultBlocks = [
+      {
+        type: 'HERO_BANNER' as const,
+        title: 'Alphabeta Store | متجر ألفا بيتا',
+        subtitle: 'Technology for home, office, and business',
+        config: {},
+        sortOrder: 1,
+      },
+      {
+        type: 'FEATURED_CATEGORIES' as const,
+        title: 'Shop by category',
+        subtitle: 'Find the right technology faster',
+        config: { limit: 8 },
+        sortOrder: 2,
+      },
+      {
+        type: 'NEW_ARRIVALS' as const,
+        title: 'Latest products',
+        subtitle: 'New additions to our catalog',
+        config: { limit: 8 },
+        sortOrder: 3,
+      },
+      {
+        type: 'FEATURED_BRANDS' as const,
+        title: 'Trusted brands',
+        config: { limit: 8 },
+        sortOrder: 4,
+      },
+    ];
+
+    for (const block of defaultBlocks) {
+      await prisma.homepageBlock.create({ data: block });
+    }
+    console.log(`[seed] Created ${defaultBlocks.length} default homepage blocks.`);
   }
 }
 
