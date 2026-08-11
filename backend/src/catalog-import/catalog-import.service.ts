@@ -124,11 +124,13 @@ export class CatalogImportService {
     await this.prisma.catalogImportSession.update({ where: { id }, data: { status: CatalogImportSessionStatus.APPLYING, appliedAt: new Date() } });
 
     const profile = this.profileFromRecord(session.profile);
-    const rows = await this.prisma.catalogImportRow.findMany({ where: { sessionId: id }, orderBy: { rowNumber: 'asc' }, select: { id: true, rowNumber: true, rawValues: true, normalizedValues: true, matchedProductId: true, status: true } });
+    const rows = await this.prisma.catalogImportRow.findMany({ where: { sessionId: id }, orderBy: { rowNumber: 'asc' }, select: { id: true, rowNumber: true, rawValues: true, normalizedValues: true, matchedProductId: true, status: true, detectedChanges: true } });
     const results: Array<{ rowId: string; rowNumber: number; status: 'APPLIED' | 'SKIPPED'; reason?: string }> = [];
     let failed = false;
     for (const row of rows) {
-      if (!(['NEW', 'PRICE_CHANGED', 'CATEGORY_CHANGED'] as string[]).includes(row.status)) {
+      const detectedChanges = (row.detectedChanges ?? {}) as { name?: unknown; sourceBarcode?: unknown };
+      const hasSourceMetadataChange = Boolean(detectedChanges.name || detectedChanges.sourceBarcode);
+      if (!(['NEW', 'PRICE_CHANGED', 'CATEGORY_CHANGED'] as string[]).includes(row.status) && !(row.status === CatalogImportRowStatus.UNCHANGED && hasSourceMetadataChange)) {
         await this.markApplyResult(row.id, 'SKIPPED', { reason: `ROW_STATUS_${row.status}` });
         results.push({ rowId: row.id, rowNumber: row.rowNumber, status: 'SKIPPED', reason: `ROW_STATUS_${row.status}` });
         continue;
@@ -164,16 +166,19 @@ export class CatalogImportService {
     const appliedAt = new Date();
     const result = await this.prisma.$transaction(async (tx) => {
       if (rowStatus === CatalogImportRowStatus.NEW) {
-        if (!row.sourceDescription || row.sourceDescription.trim().length < 2) return { status: 'SKIPPED' as const, reason: 'SOURCE_DESCRIPTION_REQUIRED' };
         const category = await tx.category.findUnique({ where: { id: categoryId }, select: { id: true, isActive: true } });
         if (!category?.isActive) return { status: 'SKIPPED' as const, reason: 'CATEGORY_NOT_ACTIVE' };
         const brand = row.mappedBrandId ? await tx.brand.findUnique({ where: { id: row.mappedBrandId }, select: { id: true } }) : null;
         if (row.mappedBrandId && !brand) return { status: 'SKIPPED' as const, reason: 'BRAND_NOT_FOUND' };
         const slug = await this.uniqueImportedSlug(tx, name, externalId);
-        const description = row.sourceDescription.trim().slice(0, 10000);
+        // Product schema requires descriptions. Prefer the source specification;
+        // when Rakiza leaves it empty, use the exact source name as a neutral,
+        // non-marketing fallback so the inactive product can be enriched later.
+        const descriptionOrigin = row.sourceDescription?.trim() ? 'SOURCE_DESCRIPTION' : 'SOURCE_NAME_FALLBACK';
+        const description = (row.sourceDescription?.trim() || name).slice(0, 10000);
         const product = await tx.product.create({ data: { categoryId: category.id, name: name.slice(0, 160), slug, description, shortDescription: description.slice(0, 255), price: new Decimal(price), baseCurrency: 'LYD', stockQty: 0, status: 'INACTIVE', brandId: brand?.id ?? null } });
         await tx.productSourceIdentity.create({ data: { productId: product.id, sourceSystem: profile.sourceSystem, externalId: externalId.slice(0, 160), sourceBarcode: row.sourceBarcode?.slice(0, 120) ?? null, lastImportedPrice: new Decimal(price), lastImportedName: name.slice(0, 160), lastImportedSourceCategory: row.sourceCategory?.slice(0, 160) ?? null, lastImportedCategoryId: categoryId, lastImportedAt: appliedAt } });
-        await tx.catalogImportRow.update({ where: { id: rowId }, data: { matchedProductId: product.id, status: CatalogImportRowStatus.APPLIED, appliedAt, applyResult: json({ action: 'PRODUCT_CREATED', productId: product.id, stockQty: 0 }) } });
+        await tx.catalogImportRow.update({ where: { id: rowId }, data: { matchedProductId: product.id, status: CatalogImportRowStatus.APPLIED, appliedAt, applyResult: json({ action: 'PRODUCT_CREATED', productId: product.id, stockQty: 0, descriptionOrigin }) } });
         return { status: 'APPLIED' as const };
       }
 
