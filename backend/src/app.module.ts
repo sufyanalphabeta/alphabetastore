@@ -32,6 +32,7 @@ import { QnaModule } from './qna/qna.module';
 import { VariantsModule } from './variants/variants.module';
 import { BundlesModule } from './bundles/bundles.module';
 import { ProductRelationsModule } from './product-relations/product-relations.module';
+import { CatalogImportModule } from './catalog-import/catalog-import.module';
 
 @Module({
   imports: [
@@ -127,6 +128,7 @@ import { ProductRelationsModule } from './product-relations/product-relations.mo
     VariantsModule,
     BundlesModule,
     ProductRelationsModule,
+    CatalogImportModule,
     QueueModule,
     HealthModule,
   ],
