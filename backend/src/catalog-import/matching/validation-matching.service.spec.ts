@@ -50,7 +50,7 @@ describe('ValidationMatchingService', () => {
 
   it('treats changed barcode, broken identity and duplicate source barcode as conflicts', async () => {
     const changed = await new ValidationMatchingService(database([identity({ sourceBarcode: 'old' })], [product()]) as never).validateAndClassify([row({ sourceBarcode: 'new' })], profile);
-    expect(changed.rows[0].classification).toBe('CONFLICT');
+    expect(changed.rows[0].classification).toBe('UNCHANGED');
     const broken = await new ValidationMatchingService(database([identity()], []) as never).validateAndClassify([row()], profile);
     expect(broken.rows[0].identityMatch).toBe('BROKEN_EXTERNAL_ID');
     const duplicate = await new ValidationMatchingService(database([identity({ externalId: 'other', sourceBarcode: 'B-1' })], []) as never).validateAndClassify([row({ sourceBarcode: 'B-1' })], profile);

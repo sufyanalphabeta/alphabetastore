@@ -31,4 +31,7 @@ export class CatalogImportController {
 
   @Post(':id/category-mappings')
   resolveCategory(@Param('id') id: string, @Body() body: unknown) { return this.service.resolveCategory(id, body); }
+
+  @Post(':id/apply')
+  apply(@Param('id') id: string, @Req() request: { user: { sub: string } }) { return this.service.apply(id, request.user.sub); }
 }

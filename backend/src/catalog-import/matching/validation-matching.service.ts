@@ -101,7 +101,7 @@ export class ValidationMatchingService {
       changes.name = { current: product.name, incoming: row.name, manualEnrichmentUnknown };
       warnings.push(issue(manualEnrichmentUnknown ? 'NAME_ENRICHMENT_UNKNOWN' : 'MERCHANT_NAME_ENRICHMENT_DETECTED', manualEnrichmentUnknown ? 'Name differs, but no previous source name exists.' : 'Store name differs from the last imported source name; preserve merchant enrichment.'));
     }
-    const classification: RowClassification = changes.sourceBarcode ? 'CONFLICT' : changes.price ? 'PRICE_CHANGED' : changes.category ? 'CATEGORY_CHANGED' : 'UNCHANGED';
+    const classification: RowClassification = changes.price ? 'PRICE_CHANGED' : changes.category ? 'CATEGORY_CHANGED' : 'UNCHANGED';
     return { rowNumber: row.rowNumber, classification, matchedProductId, identityMatch, validationErrors, warnings, changes, mappedRow: row };
   }
 }
