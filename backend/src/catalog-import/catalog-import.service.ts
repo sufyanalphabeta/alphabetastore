@@ -12,6 +12,8 @@ import { mapCatalogRows, CatalogMappingProfile, MappedCatalogRow } from './mappi
 import { RAKIZA_CSV_PROFILE } from './profiles/rakiza.profile';
 import { ValidationMatchingService, ClassifiedCatalogRow } from './matching';
 import { PrismaService } from '../prisma/prisma.service';
+import { CategoriesService } from '../categories/categories.service';
+import { ParsedCsvRow } from './parsing/csv.types';
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
 const SAFE_RAKIZA_CATEGORY_MAP: Record<string, string> = {
@@ -49,6 +51,7 @@ export class CatalogImportService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly matchingService: ValidationMatchingService,
+    private readonly categoriesService: CategoriesService,
   ) {}
 
   async createPreview(file: Express.Multer.File, userId: string) {
@@ -104,6 +107,105 @@ export class CatalogImportService {
       this.prisma.catalogImportRow.findMany({ where, orderBy: { rowNumber: 'asc' }, skip: (page - 1) * pageSize, take: pageSize, select: { id: true, rowNumber: true, rawValues: true, normalizedValues: true, matchedProductId: true, status: true, validationErrors: true, detectedChanges: true } }),
     ]);
     return { page, pageSize, total, totalPages: Math.ceil(total / pageSize), rows };
+  }
+
+  async listUnmappedCategories(id: string) {
+    const session = await this.getReviewSession(id);
+    const profile = this.profileFromRecord(session.profile);
+    const sourceHeader = profile.columnMapping.sourceCategory;
+    const nameHeader = profile.columnMapping.name;
+    const mapping = profile.categoryMapping ?? {};
+    const rows = await this.prisma.catalogImportRow.findMany({
+      where: { sessionId: id },
+      select: { rawValues: true, normalizedValues: true },
+    });
+    const grouped = new Map<string, { affectedRows: number; sampleProductNames: string[] }>();
+    for (const row of rows) {
+      const sourceCategory = this.valueFromRow(row, sourceHeader);
+      if (!sourceCategory) continue;
+      const current = grouped.get(sourceCategory) ?? { affectedRows: 0, sampleProductNames: [] };
+      current.affectedRows += 1;
+      const productName = this.valueFromRow(row, nameHeader);
+      if (productName && current.sampleProductNames.length < 5 && !current.sampleProductNames.includes(productName)) current.sampleProductNames.push(productName);
+      grouped.set(sourceCategory, current);
+    }
+    const mappedIds = [...new Set([...grouped.keys()].map((category) => mapping[category]).filter(Boolean))];
+    const categories = mappedIds.length ? await this.prisma.category.findMany({ where: { id: { in: mappedIds } }, select: { id: true, name: true, slug: true, parentId: true, isActive: true, isVisible: true } }) : [];
+    const byId = new Map(categories.map((category) => [category.id, category]));
+    return [...grouped.entries()].map(([sourceCategory, details]) => {
+      const mappedCategoryId = mapping[sourceCategory] ?? null;
+      const mappedCategory = mappedCategoryId ? byId.get(mappedCategoryId) ?? null : null;
+      return { sourceCategory, ...details, currentMapping: mappedCategory ? { id: mappedCategory.id, name: mappedCategory.name, slug: mappedCategory.slug, parentId: mappedCategory.parentId } : null, unsupported: !mappedCategory };
+    }).filter((item) => item.unsupported).sort((a, b) => b.affectedRows - a.affectedRows || a.sourceCategory.localeCompare(b.sourceCategory));
+  }
+
+  async resolveCategory(id: string, body: unknown) {
+    const input = body as { sourceCategory?: unknown; categoryId?: unknown; create?: { name?: unknown; parentCategoryId?: unknown } };
+    const sourceCategory = typeof input?.sourceCategory === 'string' ? input.sourceCategory.trim() : '';
+    if (!sourceCategory) throw new BadRequestException('sourceCategory is required.');
+    const session = await this.getReviewSession(id);
+    const profile = this.profileFromRecord(session.profile);
+    const sourceHeader = profile.columnMapping.sourceCategory;
+    const rows = await this.prisma.catalogImportRow.findMany({ where: { sessionId: id }, select: { rawValues: true, normalizedValues: true } });
+    if (!rows.some((row) => this.valueFromRow(row, sourceHeader) === sourceCategory)) throw new BadRequestException('Source category does not belong to this import session.');
+
+    let categoryId: string;
+    const wantsCreate = input?.create !== undefined;
+    const hasCategoryId = typeof input?.categoryId === 'string' && input.categoryId.trim().length > 0;
+    if (wantsCreate === hasCategoryId) throw new BadRequestException('Provide exactly one of categoryId or create.');
+    if (hasCategoryId) {
+      const category = await this.prisma.category.findUnique({ where: { id: input.categoryId as string }, select: { id: true, isActive: true, isVisible: true } });
+      if (!category) throw new NotFoundException('Category not found.');
+      if (!category.isActive || !category.isVisible) throw new BadRequestException('Category is not active and usable.');
+      categoryId = category.id;
+    } else {
+      const create = input.create as { name?: unknown; parentCategoryId?: unknown };
+      const name = typeof create?.name === 'string' ? create.name.trim() : '';
+      const parentId = typeof create?.parentCategoryId === 'string' ? create.parentCategoryId : undefined;
+      if (!name) throw new BadRequestException('create.name is required.');
+      if (parentId) {
+        const parent = await this.prisma.category.findUnique({ where: { id: parentId }, select: { id: true, isActive: true, isVisible: true } });
+        if (!parent) throw new NotFoundException('Parent category not found.');
+        if (!parent.isActive || !parent.isVisible) throw new BadRequestException('Parent category is not active and usable.');
+      }
+      categoryId = (await this.categoriesService.createFromImport(name, parentId)).id;
+    }
+
+    const updatedProfile = await this.prisma.$transaction(async (tx) => {
+      const current = await tx.catalogImportProfile.findUnique({ where: { id: session.profile.id }, select: { categoryMapping: true } });
+      const nextMapping = { ...((current?.categoryMapping ?? {}) as Record<string, unknown>), [sourceCategory]: categoryId };
+      return tx.catalogImportProfile.update({ where: { id: session.profile.id }, data: { categoryMapping: json(nextMapping) }, select: { id: true, categoryMapping: true } });
+    });
+    const refreshed = await this.reevaluateSession(id, updatedProfile.categoryMapping as Record<string, string>);
+    return { mapping: { sourceCategory, categoryId }, session: refreshed };
+  }
+
+  private async reevaluateSession(id: string, categoryMapping: Record<string, string>) {
+    const session = await this.getReviewSession(id);
+    const profile = this.profileFromRecord({ ...session.profile, categoryMapping });
+    const storedRows = await this.prisma.catalogImportRow.findMany({ where: { sessionId: id }, orderBy: { rowNumber: 'asc' }, select: { rowNumber: true, rawValues: true, normalizedValues: true } });
+    const parsedRows: ParsedCsvRow[] = storedRows.map((row) => ({ rowNumber: row.rowNumber, raw: (row.rawValues ?? {}) as Record<string, string>, normalized: (row.normalizedValues ?? {}) as Record<string, string | null>, parseErrors: [] }));
+    const headers = [...new Set(parsedRows.flatMap((row) => Object.keys(row.raw)))];
+    const mapping = mapCatalogRows(parsedRows, headers, profile);
+    if (!mapping.profileValidation.valid) throw new BadRequestException({ message: 'Import profile is invalid.', errors: mapping.profileValidation.errors });
+    const matching = await this.matchingService.validateAndClassify(mapping.rows, profile);
+    await this.persistRowsAndSummary(id, mapping.rows, matching.rows, matching.counts, parsedRows.length);
+    return this.findSession(id);
+  }
+
+  private async getReviewSession(id: string) {
+    const session = await this.prisma.catalogImportSession.findUnique({ where: { id }, include: { profile: true } });
+    if (!session) throw new NotFoundException('Import session not found.');
+    if (session.status !== CatalogImportSessionStatus.READY_FOR_REVIEW) throw new BadRequestException('Only sessions ready for review can resolve categories.');
+    return session;
+  }
+
+  private valueFromRow(row: { rawValues: Prisma.JsonValue | null; normalizedValues: Prisma.JsonValue | null }, header?: string) {
+    if (!header) return null;
+    const normalized = row.normalizedValues as Record<string, unknown> | null;
+    const raw = row.rawValues as Record<string, unknown> | null;
+    const value = normalized?.[header] ?? raw?.[header];
+    return typeof value === 'string' && value.trim() ? value.trim() : null;
   }
 
   private async ensureRakizaProfile() {

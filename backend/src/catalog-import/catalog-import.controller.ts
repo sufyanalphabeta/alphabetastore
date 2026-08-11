@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Post, Query, Req, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -25,4 +25,10 @@ export class CatalogImportController {
 
   @Get(':id/rows')
   rows(@Param('id') id: string, @Query() query: { page?: number; pageSize?: number; status?: any }) { return this.service.findRows(id, query); }
+
+  @Get(':id/unmapped-categories')
+  unmappedCategories(@Param('id') id: string) { return this.service.listUnmappedCategories(id); }
+
+  @Post(':id/category-mappings')
+  resolveCategory(@Param('id') id: string, @Body() body: unknown) { return this.service.resolveCategory(id, body); }
 }

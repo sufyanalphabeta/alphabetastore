@@ -7,6 +7,7 @@ import {
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Prisma } from '@prisma/client';
 import type { Cache } from 'cache-manager';
+import { createHash } from 'crypto';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
@@ -82,6 +83,18 @@ export class CategoriesService {
       this.handleUniqueConstraint(error, 'Category slug already exists.');
       throw error;
     }
+  }
+
+  /** Minimal category creation entry point for import workflows. */
+  async createFromImport(name: string, parentId?: string) {
+    const cleanName = name.trim();
+    if (cleanName.length < 2) {
+      throw new ConflictException('Category name must contain at least 2 characters.');
+    }
+
+    const slugBase = this.slugify(cleanName);
+    const slug = slugBase || `category-${createHash('sha1').update(cleanName).digest('hex').slice(0, 12)}`;
+    return this.create({ name: cleanName, slug, parentId });
   }
 
   async update(id: string, updateCategoryDto: UpdateCategoryDto) {
@@ -301,5 +314,15 @@ export class CategoriesService {
     ) {
       throw new ConflictException(message);
     }
+  }
+
+  private slugify(name: string): string {
+    return name
+      .toLocaleLowerCase()
+      .replace(/[^\p{L}\p{N}\s-]/gu, '')
+      .trim()
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .slice(0, 150);
   }
 }
