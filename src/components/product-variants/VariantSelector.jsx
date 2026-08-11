@@ -19,8 +19,6 @@ import Tooltip from "@mui/material/Tooltip";
  */
 
 export default function VariantSelector({ variants = [], selectedId, onChange }) {
-  if (!variants.length) return null;
-
   // Extract the unique attribute keys in the order they first appear
   const attributeKeys = useMemo(() => {
     const keys = [];
@@ -33,6 +31,8 @@ export default function VariantSelector({ variants = [], selectedId, onChange })
     }
     return keys;
   }, [variants]);
+
+  if (!variants.length) return null;
 
   // Get all unique values for a given attribute key
   const valuesFor = (key) => {
