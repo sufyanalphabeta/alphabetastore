@@ -28,7 +28,23 @@ export const StyledRoot = styled("div", {
   boxShadow: theme.shadows[5],
   position: position || "unset",
   backgroundColor: theme.palette.background.paper,
-  top: position === "absolute" ? "calc(100% + 0.7rem)" : "0.5rem"
+  top: position === "absolute" ? "calc(100% + 0.7rem)" : "0.5rem",
+  width: 278,
+  minHeight: 40,
+  "& .categories": {
+    position: "absolute",
+    top: "calc(100% + 8px)",
+    insetInlineStart: 0,
+    width: 278,
+    backgroundColor: theme.palette.background.paper,
+    borderRadius: 8,
+    overflow: "visible",
+    boxShadow: theme.shadows[5]
+  },
+  ":dir(rtl) .mega-menu": {
+    right: "100%",
+    left: "auto"
+  }
 }));
 
 

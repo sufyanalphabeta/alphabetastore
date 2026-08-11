@@ -6,8 +6,16 @@ backend/node_modules
 backend/dist
 backend/.git
 backend/uploads
+frontend
+screenshots
+.github
+.codex
+.agents
+coverage
+*.tsbuildinfo
 *.log
 Dockerfile
 frontend/.env.docker
 backend/.env
 backend/.env.docker
+*.md

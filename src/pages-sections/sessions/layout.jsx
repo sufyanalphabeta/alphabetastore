@@ -19,8 +19,16 @@ export default function AuthLayout({
   children,
   bottomContent
 }) {
-  return <FlexRowCenter bgcolor="grey.50" flexDirection="column" minHeight="100vh" px={2}>
-      <Wrapper elevation={6}>
+  return (
+    <FlexRowCenter
+      flexDirection="column"
+      minHeight="100vh"
+      px={2}
+      sx={{
+        background: "linear-gradient(135deg, #f0f4ff 0%, #fafafa 60%, #f5f5f5 100%)",
+      }}
+    >
+      <Wrapper elevation={0}>
         <LogoWithTitle />
 
         {children}
@@ -30,5 +38,6 @@ export default function AuthLayout({
         {/* RENDER BOTTOM CONTENT BASED ON CONDITION */}
         {bottomContent}
       </Wrapper>
-    </FlexRowCenter>;
+    </FlexRowCenter>
+  );
 }

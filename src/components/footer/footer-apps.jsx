@@ -13,8 +13,10 @@ export function FooterApps({
   playStoreUrl,
   appleStoreUrl
 }) {
+  if (!playStoreUrl && !appleStoreUrl) return null;
+
   return <FlexBox flexWrap="wrap" m={-1}>
-      <a href={playStoreUrl} target="_blank" rel="noreferrer noopener">
+      {playStoreUrl ? <a href={playStoreUrl} target="_blank" rel="noreferrer noopener">
         <AppItem>
           <PlayStore />
 
@@ -23,9 +25,9 @@ export function FooterApps({
             <p className="title">Google Play</p>
           </div>
         </AppItem>
-      </a>
+      </a> : null}
 
-      <a href={appleStoreUrl} target="_blank" rel="noreferrer noopener">
+      {appleStoreUrl ? <a href={appleStoreUrl} target="_blank" rel="noreferrer noopener">
         <AppItem>
           <AppleStore />
 
@@ -34,6 +36,6 @@ export function FooterApps({
             <p className="title">App Store</p>
           </div>
         </AppItem>
-      </a>
+      </a> : null}
     </FlexBox>;
 }

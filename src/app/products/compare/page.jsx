@@ -151,7 +151,7 @@ export default function ComparePage() {
             <SpecRow
               label="Price"
               values={items.map(p => (
-                <Typography variant="h6" color="primary.main" fontWeight={700}>
+                <Typography key={p.id} variant="h6" color="primary.main" fontWeight={700}>
                   {currency(Number(p.price ?? 0))}
                 </Typography>
               ))}
@@ -161,7 +161,7 @@ export default function ComparePage() {
               values={items.map(p =>
                 p.comparePrice && Number(p.comparePrice) > Number(p.price)
                   ? (
-                    <Typography variant="body2" color="text.disabled" sx={{ textDecoration: "line-through" }}>
+                    <Typography key={p.id} variant="body2" color="text.disabled" sx={{ textDecoration: "line-through" }}>
                       {currency(Number(p.comparePrice))}
                     </Typography>
                   )
@@ -174,9 +174,9 @@ export default function ComparePage() {
               label="Availability"
               values={items.map(p => {
                 const qty = p.stockQty ?? 0;
-                if (qty <= 0) return <Chip label="Out of Stock" color="error" size="small" />;
-                if (qty <= 5) return <Chip label={`Low — ${qty} left`} color="warning" size="small" />;
-                return <Chip label="In Stock" color="success" size="small" />;
+                if (qty <= 0) return <Chip key={p.id} label="Out of Stock" color="error" size="small" />;
+                if (qty <= 5) return <Chip key={p.id} label={`Low — ${qty} left`} color="warning" size="small" />;
+                return <Chip key={p.id} label="In Stock" color="success" size="small" />;
               })}
             />
 
@@ -185,8 +185,8 @@ export default function ComparePage() {
               label="Options"
               values={items.map(p =>
                 p.hasVariants
-                  ? <Chip label="Multiple options" color="info" size="small" />
-                  : <Typography variant="body2" color="text.secondary">Single option</Typography>
+                  ? <Chip key={p.id} label="Multiple options" color="info" size="small" />
+                  : <Typography key={p.id} variant="body2" color="text.secondary">Single option</Typography>
               )}
             />
 
@@ -224,8 +224,8 @@ export default function ComparePage() {
                 label=""
                 values={items.map(p =>
                   Array.isArray(p.highlights) && p.highlights.includes(highlight)
-                    ? <Chip label="✓" color="success" size="small" />
-                    : <Typography variant="body2" color="text.disabled">—</Typography>
+                    ? <Chip key={p.id} label="✓" color="success" size="small" />
+                    : <Typography key={p.id} variant="body2" color="text.disabled">—</Typography>
                 )}
               />
             ))}

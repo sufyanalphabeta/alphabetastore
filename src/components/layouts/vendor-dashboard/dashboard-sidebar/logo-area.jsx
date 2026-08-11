@@ -1,4 +1,5 @@
-import Link from "next/link";
+﻿import Link from "next/link";
+import Image from "next/image";
 import Avatar from "@mui/material/Avatar";
 import Box from "@mui/material/Box";
 import Tooltip from "@mui/material/Tooltip";
@@ -14,6 +15,10 @@ import { useLayout } from "../dashboard-layout-context";
 
 // STYLED COMPONENT
 import { ChevronLeftIcon } from "./styles";
+
+// DEFAULT ICON
+import alphabetaIcon from "../../../../../public/assets/images/alphabeta-icon.svg";
+
 export default function LogoArea() {
   const {
     TOP_HEADER_AREA,
@@ -24,31 +29,35 @@ export default function LogoArea() {
   const { settings } = useSettings();
   const logoUrl = settings?.site_logo_url?.trim() || "";
   const siteName = settings?.site_name || "Alphabeta Store";
+
+  const logoElement = logoUrl ? (
+    <Avatar alt={siteName} src={logoUrl} sx={{ borderRadius: 0, width: "auto", height: 36, marginLeft: COMPACT ? 0 : 1 }} />
+  ) : (
+    <Box display="flex" alignItems="center" gap={1} ml={COMPACT ? 0 : 1} overflow="hidden">
+      <Image
+        src={alphabetaIcon}
+        alt="Alphabeta Store"
+        width={32}
+        height={32}
+        style={{ objectFit: "contain", borderRadius: 6 }}
+      />
+      {!COMPACT && (
+        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "primary.main", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 120 }}>
+          {siteName}
+        </Typography>
+      )}
+    </Box>
+  );
+
   return (
     <Box>
       <FlexBetween p={2} maxHeight={TOP_HEADER_AREA} justifyContent={COMPACT ? "center" : "space-between"}>
-        {logoUrl ? <Avatar alt={siteName} src={logoUrl} sx={{
-          borderRadius: 0,
-          width: "auto",
-          marginLeft: COMPACT ? 0 : 1
-        }} /> : <Typography variant="h6" sx={{
-          fontWeight: 700,
-          fontSize: COMPACT ? "0.85rem" : "1rem",
-          color: "primary.main",
-          whiteSpace: "nowrap",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          maxWidth: COMPACT ? 40 : 160,
-          marginLeft: COMPACT ? 0 : 1
-        }}>
-            {COMPACT ? siteName.charAt(0) : siteName}
-          </Typography>}
-
+        {logoElement}
         <ChevronLeftIcon color="disabled" compact={COMPACT} onClick={handleSidebarCompactToggle} sidebar_compact={sidebarCompact ? 1 : 0} />
       </FlexBetween>
 
       {/* Back-to-store shortcut */}
-      <Tooltip title="العودة إلى المتجر" placement="left">
+      <Tooltip title="Back to Store" placement="left">
         <Box
           component={Link}
           href="/market-1"
@@ -72,7 +81,7 @@ export default function LogoArea() {
           }}
         >
           <StorefrontOutlined sx={{ fontSize: 18, flexShrink: 0 }} />
-          {!COMPACT && <Typography variant="caption" fontWeight={600} noWrap>العودة إلى المتجر</Typography>}
+          {!COMPACT && <Typography variant="caption" fontWeight={600} noWrap>Back to Store</Typography>}
         </Box>
       </Tooltip>
     </Box>

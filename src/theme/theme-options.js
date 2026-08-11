@@ -12,7 +12,7 @@ const breakpoints = {
   }
 };
 const themeColorMap = {
-  default: COLORS.DARK,
+  default: COLORS.BLUISH,
   dark: COLORS.DARK,
   electronics: COLORS.BLUISH,
   fashion: COLORS.GOLD,

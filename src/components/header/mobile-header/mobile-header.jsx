@@ -2,6 +2,9 @@ import Link from "next/link";
 import Image from "next/image";
 import Box from "@mui/material/Box";
 
+// DEFAULT ALPHABETA ICON
+import alphabetaIcon from "../../../../public/assets/images/alphabeta-icon.svg";
+
 
 // ==============================================================
 
@@ -37,19 +40,14 @@ MobileHeader.Logo = function ({
 }) {
   if (logoUrl) {
     return <Link href="/">
-        <Image width={60} height={44} src={logoUrl} alt={siteName || "logo"} />
+        <Image width={60} height={44} src={logoUrl} alt={siteName || "logo"} style={{ objectFit: "contain" }} />
       </Link>;
   }
-  return <Link href="/" style={{ textDecoration: "none" }}>
-      <Box sx={{
-      fontWeight: 700,
-      fontSize: "1rem",
-      color: "primary.main",
-      whiteSpace: "nowrap"
-    }}>
-        {siteName || "Alphabeta Store"}
-      </Box>
-    </Link>;
+  return (
+    <Link href="/" style={{ textDecoration: "none" }}>
+      <Image src={alphabetaIcon} alt="Alphabeta Store" width={38} height={38} style={{ objectFit: "contain" }} />
+    </Link>
+  );
 };
 
 

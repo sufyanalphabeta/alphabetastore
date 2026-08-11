@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Button from "@mui/material/Button";
@@ -78,7 +79,7 @@ export default function Section1() {
             xs: "column",
             sm: "row"
           }} spacing={2} mb={4}>
-              <a href="https://mui.com/store/items/bazar-pro-react-ecommerce-template" target="_blank" rel="noopener noreferrer">
+              <Link href="/">
                 <PulseButton fullWidth disableElevation size="large" color="primary" variant="contained" sx={{
                 px: 4,
                 py: 1.5,
@@ -89,7 +90,7 @@ export default function Section1() {
               }}>
                   🚀 Get Alphabeta Store Pro
                 </PulseButton>
-              </a>
+              </Link>
 
               <Button href="#demos" variant="outlined" size="large" sx={{
               px: 4,

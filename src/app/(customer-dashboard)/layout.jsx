@@ -11,7 +11,7 @@ export default async function Layout1({
 }) {
   const data = await api.getLayoutData();
   if (!data) return <>{children}</>;
-  return <ShopLayout1 data={data}>
+  return <ShopLayout1 data={data} hideSecondaryHeader>
       <AuthGuard>{children}</AuthGuard>
     </ShopLayout1>;
 }

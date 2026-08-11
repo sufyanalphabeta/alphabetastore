@@ -1,9 +1,11 @@
-import { Geist } from "next/font/google";
 import { GoogleAnalytics } from "@next/third-parties/google";
 
-export const geist = Geist({
-  subsets: ["latin"]
-});
+// Keep the storefront build independent from external font downloads.
+// The production server can use the system Arabic sans-serif stack offline.
+export const geist = {
+  className: "",
+  style: { fontFamily: "Arial, Tahoma, sans-serif" }
+};
 import "overlayscrollbars/overlayscrollbars.css";
 
 
@@ -32,12 +34,6 @@ import CompareBar from "components/compare/CompareBar";
 
 // IMPORT i18n SUPPORT FILE
 import "i18n";
-
-
-// ==============================================================
-
-
-// ==============================================================
 
 export default function RootLayout({
   children,

@@ -16,6 +16,22 @@ import { FALLBACK_PRODUCT_IMAGE } from "utils/catalog";
 // STYLED COMPONENTS
 import { PreviewImage, ProductImageWrapper } from "./styles";
 
+function NavBtn({ onClick, icon, sx = {} }) {
+  return (
+    <IconButton
+      onClick={e => { e.stopPropagation(); onClick(); }}
+      sx={{
+        position: "absolute", top: "50%", transform: "translateY(-50%)",
+        bgcolor: "rgba(255,255,255,0.85)", "&:hover": { bgcolor: "white" },
+        zIndex: 2, ...sx
+      }}
+      size="small"
+    >
+      {icon}
+    </IconButton>
+  );
+}
+
 // ── touch / swipe helpers ─────────────────────────────────────────────────────
 function useSwipe(onLeft, onRight) {
   const startX = useRef(null);
@@ -61,20 +77,6 @@ export default function ProductGallery({ images, productName = "Product" }) {
 
   const swipeMain = useSwipe(next, prev);
   const swipeDialog = useSwipe(next, prev);
-
-  const NavBtn = ({ onClick, icon, sx = {} }) => (
-    <IconButton
-      onClick={e => { e.stopPropagation(); onClick(); }}
-      sx={{
-        position: "absolute", top: "50%", transform: "translateY(-50%)",
-        bgcolor: "rgba(255,255,255,0.85)", "&:hover": { bgcolor: "white" },
-        zIndex: 2, ...sx
-      }}
-      size="small"
-    >
-      {icon}
-    </IconButton>
-  );
 
   return (
     <Fragment>

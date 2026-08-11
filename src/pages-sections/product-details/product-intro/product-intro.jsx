@@ -21,7 +21,8 @@ import StarRating from "components/ratings/StarRating";
 import VariantSelector from "components/product-variants/VariantSelector";
 
 // CUSTOM UTILS LIBRARY FUNCTION
-import { currency } from "lib";
+import { computeProductPrice } from "lib";
+import useSettings from "hooks/useSettings";
 
 // COMPARE CONTEXT
 import { useCompare } from "contexts/CompareContext";
@@ -98,6 +99,7 @@ export default function ProductIntro({ product }) {
   const variants = Array.isArray(product?.variants) ? product.variants : [];
   const defaultVariant = variants.find(v => v.isDefault) || variants[0] || null;
   const [selectedVariant, setSelectedVariant] = useState(defaultVariant);
+  const { settings } = useSettings();
 
   // Effective price/stock: use selected variant if present, else product
   const effectivePrice = selectedVariant ? Number(selectedVariant.price) : (product.price ?? 0);
@@ -105,6 +107,14 @@ export default function ProductIntro({ product }) {
     ? Number(selectedVariant.comparePrice)
     : (product.comparePrice ? Number(product.comparePrice) : null);
   const effectiveStock = selectedVariant ? selectedVariant.stockQty : (product.stockQty ?? 0);
+  const computedPrice = computeProductPrice(
+    {
+      ...product,
+      price: effectivePrice,
+      comparePrice: effectiveCompare,
+    },
+    settings,
+  );
 
   const stockQty = effectiveStock;
   const brandRef = product.brandRef || null;
@@ -157,6 +167,20 @@ export default function ProductIntro({ product }) {
           {/* SKU with copy */}
           <SkuCopy sku={product.sku} />
 
+          {product.warrantyText ? (
+            <Typography variant="body2" sx={{ mt: 0.5, color: "text.secondary" }}>
+              Warranty: <strong>{product.warrantyText}</strong>
+            </Typography>
+          ) : null}
+
+          {product.datasheetUrl ? (
+            <Typography variant="body2" sx={{ mt: 0.5 }}>
+              <Link href={product.datasheetUrl} target="_blank" rel="noreferrer">
+                View datasheet
+              </Link>
+            </Typography>
+          ) : null}
+
           {/* Category breadcrumb */}
           {product.categoryName ? (
             <Typography variant="body2" sx={{ mt: 0.25, color: "text.secondary" }}>
@@ -193,11 +217,11 @@ export default function ProductIntro({ product }) {
           <Box sx={{ pt: 2, mb: 3 }}>
             <Stack direction="row" alignItems="baseline" spacing={1.5}>
               <Typography variant="h2" sx={{ color: "primary.main", lineHeight: 1 }}>
-                {currency(effectivePrice)}
+                {computedPrice.finalFormatted}
               </Typography>
               {effectiveCompare && effectiveCompare > effectivePrice && (
                 <Typography variant="body1" color="text.disabled" sx={{ textDecoration: "line-through" }}>
-                  {currency(effectiveCompare)}
+                  {computedPrice.compareFormatted || computedPrice.baseFormatted}
                 </Typography>
               )}
             </Stack>

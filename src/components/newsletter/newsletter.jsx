@@ -87,7 +87,7 @@ export default function Newsletter({
                 color: "grey.600",
                 mb: 5
               }}>
-                  Subscribe to the BAZAR eCommerce newsletter to receive timely updates from your
+                  Subscribe to the ALPHABETA STORE newsletter to receive timely updates from your
                   favorite products.
                 </Typography>
 

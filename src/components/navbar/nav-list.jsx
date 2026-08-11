@@ -55,7 +55,7 @@ export function NavigationList({
 
       
 // SHOW LIST MENU WITH CHILD
-      if (nav.child && nav.megaMenu === false && nav.megaMenuWithSub === false) {
+      if (nav.child && !nav.megaMenu && !nav.megaMenuWithSub) {
         return <FlexBox key={nav.title} alignItems="center" position="relative" flexDirection="column" sx={{
           "&:hover": {
             "& > .child-nav-item": {

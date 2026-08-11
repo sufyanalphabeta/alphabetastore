@@ -25,6 +25,10 @@ export const ImageWrapper = styled("div")(({
   textAlign: "center",
   position: "relative",
   display: "inline-block",
+  aspectRatio: "1 / 1",
+  width: "100%",
+  overflow: "hidden",
+  backgroundColor: theme.palette.grey[50],
   [theme.breakpoints.down("sm")]: {
     display: "block"
   },
@@ -33,7 +37,10 @@ export const ImageWrapper = styled("div")(({
     scale: 0.9
   },
   "& .thumbnail": {
-    transition: "0.3s"
+    transition: "0.3s",
+    width: "100%",
+    height: "100%",
+    objectFit: "contain"
   }
 }));
 export const HoverIconWrapper = styled("div")(({

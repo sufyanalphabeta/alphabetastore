@@ -1,163 +1,87 @@
 import Link from "next/link";
-import NextImage from "next/image";
 import { notFound } from "next/navigation";
 
 import Box from "@mui/material/Box";
 import Breadcrumbs from "@mui/material/Breadcrumbs";
+import Button from "@mui/material/Button";
 import Container from "@mui/material/Container";
 import Grid from "@mui/material/Grid";
+import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
+import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 
-import LazyImage from "components/LazyImage";
 import ProductCard1 from "components/product-cards/product-card-1";
-import { fetchBrandBySlugPublic, fetchProducts, mapCatalogProduct } from "utils/catalog";
+import { mapCatalogProduct } from "utils/catalog";
 
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
+const API_BASE = process.env.INTERNAL_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001/api/v1";
 
-export async function generateMetadata({ params }) {
-  const { slug } = await params;
-  try {
-    const brand = await fetchBrandBySlugPublic(slug);
-    if (!brand?.id) return { title: "Brand - Alphabeta Store" };
-    return {
-      title: brand.metaTitle || `${brand.name} - Alphabeta Store`,
-      description:
-        brand.metaDesc ||
-        brand.description ||
-        `Shop ${brand.name} products on Alphabeta Store.`,
-      openGraph: {
-        title: brand.metaTitle || `${brand.name} - Alphabeta Store`,
-        description: brand.metaDesc || brand.description || `Shop ${brand.name} products.`,
-        images: brand.bannerUrl
-          ? [{ url: brand.bannerUrl }]
-          : brand.logoUrl
-          ? [{ url: brand.logoUrl }]
-          : [],
-      },
-      alternates: { canonical: `/brands/${slug}` },
-    };
-  } catch {
-    return { title: "Brand - Alphabeta Store" };
-  }
+async function apiGet(path) {
+  const response = await fetch(`${API_BASE}${path}`, { cache: "no-store" });
+  if (!response.ok) return null;
+  return response.json();
 }
 
-export default async function BrandDetailPage({ params }) {
-  const { slug } = await params;
-  let brand = null;
-  try {
-    brand = await fetchBrandBySlugPublic(slug);
-  } catch {
-    brand = null;
-  }
-  if (!brand?.id) {
-    notFound();
-  }
+async function getBrand(slug) {
+  const payload = await apiGet(`/brands/slug/${encodeURIComponent(slug)}`);
+  return payload?.success ? payload.data : null;
+}
 
-  let products = [];
-  try {
-    products = await fetchProducts({ brandSlug: slug, limit: 24, noStore: true });
-  } catch {
-    products = [];
-  }
+async function getBrandProducts(slug, searchParams) {
+  const params = new URLSearchParams({ brandSlug: slug, limit: "60" });
+  if (searchParams?.minPrice) params.set("minPrice", searchParams.minPrice);
+  if (searchParams?.maxPrice) params.set("maxPrice", searchParams.maxPrice);
+  if (searchParams?.inStock === "1" || searchParams?.inStock === "true") params.set("inStock", "true");
+  const payload = await apiGet(`/products?${params.toString()}`);
+  const data = payload?.data;
+  return { items: Array.isArray(data?.items) ? data.items : [], total: Number(data?.pagination?.total || 0) };
+}
+
+export async function generateMetadata({ params }) {
+  const brand = await getBrand((await params).slug);
+  if (!brand) return { title: "Brand not found - Alphabeta Store", robots: { index: false, follow: false } };
+  return { title: `${brand.name} - Alphabeta Store`, description: brand.description || `منتجات ${brand.name} في متجر ألفابيتا` };
+}
+
+export default async function BrandLandingPage({ params, searchParams }) {
+  const { slug } = await params;
+  const query = (await searchParams) || {};
+  const brand = await getBrand(slug);
+  if (!brand) notFound();
+  const { items, total } = await getBrandProducts(slug, query);
 
   return (
-    <Box sx={{ bgcolor: "background.paper", pb: 6 }}>
-      {/* Banner */}
-      {brand.bannerUrl ? (
-        <Box
-          position="relative"
-          width="100%"
-          sx={{ height: { xs: 180, sm: 240, md: 300 }, overflow: "hidden" }}
-        >
-          <NextImage
-            src={brand.bannerUrl}
-            alt={`${brand.name} banner`}
-            fill
-            sizes="100vw"
-            style={{ objectFit: "cover" }}
-            priority
-          />
-          <Box
-            position="absolute"
-            inset={0}
-            sx={{ background: "linear-gradient(to right, rgba(0,0,0,0.55) 0%, transparent 60%)" }}
-          />
-        </Box>
-      ) : null}
+    <Container sx={{ py: { xs: 2, md: 4 } }}>
+      <Breadcrumbs sx={{ mb: 2 }}>
+        <Link href="/">الرئيسية</Link>
+        <Link href="/brands">العلامات التجارية</Link>
+        <Typography color="text.primary">{brand.name}</Typography>
+      </Breadcrumbs>
 
-      <Container sx={{ pt: brand.bannerUrl ? 3 : 6 }}>
-        <Breadcrumbs sx={{ mb: 3 }}>
-          <Link href="/" style={{ textDecoration: "none", color: "inherit" }}>Home</Link>
-          <Link href="/brands" style={{ textDecoration: "none", color: "inherit" }}>Brands</Link>
-          <Typography color="text.primary">{brand.name}</Typography>
-        </Breadcrumbs>
+      <Paper sx={{ p: { xs: 2, md: 4 }, mb: 3, borderRadius: 3, overflow: "hidden", background: "linear-gradient(135deg, #16233c 0%, #263d66 100%)", color: "common.white" }}>
+        {brand.bannerUrl ? <Box component="img" src={brand.bannerUrl} alt={`${brand.name} banner`} sx={{ width: "100%", maxHeight: 230, objectFit: "cover", borderRadius: 2, mb: 2 }} /> : null}
+        <Typography variant="h1" fontSize={{ xs: 28, md: 42 }} fontWeight={800}>{brand.name}</Typography>
+        {brand.description ? <Typography sx={{ mt: 1, opacity: 0.85 }}>{brand.description}</Typography> : null}
+        <Typography sx={{ mt: 1, color: "#ffd08a" }}>{total} منتج متوفر</Typography>
+      </Paper>
 
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          spacing={3}
-          alignItems={{ xs: "flex-start", sm: "center" }}
-          mb={4}
-          p={3}
-          sx={{ bgcolor: "grey.100", borderRadius: 2 }}
-        >
-          <Box
-            sx={{
-              width: 120,
-              height: 120,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              bgcolor: "background.paper",
-              borderRadius: 2,
-              p: 2,
-              flexShrink: 0
-            }}
-          >
-            {brand.logoUrl ? (
-              <LazyImage
-                src={brand.logoUrl}
-                alt={brand.name}
-                width={120}
-                height={100}
-                style={{ objectFit: "contain", maxWidth: "100%", maxHeight: "100%" }}
-              />
-            ) : (
-              <Typography variant="h2" fontWeight={700} color="primary.main">
-                {brand.name?.charAt(0)?.toUpperCase()}
-              </Typography>
-            )}
-          </Box>
-          <Stack spacing={1} flex={1}>
-            <Typography variant="h2" fontWeight={700} fontSize={{ xs: 28, sm: 36 }}>
-              {brand.name}
-            </Typography>
-            {brand.description ? (
-              <Typography variant="body1" color="text.secondary">
-                {brand.description}
-              </Typography>
-            ) : null}
-            <Typography variant="body2" color="text.secondary">
-              {products.length} product{products.length === 1 ? "" : "s"} available
-            </Typography>
-          </Stack>
+      <Paper component="form" sx={{ p: 2, mb: 3, borderRadius: 2 }}>
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} alignItems={{ sm: "center" }}>
+          <TextField name="minPrice" type="number" size="small" label="السعر من (د.ل)" defaultValue={query.minPrice || ""} inputProps={{ min: 0 }} />
+          <TextField name="maxPrice" type="number" size="small" label="السعر إلى (د.ل)" defaultValue={query.maxPrice || ""} inputProps={{ min: 0 }} />
+          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <input type="checkbox" name="inStock" value="1" defaultChecked={query.inStock === "1" || query.inStock === "true"} />
+            متوفر فقط
+          </label>
+          <Button type="submit" variant="contained">تطبيق الفلاتر</Button>
         </Stack>
+      </Paper>
 
-        {products.length === 0 ? (
-          <Box textAlign="center" py={8}>
-            <Typography color="text.secondary">No products available for this brand yet.</Typography>
-          </Box>
-        ) : (
-          <Grid container spacing={3}>
-            {products.map(product => (
-              <Grid size={{ xs: 6, sm: 4, md: 3 }} key={product.id || product.slug}>
-                <ProductCard1 product={mapCatalogProduct(product)} />
-              </Grid>
-            ))}
-          </Grid>
-        )}
-      </Container>
-    </Box>
+      {items.length ? (
+        <Grid container spacing={2.5}>
+          {items.map(item => <Grid key={item.id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}><ProductCard1 product={mapCatalogProduct(item)} /></Grid>)}
+        </Grid>
+      ) : <Paper sx={{ p: 6, textAlign: "center" }}><Typography color="text.secondary">لا توجد منتجات مطابقة لهذه العلامة أو الفلاتر.</Typography></Paper>}
+    </Container>
   );
 }

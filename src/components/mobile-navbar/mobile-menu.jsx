@@ -8,6 +8,7 @@ import Drawer from "@mui/material/Drawer";
 import IconButton from "@mui/material/IconButton";
 import MenuIcon from "@mui/icons-material/Menu";
 import Clear from "@mui/icons-material/Clear";
+import Typography from "@mui/material/Typography";
 
 // GLOBAL CUSTOM COMPONENT
 import OverlayScrollbar from "components/overlay-scrollbar";
@@ -17,6 +18,7 @@ import { renderLevels } from "./render-levels";
 
 // NAVIGATION DATA LIST
 import { updateNavigation } from "./modified-navigation";
+import { TopbarLanguageSelector } from "components/topbar";
 
 // CUSTOM DATA MODEL
 
@@ -27,7 +29,8 @@ import { updateNavigation } from "./modified-navigation";
 // ==============================================================
 
 export function MobileMenu({
-  navigation
+  navigation,
+  languages
 }) {
   const [openDrawer, setOpenDrawer] = useState(false);
   const handleClose = useCallback(() => setOpenDrawer(false), []);
@@ -40,10 +43,10 @@ export function MobileMenu({
         <MenuIcon />
       </IconButton>
 
-      <Drawer anchor="left" open={openDrawer} onClose={handleClose} sx={{
+      <Drawer anchor="right" open={openDrawer} onClose={handleClose} sx={{
       zIndex: 15001
     }} id="mobile-menu-drawer" aria-label="Mobile navigation menu">
-        <Box width="100vw" height="100%" position="relative">
+        <Box width={{ xs: "100vw", sm: 390 }} height="100%" position="relative">
           <OverlayScrollbar sx={{
           height: "100vh"
         }}>
@@ -55,6 +58,11 @@ export function MobileMenu({
             }} aria-label="Close menu">
                 <Clear fontSize="small" />
               </IconButton>
+
+              <Box mb={3} pb={2} borderBottom="1px solid" borderColor="divider">
+                <Typography variant="h6" fontWeight={700} mb={1}>تصفح المتجر</Typography>
+                <TopbarLanguageSelector languages={languages} />
+              </Box>
 
               {renderLevels(updateNavigation(navigation), handleClose)}
             </Box>

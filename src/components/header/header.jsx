@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import Box from "@mui/material/Box";
 
 // CUSTOM COMPONENT
@@ -7,6 +8,9 @@ import { HeaderCategoryDropdown } from "./header-category-dropdown";
 
 // STYLED COMPONENTS
 import { HeaderWrapper, StyledContainer } from "./styles";
+
+// DEFAULT ALPHABETA ICON
+import alphabetaIcon from "../../../public/assets/images/alphabeta-icon.svg";
 
 
 // ==============================================================
@@ -59,16 +63,16 @@ Header.Logo = function ({
       }} />
       </Link>;
   }
-  return <Link href="/" style={{ textDecoration: "none" }}>
-      <Box sx={{
-      fontWeight: 700,
-      fontSize: "1.25rem",
-      color: "primary.main",
-      whiteSpace: "nowrap"
-    }}>
-        {siteName || "Alphabeta Store"}
+  return (
+    <Link href="/" style={{ textDecoration: "none" }}>
+      <Box display="flex" alignItems="center" gap={1}>
+        <Image src={alphabetaIcon} alt="Alphabeta Store" width={36} height={36} style={{ objectFit: "contain" }} />
+        <Box sx={{ fontWeight: 700, fontSize: "1.1rem", color: "primary.main", whiteSpace: "nowrap" }}>
+          {siteName || "Alphabeta Store"}
+        </Box>
       </Box>
-    </Link>;
+    </Link>
+  );
 };
 Header.CategoryDropdown = function ({
   children
