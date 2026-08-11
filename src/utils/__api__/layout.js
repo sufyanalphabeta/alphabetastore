@@ -10,10 +10,18 @@ const getLayoutData = cache(async () => {
   const defaultLanguage = settings?.default_language === "en" ? "en" : "ar";
   const isArabic = defaultLanguage === "ar";
 
-  const navigation = buildCategoryMenusFromTree(categoryTree).map(item => ({
+  const categoryMenus = buildCategoryMenusFromTree(categoryTree);
+  const toNavigationItem = item => ({
     title: item.title,
-    href: item.href
-  }));
+    url: item.href,
+    child: (item.children || []).map(toNavigationItem)
+  });
+  const navigation = [
+    { title: isArabic ? "الرئيسية" : "Home", url: "/" },
+    { title: isArabic ? "كل المنتجات" : "All Products", url: "/products/search" },
+    ...categoryMenus.slice(0, 6).map(toNavigationItem),
+    { title: isArabic ? "الخدمات" : "Services", url: "/services" }
+  ];
 
   const aboutLinks = [{
     title: isArabic ? "الرئيسية" : "Home",
@@ -38,8 +46,8 @@ const getLayoutData = cache(async () => {
 
   return {
     topbar: {
-      label: isArabic ? "هل تحتاج مساعدة؟" : "Need help?",
-      title: settings?.support_email || "support@alphabeta.com",
+      label: isArabic ? "التوصيل إلى" : "Deliver to",
+      title: isArabic ? "ليبيا" : "Libya",
       languageOptions: [{
         title: "AR",
         value: "ar"
@@ -79,8 +87,8 @@ const getLayoutData = cache(async () => {
       logo: logoUrl,
       siteName,
       description: isArabic ? "Alphabeta Store مدعوم بواجهات خلفية حقيقية." : "Alphabeta Store powered by real backend APIs.",
-      playStoreUrl: "#",
-      appStoreUrl: "#",
+      playStoreUrl: settings?.google_play_url || "",
+      appStoreUrl: settings?.app_store_url || "",
       aboutTitle: isArabic ? "من نحن" : "About Us",
       customersTitle: isArabic ? "خدمة العملاء" : "Customer Care",
       about: aboutLinks,

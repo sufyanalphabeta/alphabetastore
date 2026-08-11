@@ -13,10 +13,12 @@ export type BulkOperation =
   | 'decrease_percent'
   | 'increase_fixed'
   | 'decrease_fixed'
-  | 'set_fixed';
+  | 'set_fixed'
+  | 'set_exchange_rate'
+  | 'clear_exchange_rate';
 
 export class BulkPriceUpdateDto {
-  @IsEnum(['increase_percent', 'decrease_percent', 'increase_fixed', 'decrease_fixed', 'set_fixed'])
+  @IsEnum(['increase_percent', 'decrease_percent', 'increase_fixed', 'decrease_fixed', 'set_fixed', 'set_exchange_rate', 'clear_exchange_rate'])
   operation!: BulkOperation;
 
   @IsNumber({ maxDecimalPlaces: 4 })

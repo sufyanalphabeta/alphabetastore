@@ -19,14 +19,39 @@ const QNA_SELECT = {
   user: { select: { id: true, name: true } },
 };
 
+const UUID_V4_OR_V1_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 @Injectable()
 export class QnaService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private async resolveProductId(productIdOrSlug: string): Promise<string> {
+    const input = productIdOrSlug?.trim();
+    if (!input) throw new NotFoundException('Product not found');
+
+    if (UUID_V4_OR_V1_REGEX.test(input)) {
+      const byId = await this.prisma.product.findUnique({
+        where: { id: input },
+        select: { id: true },
+      });
+      if (byId) return byId.id;
+    }
+
+    const bySlug = await this.prisma.product.findUnique({
+      where: { slug: input },
+      select: { id: true },
+    });
+    if (bySlug) return bySlug.id;
+
+    throw new NotFoundException('Product not found');
+  }
+
   /** Public: list ANSWERED questions for a product. */
   async findProductQnA(productId: string, page = 1, limit = 10) {
+    const resolvedProductId = await this.resolveProductId(productId);
     const skip = (page - 1) * limit;
-    const where = { productId, status: 'ANSWERED' as const };
+    const where = { productId: resolvedProductId, status: 'ANSWERED' as const };
 
     const [items, total] = await Promise.all([
       this.prisma.productQnA.findMany({
@@ -47,14 +72,9 @@ export class QnaService {
 
   /** Customer: ask a question. */
   async ask(productId: string, userId: string, dto: CreateQuestionDto) {
-    const product = await this.prisma.product.findUnique({
-      where: { id: productId },
-      select: { id: true },
-    });
-    if (!product) throw new NotFoundException('Product not found.');
-
-    return this.prisma.productQnA.create({
-      data: { productId, userId, question: dto.question, status: 'PENDING' },
+      const resolvedProductId = await this.resolveProductId(productId);
+      return this.prisma.productQnA.create({
+        data: { productId: resolvedProductId, userId, question: dto.question.trim(), status: 'PENDING' },
       select: QNA_SELECT,
     });
   }

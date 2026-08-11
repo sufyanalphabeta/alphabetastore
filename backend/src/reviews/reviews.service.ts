@@ -123,7 +123,7 @@ export class ReviewsService {
     });
     if (existing) throw new ConflictException('You have already reviewed this product.');
 
-    // Check verified purchase
+    // Enforce verified purchase for review creation.
     const purchased = await this.prisma.orderItem.findFirst({
       where: {
         productId,
@@ -131,6 +131,10 @@ export class ReviewsService {
       },
       select: { id: true, orderId: true },
     });
+    
+    if (!purchased) {
+      throw new ForbiddenException('Only customers who purchased this product can submit a review.');
+    }
 
     // Upload images
     const imageUrls = await this.uploadImages(imageBuffers);
@@ -139,7 +143,7 @@ export class ReviewsService {
       data: {
         productId,
         userId,
-        orderId: purchased?.orderId ?? null,
+        orderId: purchased.orderId,
         rating: dto.rating,
         title: dto.title,
         comment: dto.comment,

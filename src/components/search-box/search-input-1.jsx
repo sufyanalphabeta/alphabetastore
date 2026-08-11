@@ -68,7 +68,7 @@ function SearchInput1Inner() {
       handleSearch();
     }
   };
-  return <TextField fullWidth value={search} variant="outlined" onKeyDown={handleEnter} onChange={handleChange} placeholder="Searching for..." slotProps={{
+  return <TextField fullWidth value={search} variant="outlined" onKeyDown={handleEnter} onChange={handleChange} placeholder="ابحث عن منتج أو علامة تجارية..." slotProps={{
     input: INPUT_PROPS
   }} aria-label="Search products" role="searchbox" />;
 }

@@ -36,6 +36,7 @@ export interface PricingSettings {
 type ProductPricingFields = {
   price: Decimal;
   baseCurrency: BaseCurrency;
+  exchangeRateOverride?: Decimal | null;
   comparePrice: Decimal | null;
   discountType: DiscountType | null;
   discountValue: Decimal | null;
@@ -143,13 +144,16 @@ export class PricingService {
     settings: PricingSettings,
   ): ComputedPrice {
     const { exchangeRate, defaultCurrency, autoRound } = settings;
+    const effectiveExchangeRate = product.exchangeRateOverride?.gt(0)
+      ? product.exchangeRateOverride
+      : exchangeRate;
 
     // Step 1: Convert base price to display currency
     const baseInStore = this.convertToStoreCurrency(
       product.price,
       product.baseCurrency,
       defaultCurrency,
-      exchangeRate,
+      effectiveExchangeRate,
     );
 
     // Step 2: Convert compare price if present
@@ -158,7 +162,7 @@ export class PricingService {
           product.comparePrice,
           product.baseCurrency,
           defaultCurrency,
-          exchangeRate,
+          effectiveExchangeRate,
         )
       : null;
 
@@ -188,7 +192,7 @@ export class PricingService {
           product.discountValue,
           product.baseCurrency,
           defaultCurrency,
-          exchangeRate,
+          effectiveExchangeRate,
         );
         savings = Decimal.min(discountInStore, baseInStore);
         finalPrice = baseInStore.sub(savings);
@@ -208,7 +212,7 @@ export class PricingService {
 
     // Determine which exchange rate was actually used
     const exchangeRateUsed =
-      product.baseCurrency !== defaultCurrency ? exchangeRate : new Decimal(1);
+      product.baseCurrency !== defaultCurrency ? effectiveExchangeRate : new Decimal(1);
 
     return {
       finalPrice,
@@ -267,6 +271,7 @@ export class PricingService {
       select: {
         price: true,
         baseCurrency: true,
+        exchangeRateOverride: true,
         comparePrice: true,
         discountType: true,
         discountValue: true,
@@ -360,6 +365,7 @@ export class PricingService {
         price: true,
         comparePrice: true,
         baseCurrency: true,
+        exchangeRateOverride: true,
         discountType: true,
         discountValue: true,
         discountStartAt: true,
@@ -378,6 +384,38 @@ export class PricingService {
 
       await this.prisma.$transaction(async (tx) => {
         for (const product of chunk) {
+          if (dto.operation === 'set_exchange_rate' || dto.operation === 'clear_exchange_rate') {
+            const nextRate = dto.operation === 'set_exchange_rate' ? new Decimal(dto.value) : null;
+            const currentRate = product.exchangeRateOverride;
+            const unchanged = currentRate === null
+              ? nextRate === null
+              : nextRate !== null && currentRate.eq(nextRate);
+
+            if (unchanged) continue;
+
+            await tx.product.update({
+              where: { id: product.id },
+              data: { exchangeRateOverride: nextRate },
+            });
+
+            await tx.priceHistory.create({
+              data: {
+                productId: product.id,
+                oldBasePrice: product.price,
+                newBasePrice: product.price,
+                oldComparePrice: product.comparePrice,
+                newComparePrice: product.comparePrice,
+                oldCurrency: product.baseCurrency,
+                newCurrency: product.baseCurrency,
+                exchangeRateUsed: nextRate ?? settings.exchangeRate,
+                changeReason: `bulk:${dto.operation}:${dto.value}`,
+                changedByUserId,
+              },
+            });
+            updatedCount++;
+            continue;
+          }
+
           const newPrice = this.applyBulkOperation(
             product.price,
             dto,
@@ -478,6 +516,7 @@ export class PricingService {
     const syntheticProduct: ProductPricingFields = {
       price: new Decimal(params.basePrice),
       baseCurrency: params.baseCurrency,
+      exchangeRateOverride: null,
       comparePrice: null,
       discountType: params.discountType ?? null,
       discountValue:

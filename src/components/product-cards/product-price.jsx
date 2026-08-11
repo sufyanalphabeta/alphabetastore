@@ -26,9 +26,9 @@ export default function ProductPrice({ product, discount, price }) {
 
     return (
       <FlexBox alignItems="center" gap={1} mt={0.5}>
-        <Typography color="primary" fontWeight={600}>
-          {computed.finalFormatted}
-        </Typography>
+      <Typography color="primary" fontWeight={600}>
+        {computed.finalFormatted}
+      </Typography>
 
         {computed.hasActiveDiscount && (
           <Box component="del" fontSize={12} fontWeight={500} color="grey.400">

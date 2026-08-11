@@ -27,6 +27,8 @@ const OPERATION_OPTIONS = [
   { value: "increase_fixed", label: "Increase by fixed amount" },
   { value: "decrease_fixed", label: "Decrease by fixed amount" },
   { value: "set_fixed", label: "Set fixed price" },
+  { value: "set_exchange_rate", label: "Set USD exchange rate" },
+  { value: "clear_exchange_rate", label: "Clear product exchange rate" },
 ];
 
 function formatLYD(amount) {
@@ -64,7 +66,7 @@ export default function BulkPricingPageView() {
   };
 
   const handleSubmit = async () => {
-    if (!value || Number(value) <= 0) {
+    if (operation !== "clear_exchange_rate" && (!value || Number(value) <= 0)) {
       setError("Value must be greater than 0");
       return;
     }
@@ -136,8 +138,8 @@ export default function BulkPricingPageView() {
                   fullWidth
                   size="medium"
                   type="number"
-                  label={operation.includes("percent") ? "Percentage value" : "Amount (in product base currency)"}
-                  placeholder={operation.includes("percent") ? "e.g. 10 for 10%" : "e.g. 50"}
+                  label={operation.includes("percent") ? "Percentage value" : operation.includes("exchange_rate") ? "USD to LYD rate" : "Amount (in product base currency)"}
+                  placeholder={operation.includes("percent") ? "e.g. 10 for 10%" : operation.includes("exchange_rate") ? "e.g. 6.5" : "e.g. 50"}
                   value={value}
                   onChange={e => setValue(e.target.value)}
                   inputProps={{ min: 0, step: 0.01 }}
@@ -172,7 +174,7 @@ export default function BulkPricingPageView() {
                   variant="contained"
                   color="warning"
                   fullWidth
-                  disabled={isSubmitting || !value}
+                  disabled={isSubmitting || (operation !== "clear_exchange_rate" && !value)}
                   onClick={handleSubmit}
                   startIcon={isSubmitting ? <CircularProgress size={16} /> : null}
                 >

@@ -1,6 +1,7 @@
 import { IsIn, IsOptional, IsString, IsUUID, Matches, MaxLength, MinLength } from 'class-validator';
+import { Transform } from 'class-transformer';
 
-import { LIBYAN_CITIES } from '../../common/constants/libya';
+import { LIBYAN_CITIES, normalizeLibyanCity } from '../../common/constants/libya';
 
 const LIBYA_PHONE_PATTERN = /^\+218\d{9}$/;
 
@@ -22,6 +23,7 @@ export class CreateOrderDto {
 
   @IsString()
   @MinLength(2)
+  @Transform(({ value }) => normalizeLibyanCity(value))
   @IsIn(LIBYAN_CITIES, {
     message: 'city must be one of the supported Libyan cities',
   })

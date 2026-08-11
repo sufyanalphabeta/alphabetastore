@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, Suspense, useState } from "react";
+import { Fragment, Suspense, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 // MUI
@@ -14,6 +14,7 @@ import Slider from "@mui/material/Slider";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import Chip from "@mui/material/Chip";
 
 // GLOBAL CUSTOM COMPONENTS
 import AccordionHeader from "components/accordion";
@@ -51,6 +52,7 @@ function ProductFiltersInner({
   const [priceRange, setPriceRange] = useState([initialMinPrice, initialMaxPrice || 5000]);
   const [maxPriceInput, setMaxPriceInput] = useState(initialMaxPrice || "");
   const [minPriceInput, setMinPriceInput] = useState(initialMinPrice || "");
+  const [brandQuery, setBrandQuery] = useState("");
 
   const {
     collapsed,
@@ -143,8 +145,18 @@ function ProductFiltersInner({
   };
 
   const hasActiveFilters = searchParams.size > 0;
+  const activeCount = [selectedCategory, selectedBrandId || selectedBrand, currentInStock, initialMinPrice, initialMaxPrice]
+    .filter(Boolean).length;
+  const visibleBrands = useMemo(() => {
+    const term = brandQuery.trim().toLowerCase();
+    return term ? BRANDS.filter(item => String(item?.name || item).toLowerCase().includes(term)) : BRANDS;
+  }, [BRANDS, brandQuery]);
 
-  return <div>
+  return <Box sx={{ p: { xs: 0, md: 1.5 }, borderRadius: 2, bgcolor: { md: "background.paper" } }}>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.5 }}>
+        <Typography variant="h6" fontWeight={700}>تصفية المنتجات</Typography>
+        {activeCount > 0 ? <Chip size="small" color="primary" label={`${activeCount} نشطة`} /> : null}
+      </Stack>
       {/* CATEGORIES FILTER */}
       <Typography variant="h6" sx={{ mb: 1.25 }}>
         الفئات
@@ -229,7 +241,16 @@ function ProductFiltersInner({
           الماركة / العلامة التجارية
         </Typography>
 
-        {BRANDS.map(brand => {
+        <TextField
+          size="small"
+          fullWidth
+          value={brandQuery}
+          onChange={event => setBrandQuery(event.target.value)}
+          placeholder="ابحث عن علامة تجارية"
+          sx={{ mb: 1 }}
+        />
+
+        {visibleBrands.map(brand => {
           const isObj = brand && typeof brand === "object";
           const key = isObj ? brand.id : brand;
           const label = isObj ? brand.name : brand;
@@ -251,5 +272,5 @@ function ProductFiltersInner({
       {hasActiveFilters && <Button fullWidth disableElevation color="error" variant="contained" onClick={handleClearFilters} sx={{ mt: 3 }}>
           مسح الفلاتر
         </Button>}
-    </div>;
+    </Box>;
 }

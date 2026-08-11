@@ -51,6 +51,12 @@ export class UpdateProductDto {
   @IsEnum(BaseCurrency)
   baseCurrency?: BaseCurrency;
 
+  /** Optional USD to LYD rate for this product; blank uses the global rate. */
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 6 })
+  @Min(0.000001)
+  exchangeRateOverride?: number;
+
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 4 })
   @Min(0)
@@ -95,6 +101,16 @@ export class UpdateProductDto {
   @IsString()
   @MaxLength(120)
   sku?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  warrantyText?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  datasheetUrl?: string;
 
   @IsOptional()
   @IsObject()

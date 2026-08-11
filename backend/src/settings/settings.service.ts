@@ -11,8 +11,9 @@ const SETTINGS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const DEFAULT_SETTINGS: Record<string, string> = {
   site_name: 'Alphabeta Store',
   site_logo_url: '',
-  theme: 'default',
-  primary_color: '#1976d2',
+  site_favicon_url: '',
+  theme: 'electronics',
+  primary_color: '#f59331',
   enable_whatsapp: 'true',
   default_language: 'ar',
   direction: 'rtl',
@@ -23,6 +24,8 @@ const DEFAULT_SETTINGS: Record<string, string> = {
   shop_address: 'Tripoli, Libya',
   min_order: '0',
   support_email: 'support@alphabeta.com',
+  app_store_url: '',
+  google_play_url: '',
   terms_and_conditions_text:
     'باستخدامك لمنصة Alphabeta Store وتسجيل حساب جديد، فإنك توافق على صحة البيانات المدخلة والالتزام بسياسات المتجر وإتمام الطلبات بطريقة نظامية.',
   privacy_policy_text:
@@ -70,6 +73,7 @@ export class SettingsService {
       general: {
         site_name: settings.site_name,
         site_logo_url: settings.site_logo_url ?? '',
+        site_favicon_url: settings.site_favicon_url ?? '',
         theme: settings.theme,
         primary_color: settings.primary_color,
         enable_whatsapp: settings.enable_whatsapp,

@@ -40,7 +40,7 @@ describe('AuthController', () => {
     };
     authService.login.mockResolvedValue(expected);
 
-    await expect(controller.login(payload as any)).resolves.toEqual(expected);
-    expect(authService.login).toHaveBeenCalledWith(payload);
+    await expect(controller.login(payload as any, undefined)).resolves.toEqual(expected);
+    expect(authService.login).toHaveBeenCalledWith(payload, null);
   });
 });

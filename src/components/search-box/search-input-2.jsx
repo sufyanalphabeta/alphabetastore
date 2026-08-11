@@ -154,7 +154,7 @@ function SearchInput2Inner() {
       <TextField
         fullWidth
         variant="outlined"
-        placeholder="Search products, brands, categories..."
+        placeholder="ابحث عن منتج أو علامة تجارية أو تصنيف..."
         value={search}
         onChange={e => { setSearch(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
@@ -177,7 +177,7 @@ function SearchInput2Inner() {
                 onClick={handleSearch}
                 sx={{ px: "3rem", height: "100%", borderRadius: "0 4px 4px 0" }}
               >
-                {loading ? <CircularProgress size={16} color="inherit" /> : "Search"}
+                {loading ? <CircularProgress size={16} color="inherit" /> : "بحث"}
               </Button>
             ),
             startAdornment: <SearchOutlinedIcon fontSize="small" />

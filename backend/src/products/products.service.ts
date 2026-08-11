@@ -90,6 +90,7 @@ const productListSelect = {
   slug: true,
   price: true,
   baseCurrency: true,
+  exchangeRateOverride: true,
   comparePrice: true,
   discountType: true,
   discountValue: true,
@@ -199,13 +200,6 @@ export class ProductsService {
       whereClauses.push({ stockQty: { gt: 0 } });
     }
 
-    if (query.minPrice !== undefined || query.maxPrice !== undefined) {
-      const priceClause: Prisma.DecimalFilter = {};
-      if (query.minPrice !== undefined) priceClause.gte = query.minPrice;
-      if (query.maxPrice !== undefined) priceClause.lte = query.maxPrice;
-      whereClauses.push({ price: priceClause });
-    }
-
     if (categoryFilter) {
       const categoryIds = await this.resolveCategoryIds(categoryFilter);
       const categoryConditions: Prisma.ProductWhereInput[] = [
@@ -292,6 +286,46 @@ export class ProductsService {
 
     const where = whereClauses.length ? { AND: whereClauses } : undefined;
     const hasPagination = Boolean(query.page || query.limit);
+
+    const hasStorefrontPriceFilter = query.minPrice !== undefined || query.maxPrice !== undefined;
+    if (hasStorefrontPriceFilter) {
+      const candidates = await this.prisma.product.findMany({
+        where,
+        select: productListSelect,
+        orderBy: this.buildOrderBy(query.sort),
+      });
+
+      const pricingSettings = await this.pricingService.getPricingSettings();
+      const filtered = candidates.filter(product => {
+        const computed = this.pricingService.computePrice(product, pricingSettings);
+        const finalPrice = computed.finalPrice.toNumber();
+        return (query.minPrice === undefined || finalPrice >= query.minPrice)
+          && (query.maxPrice === undefined || finalPrice <= query.maxPrice);
+      });
+
+      if (query.sort === 'asc' || query.sort === 'desc') {
+        filtered.sort((left, right) => {
+          const leftPrice = this.pricingService.computePrice(left, pricingSettings).finalPrice.toNumber();
+          const rightPrice = this.pricingService.computePrice(right, pricingSettings).finalPrice.toNumber();
+          return query.sort === 'asc' ? leftPrice - rightPrice : rightPrice - leftPrice;
+        });
+      }
+
+      if (!hasPagination) return filtered;
+
+      const page = Math.max(Number(query.page) || 1, 1);
+      const limit = Math.min(Math.max(Number(query.limit) || 12, 1), 100);
+      const start = (page - 1) * limit;
+      return {
+        items: filtered.slice(start, start + limit),
+        pagination: {
+          page,
+          limit,
+          total: filtered.length,
+          totalPages: Math.max(1, Math.ceil(filtered.length / limit)),
+        },
+      };
+    }
 
     if (!hasPagination) {
       return this.prisma.product.findMany({
@@ -424,6 +458,7 @@ export class ProductsService {
           shortDescription: createProductDto.shortDescription,
           price: createProductDto.price,
           baseCurrency: createProductDto.baseCurrency,
+          exchangeRateOverride: createProductDto.exchangeRateOverride,
           comparePrice: createProductDto.comparePrice,
           discountType: createProductDto.discountType,
           discountValue: createProductDto.discountValue,
@@ -438,6 +473,8 @@ export class ProductsService {
           brand: createProductDto.brand,
           brandId: createProductDto.brandId,
           sku: createProductDto.sku,
+          warrantyText: createProductDto.warrantyText,
+          datasheetUrl: createProductDto.datasheetUrl,
           specs: createProductDto.specs as any,
           highlights: createProductDto.highlights as any,
           isFeatured: createProductDto.isFeatured ?? false,
@@ -480,6 +517,7 @@ export class ProductsService {
           shortDescription: updateProductDto.shortDescription,
           price: updateProductDto.price,
           baseCurrency: updateProductDto.baseCurrency,
+          exchangeRateOverride: updateProductDto.exchangeRateOverride,
           comparePrice: updateProductDto.comparePrice,
           discountType: updateProductDto.discountType,
           discountValue: updateProductDto.discountValue,
@@ -494,6 +532,8 @@ export class ProductsService {
           brand: updateProductDto.brand,
           brandId: updateProductDto.brandId,
           sku: updateProductDto.sku,
+          warrantyText: updateProductDto.warrantyText,
+          datasheetUrl: updateProductDto.datasheetUrl,
           specs: updateProductDto.specs as any,
           highlights: updateProductDto.highlights as any,
           isFeatured: updateProductDto.isFeatured,
@@ -682,6 +722,7 @@ export class ProductsService {
         slug: true,
         price: true,
         baseCurrency: true,
+        exchangeRateOverride: true,
         comparePrice: true,
       },
     });
@@ -875,8 +916,6 @@ export class ProductsService {
 
   /** Autocomplete: returns products, brands, categories matching a term. */
   async autocomplete(term: string, limit = 5) {
-    const pattern = `%${term}%`;
-
     const [products, brands, categories] = await Promise.all([
       this.prisma.product.findMany({
         where: {
@@ -895,7 +934,8 @@ export class ProductsService {
           brand: true,
           images: { select: { imageUrl: true, sortOrder: true }, orderBy: { sortOrder: 'asc' }, take: 1 },
           price: true,
-          baseCurrency: true,
+        baseCurrency: true,
+        exchangeRateOverride: true,
         },
         take: limit,
         orderBy: { viewCount: 'desc' },
@@ -923,22 +963,53 @@ export class ProductsService {
     return { products, brands, categories };
   }
 
-  /** Top N searched terms by hit count. */
+  /** Top searched terms by time-decayed popularity score. */
   async popularSearches(limit = 8): Promise<Array<{ term: string; hitCount: number }>> {
-    const rows = await this.prisma.searchTerm.findMany({
-      orderBy: { hitCount: 'desc' },
-      take: limit,
-      select: { term: true, hitCount: true },
+    const cappedLimit = Math.max(1, Math.min(limit, 20));
+    const now = new Date();
+    const staleBefore = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+
+    // Remove stale terms that have not been searched recently.
+    await this.prisma.searchTerm.deleteMany({
+      where: {
+        term: { not: '' },
+        lastSearchedAt: { lt: staleBefore },
+      },
     });
-    return rows;
+
+    const rows = await this.prisma.searchTerm.findMany({
+      where: {
+        term: { not: '' },
+      },
+      select: { term: true, hitCount: true, lastSearchedAt: true },
+      take: 200,
+    });
+
+    return rows
+      .map((row) => {
+        const ageDays = Math.max(
+          0,
+          (now.getTime() - new Date(row.lastSearchedAt).getTime()) / (24 * 60 * 60 * 1000),
+        );
+        const score = row.hitCount * Math.exp(-ageDays / 30);
+        return { term: row.term, hitCount: row.hitCount, score };
+      })
+      .filter((row) => row.score >= 0.2)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, cappedLimit)
+      .map(({ term, hitCount }) => ({ term, hitCount }));
   }
 
-  /** Upsert a search term to increment its hit count. */
+  /** Upsert a search term to increment hit count and refresh last searched timestamp. */
   async trackSearch(term: string): Promise<void> {
+    const normalized = term.trim();
+    if (!normalized) return;
+
+    const now = new Date();
     await this.prisma.searchTerm.upsert({
-      where: { term },
-      update: { hitCount: { increment: 1 } },
-      create: { term, hitCount: 1 },
+      where: { term: normalized },
+      update: { hitCount: { increment: 1 }, lastSearchedAt: now },
+      create: { term: normalized, hitCount: 1, lastSearchedAt: now },
     });
   }
 }

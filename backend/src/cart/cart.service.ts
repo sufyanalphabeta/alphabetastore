@@ -73,6 +73,7 @@ export class CartService {
         id: true,
         price: true,
         baseCurrency: true,
+        exchangeRateOverride: true,
         comparePrice: true,
         discountType: true,
         discountValue: true,

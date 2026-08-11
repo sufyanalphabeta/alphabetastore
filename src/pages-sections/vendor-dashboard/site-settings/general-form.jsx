@@ -1,13 +1,18 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 
 // MUI
 import Alert from "@mui/material/Alert";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import CircularProgress from "@mui/material/CircularProgress";
+import Divider from "@mui/material/Divider";
 import Grid from "@mui/material/Grid";
 import MenuItem from "@mui/material/MenuItem";
-import Button from "@mui/material/Button";
+import Stack from "@mui/material/Stack";
+import Typography from "@mui/material/Typography";
 
 import useSettings from "hooks/useSettings";
 import { apiGet, apiPatch } from "utils/api";
@@ -32,7 +37,6 @@ const THEME_LABELS = {
 
 const validationSchema = yup.object().shape({
   site_name: yup.string().required("site name is required"),
-  site_logo_url: yup.string().url("Must be a valid URL").optional().nullable(),
   theme: yup.string().oneOf(AVAILABLE_THEME_KEYS).required("theme is required"),
   default_language: yup.string().oneOf(["ar", "en"]).required("default language is required"),
   default_currency: yup.string().oneOf(["LYD", "USD"]).required("default currency is required"),
@@ -41,6 +45,96 @@ const validationSchema = yup.object().shape({
   primary_color: yup.string().matches(/^#[\dA-Fa-f]{6}$/, "Primary color must be a valid hex color"),
   enable_whatsapp: yup.string().oneOf(["true", "false"]).required("WhatsApp setting is required")
 });
+
+// â”€â”€ Image upload helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+function ImageUploadField({ label, settingKey, accept = "image/png,image/jpeg,image/jpg,image/svg+xml,image/webp" }) {
+  const [preview, setPreview] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const inputRef = useRef(null);
+  const { settings, refreshSettings } = useSettings();
+  const currentUrl = settings?.[settingKey] || "";
+
+  useEffect(() => {
+    setPreview(currentUrl);
+  }, [currentUrl]);
+
+  const handleFileChange = async e => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // local preview
+    const objectUrl = URL.createObjectURL(file);
+    setPreview(objectUrl);
+    setError("");
+    setSuccess("");
+    setUploading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const endpoint = settingKey === "site_logo_url" ? "/admin/settings/logo" : "/admin/settings/favicon";
+      const { getAccessToken } = await import("utils/auth");
+      const token = getAccessToken();
+      const res = await fetch(
+        (process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001/api/v1") + endpoint,
+        { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {}, body: formData }
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.message || "Upload failed");
+      }
+      await refreshSettings();
+      setSuccess(`${label} uploaded successfully.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed");
+      setPreview(currentUrl);
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  };
+
+  return (
+    <Box>
+      <Typography variant="subtitle2" mb={1}>{label}</Typography>
+      <Stack direction="row" alignItems="center" gap={2}>
+        {preview && (
+          <Box
+            component="img"
+            src={preview}
+            alt={label}
+            sx={{ width: settingKey === "site_favicon_url" ? 32 : 80, height: settingKey === "site_favicon_url" ? 32 : 48, objectFit: "contain", border: "1px solid", borderColor: "grey.300", borderRadius: 1, p: 0.5, bgcolor: "grey.50" }}
+          />
+        )}
+        <input
+          ref={inputRef}
+          type="file"
+          accept={accept}
+          style={{ display: "none" }}
+          onChange={handleFileChange}
+        />
+        <Button
+          variant="outlined"
+          size="small"
+          color="info"
+          onClick={() => inputRef.current?.click()}
+          disabled={uploading}
+          startIcon={uploading ? <CircularProgress size={14} /> : undefined}
+        >
+          {uploading ? "Uploadingâ€¦" : preview ? "Replace" : "Upload"}
+        </Button>
+      </Stack>
+      {success && <Typography variant="caption" color="success.main" display="block" mt={0.5}>{success}</Typography>}
+      {error && <Typography variant="caption" color="error.main" display="block" mt={0.5}>{error}</Typography>}
+      <Typography variant="caption" color="text.secondary">Supported: png, jpg, jpeg, svg, webp</Typography>
+    </Box>
+  );
+}
+
+// â”€â”€ Main form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default function GeneralForm() {
   const {
@@ -52,7 +146,6 @@ export default function GeneralForm() {
 
   const initialValues = {
     site_name: "",
-    site_logo_url: "",
     theme: "default",
     default_language: "ar",
     default_currency: "LYD",
@@ -81,7 +174,6 @@ export default function GeneralForm() {
         const response = await apiGet("/settings");
         reset({
           site_name: String(response?.site_name || ""),
-          site_logo_url: String(response?.site_logo_url || ""),
           theme: String(response?.theme || "default"),
           default_language: response?.default_language === "en" ? "en" : "ar",
           default_currency: String(response?.default_currency || "LYD").toUpperCase() === "USD" ? "USD" : "LYD",
@@ -105,9 +197,6 @@ export default function GeneralForm() {
     const entries = [{
       key: "site_name",
       value: values.site_name
-    }, {
-      key: "site_logo_url",
-      value: values.site_logo_url || ""
     }, {
       key: "theme",
       value: values.theme
@@ -139,7 +228,6 @@ export default function GeneralForm() {
 
       updateSettings({
         site_name: values.site_name,
-        site_logo_url: values.site_logo_url || "",
         theme: values.theme,
         default_language: values.default_language,
         direction: values.default_language === "ar" ? "rtl" : "ltr",
@@ -167,21 +255,29 @@ export default function GeneralForm() {
             <Alert severity="error">{submitError}</Alert>
           </Grid> : null}
 
-        <Grid size={{
-        md: 6,
-        xs: 12
-      }}>
+        {/* Branding section */}
+        <Grid size={12}>
+          <Divider textAlign="left"><Typography variant="overline" color="text.secondary">Branding</Typography></Divider>
+        </Grid>
+
+        <Grid size={{ md: 6, xs: 12 }}>
           <TextField fullWidth color="info" size="medium" name="site_name" label="Site Name" />
         </Grid>
 
-        <Grid size={12}>
-          <TextField fullWidth color="info" size="medium" name="site_logo_url" label="Logo URL (optional)" placeholder="https://example.com/logo.png" />
+        <Grid size={{ md: 6, xs: 12 }}>
+          <ImageUploadField label="Store Logo" settingKey="site_logo_url" />
         </Grid>
 
-        <Grid size={{
-        md: 6,
-        xs: 12
-      }}>
+        <Grid size={{ md: 6, xs: 12 }}>
+          <ImageUploadField label="Favicon" settingKey="site_favicon_url" accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp,image/x-icon" />
+        </Grid>
+
+        {/* Store settings section */}
+        <Grid size={12}>
+          <Divider textAlign="left"><Typography variant="overline" color="text.secondary">Store Settings</Typography></Divider>
+        </Grid>
+
+        <Grid size={{ md: 6, xs: 12 }}>
           <TextField select fullWidth color="info" size="medium" name="enable_whatsapp" label="Enable WhatsApp">
             <MenuItem value="true">Enabled</MenuItem>
             <MenuItem value="false">Disabled</MenuItem>

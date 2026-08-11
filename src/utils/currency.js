@@ -38,31 +38,24 @@ export function convertUsdToCurrency(amount, currencyCode = state.defaultCurrenc
   const currency = normalizeCurrency(currencyCode);
   const usdAmount = toFiniteNumber(amount, 0);
 
-  if (currency === "LYD") {
-    return usdAmount * state.exchangeRateUsdToLyd;
-  }
-
-  return usdAmount;
+  return currency === "LYD" ? usdAmount * state.exchangeRateUsdToLyd : usdAmount;
 }
 
 export function getCurrencySymbol(currencyCode = state.defaultCurrency) {
-  const currency = normalizeCurrency(currencyCode);
-  return currency === "LYD" ? "د.ل" : "$";
+  return normalizeCurrency(currencyCode) === "LYD" ? "\u062f.\u0644" : "$";
 }
 
+/** Format an amount that is already expressed in currencyCode. */
 export function formatStoreCurrency(amount, fraction = 2, currencyCode = state.defaultCurrency) {
   const currency = normalizeCurrency(currencyCode);
-  const convertedAmount = convertUsdToCurrency(amount, currency);
+  const displayAmount = toFiniteNumber(amount, 0);
   const formatter = new Intl.NumberFormat(state.locale, {
     minimumFractionDigits: fraction,
     maximumFractionDigits: fraction
   });
 
-  const formattedNumber = formatter.format(convertedAmount);
-
-  if (currency === "LYD") {
-    return `${formattedNumber} ${getCurrencySymbol(currency)}`;
-  }
-
-  return `${getCurrencySymbol(currency)}${formattedNumber}`;
+  const formattedNumber = formatter.format(displayAmount);
+  return currency === "LYD"
+    ? `${formattedNumber} ${getCurrencySymbol(currency)}`
+    : `${getCurrencySymbol(currency)}${formattedNumber}`;
 }

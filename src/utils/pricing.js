@@ -11,7 +11,7 @@
 /**
  * @typedef {Object} PricingSettings
  * @property {number} exchangeRate - USD to LYD exchange rate
- * @property {string} defaultCurrency - "LYD" or "USD"
+ * @property {string} defaultCurrency - Always "LYD" for storefront display
  * @property {boolean} autoRound - Whether to round to whole numbers
  */
 
@@ -66,7 +66,12 @@ function isDiscountActive(product) {
  */
 export function computeStorefrontPrice(product, settings) {
   const exchangeRate = Number(settings?.exchangeRate) || 5.2;
-  const storeCurrency = settings?.defaultCurrency || "LYD";
+  const productExchangeRate = Number(product.exchangeRateOverride);
+  const effectiveExchangeRate = Number.isFinite(productExchangeRate) && productExchangeRate > 0
+    ? productExchangeRate
+    : exchangeRate;
+  // The public storefront is Libya-first: never expose the internal USD price.
+  const storeCurrency = "LYD";
   const autoRound = Boolean(settings?.autoRound);
   const baseCurrency = product.baseCurrency || "LYD";
   const basePrice = Number(product.price) || 0;
@@ -75,9 +80,9 @@ export function computeStorefrontPrice(product, settings) {
   const comparePrice = product.comparePrice != null ? Number(product.comparePrice) : null;
 
   // Convert base price to store currency
-  const priceInStore = convertToStoreCurrency(basePrice, baseCurrency, storeCurrency, exchangeRate);
+  const priceInStore = convertToStoreCurrency(basePrice, baseCurrency, storeCurrency, effectiveExchangeRate);
   const comparePriceInStore = comparePrice != null
-    ? convertToStoreCurrency(comparePrice, baseCurrency, storeCurrency, exchangeRate)
+    ? convertToStoreCurrency(comparePrice, baseCurrency, storeCurrency, effectiveExchangeRate)
     : null;
 
   // Apply active discount
@@ -93,7 +98,7 @@ export function computeStorefrontPrice(product, settings) {
       finalPrice = priceInStore * (1 - discountValue / 100);
     } else if (product.discountType === "FIXED") {
       // Fixed discount is in the product's base currency; convert to store currency
-      const fixedInStore = convertToStoreCurrency(discountValue, baseCurrency, storeCurrency, exchangeRate);
+      const fixedInStore = convertToStoreCurrency(discountValue, baseCurrency, storeCurrency, effectiveExchangeRate);
       finalPrice = Math.max(0, priceInStore - fixedInStore);
       discountPercent = priceInStore > 0 ? (fixedInStore / priceInStore) * 100 : 0;
     }
@@ -112,7 +117,7 @@ export function computeStorefrontPrice(product, settings) {
     hasActiveDiscount: active,
     discountPercent: Math.round(discountPercent * 10) / 10,
     savings: Math.round((roundedBase - roundedFinal) * 100) / 100,
-    exchangeRateUsed: exchangeRate,
+    exchangeRateUsed: effectiveExchangeRate,
     currency: storeCurrency,
   };
 }
@@ -125,7 +130,7 @@ export function computeStorefrontPrice(product, settings) {
  * @param {string} locale - "ar-LY" or "en-US"
  * @returns {string}
  */
-export function formatPrice(amount, currency = "LYD", locale = "ar-LY") {
+function legacyFormatPrice(amount, currency = "LYD", locale = "ar-LY") {
   const num = Number(amount);
   if (!Number.isFinite(num)) return "";
 
@@ -147,7 +152,18 @@ export function formatPrice(amount, currency = "LYD", locale = "ar-LY") {
 export function buildPricingSettings(contextSettings) {
   return {
     exchangeRate: Number(contextSettings?.exchange_rate_usd_to_lyd) || 5.2,
-    defaultCurrency: contextSettings?.default_currency === "USD" ? "USD" : "LYD",
+    defaultCurrency: "LYD",
     autoRound: String(contextSettings?.auto_round_prices) === "true",
   };
+}
+
+// Keep one canonical currency label for admin previews as well as storefront cards.
+export function formatPrice(amount, currency = "LYD", locale = "ar-LY") {
+  const num = Number(amount);
+  if (!Number.isFinite(num)) return "";
+  const formatted = new Intl.NumberFormat(locale, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(num);
+  return currency === "LYD" ? `${formatted} \u062f.\u0644` : `$${formatted}`;
 }

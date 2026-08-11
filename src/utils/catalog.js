@@ -50,6 +50,22 @@ function buildCatalogQueryString(filters = {}) {
     params.set("brand", filters.brand);
   }
 
+  if (filters.brandSlug) {
+    params.set("brandSlug", filters.brandSlug);
+  }
+
+  if (filters.brandId) {
+    params.set("brandId", filters.brandId);
+  }
+
+  if (filters.inStock) {
+    params.set("inStock", "true");
+  }
+
+  if (filters.featured === true) {
+    params.set("featured", "true");
+  }
+
   if (filters.minPrice !== undefined && filters.minPrice !== "" && Number(filters.minPrice) >= 0) {
     params.set("minPrice", String(Number(filters.minPrice)));
   }
@@ -354,7 +370,13 @@ export async function fetchAutocomplete(q, limit = 5) {
     const params = new URLSearchParams({ q: q.trim(), limit: String(limit) });
     const res = await fetch(`${API_BASE_URL}/products/autocomplete?${params}`, { cache: "no-store" });
     if (!res.ok) return { products: [], brands: [], categories: [] };
-    return res.json();
+    const payload = await res.json();
+    const data = unwrapEnvelope(payload);
+    return {
+      products: Array.isArray(data?.products) ? data.products : [],
+      brands: Array.isArray(data?.brands) ? data.brands : [],
+      categories: Array.isArray(data?.categories) ? data.categories : [],
+    };
   } catch {
     return { products: [], brands: [], categories: [] };
   }
@@ -364,7 +386,8 @@ export async function fetchPopularSearches(limit = 8) {
   try {
     const res = await fetch(`${API_BASE_URL}/products/popular-searches?limit=${limit}`, { next: { revalidate: 300 } });
     if (!res.ok) return [];
-    const data = await res.json();
+    const payload = await res.json();
+    const data = unwrapEnvelope(payload);
     return Array.isArray(data) ? data : [];
   } catch {
     return [];
@@ -392,7 +415,8 @@ export async function fetchProductReviews(productId, { page = 1, limit = 10, sor
     const params = new URLSearchParams({ page: String(page), limit: String(limit), sort });
     const res = await fetch(`${API_BASE_URL}/products/${encodeURIComponent(productId)}/reviews?${params}`, { cache: "no-store" });
     if (!res.ok) return { items: [], pagination: { page: 1, limit, total: 0, totalPages: 1 } };
-    return res.json();
+    const payload = await res.json();
+    return unwrapEnvelope(payload);
   } catch {
     return { items: [], pagination: { page: 1, limit, total: 0, totalPages: 1 } };
   }
@@ -402,7 +426,8 @@ export async function fetchRatingSummary(productId) {
   try {
     const res = await fetch(`${API_BASE_URL}/products/${encodeURIComponent(productId)}/reviews/summary`, { cache: "no-store" });
     if (!res.ok) return { average: 0, total: 0, distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } };
-    return res.json();
+    const payload = await res.json();
+    return unwrapEnvelope(payload);
   } catch {
     return { average: 0, total: 0, distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } };
   }
@@ -416,7 +441,8 @@ export async function fetchMyReview(productId, token) {
       cache: "no-store"
     });
     if (!res.ok) return null;
-    return res.json();
+    const payload = await res.json();
+    return unwrapEnvelope(payload);
   } catch {
     return null;
   }
@@ -440,7 +466,8 @@ export async function submitReview(productId, data, token) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err?.message || "Failed to submit review");
   }
-  return res.json();
+  const payload = await res.json();
+  return unwrapEnvelope(payload);
 }
 
 export async function updateReview(reviewId, productId, data, token) {
@@ -461,7 +488,8 @@ export async function updateReview(reviewId, productId, data, token) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err?.message || "Failed to update review");
   }
-  return res.json();
+  const payload = await res.json();
+  return unwrapEnvelope(payload);
 }
 
 export async function deleteReview(reviewId, productId, token) {
@@ -474,7 +502,8 @@ export async function deleteReview(reviewId, productId, token) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err?.message || "Failed to delete review");
   }
-  return res.json();
+  const payload = await res.json();
+  return unwrapEnvelope(payload);
 }
 
 // ── Q&A ──────────────────────────────────────────────────────────────────────
@@ -484,7 +513,8 @@ export async function fetchProductQnA(productId, { page = 1, limit = 10 } = {}) 
     const params = new URLSearchParams({ page: String(page), limit: String(limit) });
     const res = await fetch(`${API_BASE_URL}/products/${encodeURIComponent(productId)}/qna?${params}`, { cache: "no-store" });
     if (!res.ok) return { items: [], pagination: { page: 1, limit, total: 0, totalPages: 1 } };
-    return res.json();
+    const payload = await res.json();
+    return unwrapEnvelope(payload);
   } catch {
     return { items: [], pagination: { page: 1, limit, total: 0, totalPages: 1 } };
   }
@@ -501,7 +531,8 @@ export async function submitQuestion(productId, question, token) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err?.message || "Failed to submit question");
   }
-  return res.json();
+  const payload = await res.json();
+  return unwrapEnvelope(payload);
 }
 
 export async function deleteQuestion(productId, questionId, token) {
@@ -517,6 +548,8 @@ export async function deleteQuestion(productId, questionId, token) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err?.message || "Failed to delete question");
   }
+  const payload = await res.json();
+  return unwrapEnvelope(payload);
 }
 
 // ── Phase E: Variants ────────────────────────────────────────────────────────
@@ -525,7 +558,8 @@ export async function fetchProductVariants(productId) {
   try {
     const res = await fetch(`${API_BASE_URL}/products/${encodeURIComponent(productId)}/variants`, { cache: "no-store" });
     if (!res.ok) return [];
-    const data = await res.json();
+    const payload = await res.json();
+    const data = unwrapEnvelope(payload);
     return Array.isArray(data) ? data : [];
   } catch {
     return [];
@@ -538,7 +572,8 @@ export async function fetchActiveBundles() {
   try {
     const res = await fetch(`${API_BASE_URL}/bundles`, { next: { revalidate: 60 } });
     if (!res.ok) return [];
-    const data = await res.json();
+    const payload = await res.json();
+    const data = unwrapEnvelope(payload);
     return Array.isArray(data) ? data : [];
   } catch {
     return [];
@@ -549,11 +584,15 @@ export async function fetchBundle(slugOrId) {
   try {
     // Try slug-based lookup first (for bundle detail pages)
     const res = await fetch(`${API_BASE_URL}/bundles/by-slug/${encodeURIComponent(slugOrId)}`, { cache: "no-store" });
-    if (res.ok) return res.json();
+    if (res.ok) {
+      const payload = await res.json();
+      return unwrapEnvelope(payload);
+    }
     // Fallback to ID-based lookup
     const res2 = await fetch(`${API_BASE_URL}/bundles/${encodeURIComponent(slugOrId)}`, { cache: "no-store" });
     if (!res2.ok) return null;
-    return res2.json();
+    const payload = await res2.json();
+    return unwrapEnvelope(payload);
   } catch {
     return null;
   }
@@ -565,7 +604,8 @@ export async function fetchProductRelations(productId) {
   try {
     const res = await fetch(`${API_BASE_URL}/products/${encodeURIComponent(productId)}/relations`, { cache: "no-store" });
     if (!res.ok) return {};
-    const data = await res.json();
+    const payload = await res.json();
+    const data = unwrapEnvelope(payload);
     // Normalize: map product images inside each relation
     const normalized = {};
     for (const [type, items] of Object.entries(data)) {

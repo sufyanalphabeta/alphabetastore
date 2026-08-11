@@ -104,7 +104,7 @@ export default function RegisterPageView() {
     }
 
     return null;
-  }, [openPolicyDialog, termsText, privacyText]);
+  }, [openPolicyDialog, termsText, privacyText, t]);
 
   const openPolicy = type => event => {
     event.preventDefault();

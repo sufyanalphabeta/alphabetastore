@@ -16,6 +16,8 @@ const validationSchema = yup.object().shape({
   shopPhone: yup.string().trim().required("Shop phone is required"),
   shopAddress: yup.string().trim().required("Shop address is required"),
   supportEmail: yup.string().trim().email("Invalid email").required("Support email is required"),
+  appStoreUrl: yup.string().trim().url("Invalid App Store URL").nullable(),
+  googlePlayUrl: yup.string().trim().url("Invalid Google Play URL").nullable(),
   minOrder: yup.number().min(0).required("Minimum order is required"),
   termsAndConditionsText: yup.string().trim().min(20, "Terms text is too short").required("Terms and conditions text is required"),
   privacyPolicyText: yup.string().trim().min(20, "Privacy policy text is too short").required("Privacy policy text is required")
@@ -32,6 +34,8 @@ export default function SettingsForm() {
     shopPhone: "",
     shopAddress: "",
     supportEmail: "",
+    appStoreUrl: "",
+    googlePlayUrl: "",
     minOrder: 0,
     termsAndConditionsText: "",
     privacyPolicyText: ""
@@ -56,6 +60,8 @@ export default function SettingsForm() {
           shopPhone: String(settings?.shop_phone || ""),
           shopAddress: String(settings?.shop_address || ""),
           supportEmail: String(settings?.support_email || ""),
+          appStoreUrl: String(settings?.app_store_url || ""),
+          googlePlayUrl: String(settings?.google_play_url || ""),
           minOrder: Number(settings?.min_order || 0),
           termsAndConditionsText: String(settings?.terms_and_conditions_text || ""),
           privacyPolicyText: String(settings?.privacy_policy_text || "")
@@ -82,6 +88,12 @@ export default function SettingsForm() {
       key: "support_email",
       value: values.supportEmail.trim()
     }, {
+      key: "app_store_url",
+      value: values.appStoreUrl?.trim() || ""
+    }, {
+      key: "google_play_url",
+      value: values.googlePlayUrl?.trim() || ""
+    }, {
       key: "min_order",
       value: String(values.minOrder)
     }, {
@@ -99,6 +111,8 @@ export default function SettingsForm() {
         shop_phone: values.shopPhone,
         shop_address: values.shopAddress,
         support_email: values.supportEmail,
+        app_store_url: values.appStoreUrl,
+        google_play_url: values.googlePlayUrl,
         min_order: String(values.minOrder),
         terms_and_conditions_text: values.termsAndConditionsText,
         privacy_policy_text: values.privacyPolicyText,
@@ -131,6 +145,14 @@ export default function SettingsForm() {
 
         <Grid size={{ md: 6, xs: 12 }}>
           <TextField color="info" size="medium" name="supportEmail" label="Support Email *" fullWidth />
+        </Grid>
+
+        <Grid size={{ md: 6, xs: 12 }}>
+          <TextField color="info" size="medium" name="appStoreUrl" label="App Store URL (optional)" fullWidth />
+        </Grid>
+
+        <Grid size={{ md: 6, xs: 12 }}>
+          <TextField color="info" size="medium" name="googlePlayUrl" label="Google Play URL (optional)" fullWidth />
         </Grid>
 
         <Grid size={{ md: 6, xs: 12 }}>

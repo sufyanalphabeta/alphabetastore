@@ -50,6 +50,7 @@ const validationSchema = yup.object({
   stockQty: yup.number().transform((value, originalValue) => originalValue === "" ? NaN : value).typeError("Stock quantity must be a number").integer("Stock quantity must be an integer").min(0, "Stock quantity cannot be negative").required("Stock quantity is required"),
   price: yup.number().transform((value, originalValue) => originalValue === "" ? NaN : value).typeError("Price must be a number").min(0, "Price cannot be negative").required("Price is required"),
   baseCurrency: yup.string().oneOf(["LYD", "USD"]).required("Base currency is required"),
+  exchangeRateOverride: yup.number().transform((value, originalValue) => originalValue === "" ? null : value).typeError("Exchange rate must be a number").moreThan(0, "Exchange rate must be greater than 0").nullable().optional(),
   comparePrice: yup.number().transform((value, originalValue) => originalValue === "" ? NaN : value).typeError("Compare price must be a number").min(0, "Compare price cannot be negative").nullable().optional(),
   discountType: yup.string().oneOf(["NONE", "PERCENTAGE", "FIXED"]).optional(),
   discountValue: yup.number().transform((value, originalValue) => originalValue === "" ? NaN : value).typeError("Discount value must be a number").min(0, "Discount value cannot be negative").nullable().optional(),
@@ -57,6 +58,16 @@ const validationSchema = yup.object({
   discountEndAt: yup.string().optional().nullable(),
   status: yup.string().oneOf([ACTIVE_STATUS, INACTIVE_STATUS]).required("Status is required"),
   sku: yup.string().trim().optional(),
+  warrantyText: yup.string().trim().max(120).optional(),
+  datasheetUrl: yup.string().trim().test("datasheet-url", "Datasheet URL must be a valid URL", value => {
+    if (!value) return true;
+    try {
+      new URL(value);
+      return true;
+    } catch {
+      return false;
+    }
+  }).optional(),
   brand: yup.string().trim().optional(),
   brandId: yup.string().optional().nullable()
 });
@@ -119,6 +130,7 @@ export default function ProductForm(props) {
     stockQty: "",
     price: "",
     baseCurrency: "LYD",
+    exchangeRateOverride: "",
     comparePrice: "",
     discountType: "NONE",
     discountValue: "",
@@ -126,6 +138,8 @@ export default function ProductForm(props) {
     discountEndAt: "",
     status: ACTIVE_STATUS,
     sku: "",
+    warrantyText: "",
+    datasheetUrl: "",
     brand: "",
     brandId: ""
   };
@@ -215,6 +229,7 @@ export default function ProductForm(props) {
             stockQty: String(productData.stockQty ?? ""),
             price: String(productData.price ?? ""),
             baseCurrency: productData.baseCurrency || "LYD",
+            exchangeRateOverride: productData.exchangeRateOverride != null ? String(productData.exchangeRateOverride) : "",
             comparePrice: productData.comparePrice != null ? String(productData.comparePrice) : "",
             discountType: productData.discountType || "NONE",
             discountValue: productData.discountValue != null ? String(productData.discountValue) : "",
@@ -222,6 +237,8 @@ export default function ProductForm(props) {
             discountEndAt: productData.discountEndAt ? productData.discountEndAt.slice(0, 16) : "",
             status: productData.status || ACTIVE_STATUS,
             sku: productData.sku || "",
+            warrantyText: productData.warrantyText || "",
+            datasheetUrl: productData.datasheetUrl || "",
             brand: productData.brand || "",
             brandId: productData.brandId || ""
           });
@@ -279,6 +296,7 @@ export default function ProductForm(props) {
       shortDescription: values.shortDescription.trim(),
       price: Number(values.price),
       baseCurrency: values.baseCurrency || "LYD",
+      ...(values.exchangeRateOverride ? { exchangeRateOverride: Number(values.exchangeRateOverride) } : { exchangeRateOverride: null }),
       stockQty: Number(values.stockQty),
       status: values.status,
       ...(values.comparePrice ? { comparePrice: Number(values.comparePrice) } : { comparePrice: null }),
@@ -297,6 +315,8 @@ export default function ProductForm(props) {
           }),
       ...(values.slug?.trim() ? { slug: values.slug.trim() } : {}),
       ...(values.sku?.trim() ? { sku: values.sku.trim() } : {}),
+      ...(values.warrantyText?.trim() ? { warrantyText: values.warrantyText.trim() } : { warrantyText: null }),
+      ...(values.datasheetUrl?.trim() ? { datasheetUrl: values.datasheetUrl.trim() } : { datasheetUrl: null }),
       ...(values.brand?.trim() ? { brand: values.brand.trim() } : {}),
       ...(values.brandId ? { brandId: values.brandId } : { brandId: null }),
       highlights: highlights.length ? highlights : null,
@@ -417,7 +437,22 @@ export default function ProductForm(props) {
           sm: 6,
           xs: 12
         }}>
+            <TextField fullWidth name="exchangeRateOverride" color="info" size="medium" type="number" label="Product Exchange Rate (optional)" placeholder="Uses global rate" helperText="For USD products only. Leave blank to use the store rate." inputProps={{ min: 0.000001, step: 0.000001 }} />
+          </Grid>
+
+          <Grid size={{
+          sm: 6,
+          xs: 12
+        }}>
             <TextField fullWidth name="comparePrice" color="info" size="medium" type="number" label="Compare Price (optional)" placeholder="Original price before discount" helperText="Show a crossed-out reference price (e.g. RRP). Leave blank to hide." />
+          </Grid>
+
+          <Grid size={{ sm: 6, xs: 12 }}>
+            <TextField fullWidth name="warrantyText" color="info" size="medium" label="Warranty" placeholder="e.g. 1 year" />
+          </Grid>
+
+          <Grid size={{ sm: 6, xs: 12 }}>
+            <TextField fullWidth name="datasheetUrl" color="info" size="medium" label="Datasheet URL (optional)" placeholder="https://..." />
           </Grid>
 
           <Grid size={{

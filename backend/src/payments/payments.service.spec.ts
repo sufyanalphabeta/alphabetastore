@@ -106,7 +106,10 @@ describe('PaymentsService', () => {
     };
 
     return {
-      service: new PaymentsService(prisma as any),
+      service: new PaymentsService(prisma as any, {
+        notify: jest.fn(),
+        notifyPaymentReceived: jest.fn(),
+      } as any),
       prisma,
       tx,
     };
