@@ -72,10 +72,16 @@ const nextConfig: NextConfig = {
       process.env.INTERNAL_API_BASE_URL?.trim() ||
       process.env.NEXT_PUBLIC_API_BASE_URL?.trim() ||
       "http://localhost:3001/api/v1";
+    // Derive backend base URL (strip /api/v1 suffix)
+    const backendBaseUrl = internalApiUrl.replace(/\/api\/v1$/, "");
     return [
       {
         source: "/api/v1/:path*",
         destination: `${internalApiUrl}/:path*`
+      },
+      {
+        source: "/uploads/:path*",
+        destination: `${backendBaseUrl}/uploads/:path*`
       }
     ];
   }

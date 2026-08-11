@@ -5,3 +5,7 @@ dist
 .env
 .env.*
 uploads
+coverage
+*.tsbuildinfo
+src/**/*.spec.ts
+jest.config.js
