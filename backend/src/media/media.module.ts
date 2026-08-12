@@ -6,10 +6,11 @@ import { MediaProcessingService } from './media-processing.service';
 import { ProductMediaService } from './product-media.service';
 import { MediaLibraryController } from './media-library.controller';
 import { MediaLibraryService } from './media-library.service';
+import { ProductMediaController } from './product-media.controller';
 
 @Module({
   imports: [PrismaModule, StorageModule],
-  controllers: [MediaLibraryController],
+  controllers: [MediaLibraryController, ProductMediaController],
   providers: [MediaProcessingService, ProductMediaService, MediaLibraryService],
   exports: [MediaProcessingService, ProductMediaService, MediaLibraryService],
 })

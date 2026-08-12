@@ -12,6 +12,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ProductStatus } from '../prisma/prisma-client';
 import { PricingService } from '../pricing/pricing.service';
 import { StorageService } from '../storage/local-storage.service';
+import { normalizeProductGallery } from '../media/product-gallery.mapper';
 import { CreateProductDto } from './dto/create-product.dto';
 import { FindProductsQueryDto } from './dto/find-products-query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -39,6 +40,12 @@ const productInclude = {
   images: {
     orderBy: {
       sortOrder: 'asc',
+    },
+  },
+  media: {
+    orderBy: { sortOrder: 'asc' as const },
+    include: {
+      mediaAsset: { select: { altText: true, variants: true } },
     },
   },
   priceHistory: {
@@ -130,6 +137,16 @@ const productListSelect = {
       id: true,
       imageUrl: true,
       sortOrder: true,
+    },
+  },
+  media: {
+    orderBy: { sortOrder: 'asc' as const },
+    select: {
+      id: true,
+      mediaAssetId: true,
+      role: true,
+      sortOrder: true,
+      mediaAsset: { select: { altText: true, variants: true } },
     },
   },
 } satisfies Prisma.ProductSelect;
@@ -311,13 +328,13 @@ export class ProductsService {
         });
       }
 
-      if (!hasPagination) return filtered;
+      if (!hasPagination) return filtered.map((product) => normalizeProductGallery(product));
 
       const page = Math.max(Number(query.page) || 1, 1);
       const limit = Math.min(Math.max(Number(query.limit) || 12, 1), 100);
       const start = (page - 1) * limit;
       return {
-        items: filtered.slice(start, start + limit),
+        items: filtered.slice(start, start + limit).map((product) => normalizeProductGallery(product)),
         pagination: {
           page,
           limit,
@@ -328,11 +345,12 @@ export class ProductsService {
     }
 
     if (!hasPagination) {
-      return this.prisma.product.findMany({
+      const products = await this.prisma.product.findMany({
         where,
         select: productListSelect,
         orderBy: this.buildOrderBy(query.sort),
       });
+      return products.map((product) => normalizeProductGallery(product));
     }
 
     const page = Math.max(Number(query.page) || 1, 1);
@@ -359,7 +377,7 @@ export class ProductsService {
     ]);
 
     return {
-      items,
+      items: items.map((product) => normalizeProductGallery(product)),
       pagination: {
         page,
         limit,
@@ -438,9 +456,10 @@ export class ProductsService {
       throw new NotFoundException('Product not found.');
     }
 
-    await this.cacheManager.set(cacheKey, product, PRODUCT_DETAIL_CACHE_TTL_MS);
+    const normalized = normalizeProductGallery(product);
+    await this.cacheManager.set(cacheKey, normalized, PRODUCT_DETAIL_CACHE_TTL_MS);
 
-    return product;
+    return normalized;
   }
 
   async create(createProductDto: CreateProductDto) {
@@ -492,7 +511,7 @@ export class ProductsService {
 
       await this.invalidateProductListCache();
 
-      return product;
+      return normalizeProductGallery(product);
     } catch (error) {
       this.handleUniqueConstraint(error, 'Product slug already exists.');
       throw error;
@@ -501,6 +520,13 @@ export class ProductsService {
 
   async update(id: string, updateProductDto: UpdateProductDto, changedByUserId?: string) {
     const existing = await this.ensureProductExists(id);
+
+    if (updateProductDto.imageUrls) {
+      const migratedMediaCount = await this.prisma.productMedia.count({ where: { productId: id } });
+      if (migratedMediaCount > 0) {
+        throw new ConflictException('This product uses the Media Library gallery. Update images through ProductMedia.');
+      }
+    }
 
     if (updateProductDto.categoryId) {
       await this.ensureCategoryExists(updateProductDto.categoryId);
@@ -576,7 +602,7 @@ export class ProductsService {
         });
       }
 
-      return product;
+      return normalizeProductGallery(product);
     } catch (error) {
       this.handleUniqueConstraint(error, 'Product slug already exists.');
       throw error;
@@ -585,6 +611,11 @@ export class ProductsService {
 
   async addImages(id: string, imageUrls: string[]) {
     const existing = await this.ensureProductExists(id);
+
+    const migratedMediaCount = await this.prisma.productMedia.count({ where: { productId: id } });
+    if (migratedMediaCount > 0) {
+      throw new ConflictException('This product uses the Media Library gallery. Attach images through ProductMedia.');
+    }
 
     const imageCount = await this.prisma.productImage.count({
       where: {
@@ -605,10 +636,11 @@ export class ProductsService {
       this.cacheManager.del(`${PRODUCT_DETAIL_CACHE_PREFIX}${existing.slug}`),
     ]);
 
-    return this.prisma.product.findUniqueOrThrow({
+    const product = await this.prisma.product.findUniqueOrThrow({
       where: { id },
       include: productInclude,
     });
+    return normalizeProductGallery(product);
   }
 
   async removeImage(id: string, imageId: string) {
@@ -641,10 +673,11 @@ export class ProductsService {
       this.cacheManager.del(`${PRODUCT_DETAIL_CACHE_PREFIX}${existing.slug}`),
     ]);
 
-    return this.prisma.product.findUniqueOrThrow({
+    const product = await this.prisma.product.findUniqueOrThrow({
       where: { id },
       include: productInclude,
     });
+    return normalizeProductGallery(product);
   }
 
   async remove(id: string) {
@@ -808,34 +841,37 @@ export class ProductsService {
       take: limit,
     });
 
-    return same;
+    return same.map((product) => normalizeProductGallery(product));
   }
 
   async findFeatured(limit = 12) {
-    return this.prisma.product.findMany({
+    const products = await this.prisma.product.findMany({
       where: { status: ProductStatus.ACTIVE, isFeatured: true },
       select: productListSelect,
       orderBy: [{ salesCount: 'desc' }, { createdAt: 'desc' }],
       take: limit,
     });
+    return products.map((product) => normalizeProductGallery(product));
   }
 
   async findBestSellers(limit = 12) {
-    return this.prisma.product.findMany({
+    const products = await this.prisma.product.findMany({
       where: { status: ProductStatus.ACTIVE },
       select: productListSelect,
       orderBy: [{ salesCount: 'desc' }, { viewCount: 'desc' }],
       take: limit,
     });
+    return products.map((product) => normalizeProductGallery(product));
   }
 
   async findNewArrivals(limit = 12) {
-    return this.prisma.product.findMany({
+    const products = await this.prisma.product.findMany({
       where: { status: ProductStatus.ACTIVE },
       select: productListSelect,
       orderBy: { createdAt: 'desc' },
       take: limit,
     });
+    return products.map((product) => normalizeProductGallery(product));
   }
 
   /**
@@ -890,7 +926,7 @@ export class ProductsService {
       include: { product: { select: productListSelect } },
     });
     return rows
-      .map((r: { product: unknown }) => r.product)
+      .map((r: { product: any }) => normalizeProductGallery(r.product))
       .filter((p) => Boolean(p));
   }
 
@@ -901,7 +937,8 @@ export class ProductsService {
       select: productListSelect,
     });
     // Preserve caller's order
-    const byId = new Map(rows.map((r: { id: string }) => [r.id, r]));
+    const normalizedRows = rows.map((row) => normalizeProductGallery(row));
+    const byId = new Map(normalizedRows.map((r: { id: string }) => [r.id, r]));
     return ids.map((id) => byId.get(id)).filter(Boolean);
   }
 
@@ -932,7 +969,14 @@ export class ProductsService {
           slug: true,
           sku: true,
           brand: true,
-          images: { select: { imageUrl: true, sortOrder: true }, orderBy: { sortOrder: 'asc' }, take: 1 },
+          images: { select: { id: true, imageUrl: true, sortOrder: true }, orderBy: { sortOrder: 'asc' }, take: 1 },
+          media: {
+            select: {
+              id: true, mediaAssetId: true, role: true, sortOrder: true,
+              mediaAsset: { select: { altText: true, variants: true } },
+            },
+            orderBy: { sortOrder: 'asc' },
+          },
           price: true,
         baseCurrency: true,
         exchangeRateOverride: true,
@@ -960,7 +1004,7 @@ export class ProductsService {
       }),
     ]);
 
-    return { products, brands, categories };
+    return { products: products.map((product) => normalizeProductGallery(product)), brands, categories };
   }
 
   /** Top searched terms by time-decayed popularity score. */
