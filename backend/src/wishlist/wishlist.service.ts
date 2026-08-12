@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { normalizeProductGallery } from '../media/product-gallery.mapper';
 import { FindWishlistQueryDto } from './dto/find-wishlist-query.dto';
 
 const wishlistItemSelect = {
@@ -22,6 +23,12 @@ const wishlistItemSelect = {
           sortOrder: 'asc',
         },
       },
+      media: {
+        orderBy: { sortOrder: 'asc' },
+        include: {
+          mediaAsset: { select: { altText: true, variants: true } },
+        },
+      },
     },
   },
 } satisfies Prisma.WishlistItemSelect;
@@ -34,13 +41,14 @@ export class WishlistService {
     const where = { userId };
 
     if (!this.shouldPaginate(query)) {
-      return this.prisma.wishlistItem.findMany({
+      const items = await this.prisma.wishlistItem.findMany({
         where,
         select: wishlistItemSelect,
         orderBy: {
           createdAt: 'desc',
         },
       });
+      return items.map((item) => this.serializeItem(item));
     }
 
     const page = Number(query.page || 1);
@@ -59,7 +67,7 @@ export class WishlistService {
     ]);
 
     return {
-      items,
+      items: items.map((item) => this.serializeItem(item)),
       pagination: {
         page,
         limit,
@@ -86,16 +94,17 @@ export class WishlistService {
     });
 
     if (existingItem) {
-      return existingItem;
+      return this.serializeItem(existingItem);
     }
 
-    return this.prisma.wishlistItem.create({
+    const item = await this.prisma.wishlistItem.create({
       data: {
         userId,
         productId,
       },
       select: wishlistItemSelect,
     });
+    return this.serializeItem(item);
   }
 
   async remove(userId: string, productId: string) {
@@ -117,5 +126,9 @@ export class WishlistService {
 
   private shouldPaginate(query: FindWishlistQueryDto) {
     return Number(query.page) > 0 || Number(query.limit) > 0;
+  }
+
+  private serializeItem(item: Prisma.WishlistItemGetPayload<{ select: typeof wishlistItemSelect }>) {
+    return { ...item, product: normalizeProductGallery(item.product) };
   }
 }
