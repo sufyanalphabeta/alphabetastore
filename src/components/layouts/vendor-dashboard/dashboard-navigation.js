@@ -48,6 +48,10 @@ export const navigation = [{
   icon: duotone.Products,
   path: "/admin/catalog-imports"
 }, {
+  name: "مكتبة الوسائط",
+  icon: duotone.Products,
+  path: "/admin/media"
+}, {
   name: "Catalog Verification",
   icon: duotone.Dashboard,
   path: "/admin/catalog-verification"

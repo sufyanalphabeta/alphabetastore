@@ -28,6 +28,7 @@ const ARABIC_LABELS = {
   Products: "المنتجات",
   "Product List": "قائمة المنتجات",
   "Create Product": "إضافة منتج",
+  "مكتبة الوسائط": "مكتبة الوسائط",
   Categories: "الفئات",
   "Category List": "قائمة الفئات",
   "Create Category": "إضافة فئة",
