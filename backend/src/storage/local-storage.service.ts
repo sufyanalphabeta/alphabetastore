@@ -2,7 +2,7 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { createReadStream, existsSync, mkdirSync, statSync } from 'fs';
 import { writeFile, unlink } from 'fs/promises';
 import { randomUUID } from 'crypto';
-import { extname, join, normalize, relative, sep } from 'path';
+import { dirname, extname, join, normalize, relative, sep } from 'path';
 import type { Readable } from 'stream';
 
 export type UploadFileOptions = {
@@ -10,6 +10,8 @@ export type UploadFileOptions = {
   subdirectory: string;
   /** Original filename – used only for extension extraction */
   originalname: string;
+  /** Optional logical key, e.g. media/{assetId}/product.webp. */
+  storageKey?: string;
 };
 
 export type ReadFileResult = {
@@ -63,19 +65,19 @@ export class LocalStorageService extends StorageService {
   private readonly uploadsRoot = join(process.cwd(), 'uploads');
 
   async saveFile(buffer: Buffer, options: UploadFileOptions): Promise<string> {
-    const dir = join(this.uploadsRoot, options.subdirectory);
+    const extension = extname(options.originalname).toLowerCase();
+    const relativeKey = options.storageKey ?? `${options.subdirectory}/${randomUUID()}${extension}`;
+    const filePath = this.resolveStorageKey(relativeKey);
+    if (!filePath) throw new Error('Invalid storage key.');
+    const dir = dirname(filePath);
 
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
     }
 
-    const extension = extname(options.originalname).toLowerCase();
-    const filename = `${randomUUID()}${extension}`;
-    const filePath = join(dir, filename);
-
     await writeFile(filePath, buffer);
 
-    return `/uploads/${options.subdirectory}/${filename}`;
+    return `/uploads/${relativeKey.replace(/\\/g, '/')}`;
   }
 
   async deleteFile(fileUrl: string): Promise<void> {
@@ -121,6 +123,13 @@ export class LocalStorageService extends StorageService {
     if (rel.startsWith('..') || rel.includes(`..${sep}`)) {
       return null;
     }
+    return target;
+  }
+
+  private resolveStorageKey(storageKey: string): string | null {
+    const target = normalize(join(this.uploadsRoot, storageKey));
+    const rel = relative(this.uploadsRoot, target);
+    if (!rel || rel.startsWith('..') || rel.includes(`..${sep}`)) return null;
     return target;
   }
 }

@@ -45,7 +45,7 @@ export class S3StorageService extends StorageService implements OnModuleInit {
 
   async saveFile(buffer: Buffer, options: UploadFileOptions): Promise<string> {
     const extension = extname(options.originalname).toLowerCase();
-    const key = `${options.subdirectory}/${randomUUID()}${extension}`;
+    const key = options.storageKey ?? `${options.subdirectory}/${randomUUID()}${extension}`;
 
     await this.client.send(
       new PutObjectCommand({

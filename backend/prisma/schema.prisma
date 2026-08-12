@@ -89,6 +89,23 @@ enum BaseCurrency {
   LYD
 }
 
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+
+enum MediaProcessingStatus {
+  PROCESSING
+  READY
+  FAILED
+}
+
+enum ProductMediaRole {
+  PRIMARY
+  GALLERY
+  VIDEO
+}
+
 enum DiscountType {
   PERCENTAGE
   FIXED
@@ -186,6 +203,7 @@ model User {
   passwordResetTokens    PasswordResetToken[]
   reviews                Review[]
   qnaItems               ProductQnA[]
+  mediaAssets            MediaAsset[]
   initiatedImportSessions CatalogImportSession[] @relation("ImportInitiatedBy")
   approvedImportSessions  CatalogImportSession[] @relation("ImportApprovedBy")
 
@@ -328,6 +346,7 @@ model Product {
   category         Category       @relation(fields: [categoryId], references: [id])
   brandRef         Brand?         @relation(fields: [brandId], references: [id], onDelete: SetNull)
   images           ProductImage[]
+  media            ProductMedia[]
   wishlistItems    WishlistItem[]
   priceHistory     PriceHistory[]
   recentlyViewed   RecentlyViewedItem[]
@@ -949,4 +968,51 @@ model ProductRelation {
   @@index([sourceId, relationType])
   @@index([targetId])
   @@map("product_relations")
+}
+
+model MediaAsset {
+  id                String                @id @default(uuid()) @db.Uuid
+  mediaType         MediaType             @default(IMAGE) @map("media_type")
+  originalFilename  String                @map("original_filename") @db.VarChar(255)
+  storageKey        String                @map("storage_key") @db.VarChar(500)
+  originalMimeType  String                @map("original_mime_type") @db.VarChar(120)
+  originalSizeBytes Int                   @map("original_size_bytes")
+  originalWidth     Int?                  @map("original_width")
+  originalHeight    Int?                  @map("original_height")
+  checksumSha256    String?               @unique @map("checksum_sha256") @db.Char(64)
+  aspectRatio       Decimal?              @map("aspect_ratio") @db.Decimal(10, 4)
+  altText           String?               @map("alt_text") @db.VarChar(255)
+  title             String?               @db.VarChar(160)
+  caption           String?               @db.Text
+  processingStatus  MediaProcessingStatus @default(PROCESSING) @map("processing_status")
+  variants          Json?                 @db.JsonB
+  uploadedById      String?               @map("uploaded_by_id") @db.Uuid
+  createdAt         DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  uploadedBy        User?                 @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  productMedia      ProductMedia[]
+
+  @@index([mediaType])
+  @@index([processingStatus])
+  @@index([createdAt])
+  @@index([uploadedById])
+  @@map("media_assets")
+}
+
+model ProductMedia {
+  id           String          @id @default(uuid()) @db.Uuid
+  productId    String          @map("product_id") @db.Uuid
+  mediaAssetId String          @map("media_asset_id") @db.Uuid
+  role         ProductMediaRole @default(GALLERY)
+  sortOrder    Int             @default(0) @map("sort_order")
+  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  product      Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  mediaAsset   MediaAsset      @relation(fields: [mediaAssetId], references: [id], onDelete: Restrict)
+
+  @@unique([productId, mediaAssetId])
+  @@unique([productId, sortOrder])
+  @@index([productId, role])
+  @@index([mediaAssetId])
+  @@map("product_media")
 }

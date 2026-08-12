@@ -33,6 +33,7 @@ import { VariantsModule } from './variants/variants.module';
 import { BundlesModule } from './bundles/bundles.module';
 import { ProductRelationsModule } from './product-relations/product-relations.module';
 import { CatalogImportModule } from './catalog-import/catalog-import.module';
+import { MediaModule } from './media/media.module';
 
 @Module({
   imports: [
@@ -129,6 +130,7 @@ import { CatalogImportModule } from './catalog-import/catalog-import.module';
     BundlesModule,
     ProductRelationsModule,
     CatalogImportModule,
+    MediaModule,
     QueueModule,
     HealthModule,
   ],
