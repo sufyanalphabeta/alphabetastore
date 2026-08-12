@@ -7,6 +7,7 @@ import type { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { PricingService } from '../pricing/pricing.service';
+import { resolveProductCardImage } from '../media/product-gallery.mapper';
 import { AddCartItemDto } from './dto/add-cart-item.dto';
 import { UpdateCartItemDto } from './dto/update-cart-item.dto';
 
@@ -31,7 +32,26 @@ const cartInclude = {
               sortOrder: 'asc',
             },
             select: {
+              id: true,
               imageUrl: true,
+              sortOrder: true,
+            },
+          },
+          media: {
+            orderBy: {
+              sortOrder: 'asc',
+            },
+            select: {
+              id: true,
+              mediaAssetId: true,
+              role: true,
+              sortOrder: true,
+              mediaAsset: {
+                select: {
+                  altText: true,
+                  variants: true,
+                },
+              },
             },
           },
         },
@@ -427,7 +447,7 @@ export class CartService {
           slug: item.product.slug,
           imageUrl:
             item.variant?.imageUrl ??
-            item.product.images[0]?.imageUrl ??
+            resolveProductCardImage(item.product) ??
             null,
         },
       };

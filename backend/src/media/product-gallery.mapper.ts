@@ -72,3 +72,7 @@ export function normalizeProductGallery<T extends { images?: LegacyImage[]; medi
     })),
   };
 }
+
+export function resolveProductCardImage(product: { images?: LegacyImage[]; media?: NewMedia[] }) {
+  return normalizeProductGallery(product).gallery[0]?.cardUrl || null;
+}

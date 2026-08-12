@@ -1,4 +1,4 @@
-import { normalizeProductGallery } from './product-gallery.mapper';
+import { normalizeProductGallery, resolveProductCardImage } from './product-gallery.mapper';
 
 const legacy = { id: 'legacy', imageUrl: '/legacy.jpg', sortOrder: 0 };
 const modern = {
@@ -37,5 +37,14 @@ describe('normalizeProductGallery', () => {
   it('uses another optimized variant as a safe URL fallback', () => {
     const result = normalizeProductGallery({ images: [], media: [{ ...modern, mediaAsset: { altText: null, variants: { card: { url: '/only.webp' } } } }] });
     expect(result.gallery[0]).toMatchObject({ thumbnailUrl: '/only.webp', productUrl: '/only.webp', zoomUrl: '/only.webp' });
+  });
+
+  it('resolves the optimized card image with ProductMedia precedence', () => {
+    expect(resolveProductCardImage({ images: [legacy], media: [modern] })).toBe('/card.webp');
+  });
+
+  it('keeps legacy card compatibility and permits an empty gallery', () => {
+    expect(resolveProductCardImage({ images: [legacy], media: [] })).toBe('/legacy.jpg');
+    expect(resolveProductCardImage({ images: [], media: [] })).toBeNull();
   });
 });
