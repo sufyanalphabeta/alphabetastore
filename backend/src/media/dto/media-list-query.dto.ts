@@ -3,9 +3,13 @@ import { IsBoolean, IsDateString, IsEnum, IsInt, IsOptional, IsString, Max, Min 
 
 import { MediaProcessingStatus, MediaType } from '../../prisma/prisma-client';
 
-const toBoolean = ({ value }: { value: unknown }) => {
-  if (value === undefined || value === '') return undefined;
-  return value === true || value === 'true' || value === '1';
+const toBoolean = ({ value, obj, key }: { value: unknown; obj: Record<string, unknown>; key: string }) => {
+  // With enableImplicitConversion, class-transformer turns the non-empty string
+  // "false" into true before field transforms run. Read the raw query value so
+  // `used=false` keeps its intended meaning.
+  const rawValue = obj?.[key] ?? value;
+  if (rawValue === undefined || rawValue === '') return undefined;
+  return rawValue === true || rawValue === 'true' || rawValue === '1';
 };
 
 export class MediaListQueryDto {

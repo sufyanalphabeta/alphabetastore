@@ -43,6 +43,31 @@ describe('MediaProcessingService', () => {
     }
   });
 
+  it('does not upscale a low-resolution source in generated variants', async () => {
+    const containedProduct = await image('png', 200, 150);
+    const buffer = await sharp({
+      create: { width: 400, height: 300, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 0 } },
+    })
+      .composite([{ input: containedProduct, left: 100, top: 75 }])
+      .png()
+      .toBuffer();
+    prisma.mediaAsset.findUnique.mockResolvedValue(null);
+    prisma.mediaAsset.create.mockImplementation(async ({ data }: any) => ({ ...data, id: data.id }));
+    prisma.mediaAsset.update.mockImplementation(async ({ data }: any) => ({ id: 'asset', ...data }));
+
+    await service.processImage({ buffer, originalname: 'small.png', mimetype: 'image/png' });
+
+    const variantBuffers = storage.saveFile.mock.calls.slice(1).map((call: any[]) => call[0]);
+    for (const variantBuffer of variantBuffers) {
+      const { data, info } = await sharp(variantBuffer).raw().toBuffer({ resolveWithObject: true });
+      const corner = [data[0], data[1], data[2]];
+      const centerOffset = (Math.floor(info.height / 2) * info.width + Math.floor(info.width / 2)) * info.channels;
+      const center = [data[centerOffset], data[centerOffset + 1], data[centerOffset + 2]];
+      expect(corner.every((channel) => channel >= 240)).toBe(true);
+      expect(center.some((channel) => channel < 240)).toBe(true);
+    }
+  });
+
   it('reuses an exact duplicate without writing another file', async () => {
     const buffer = await image('jpeg');
     const existing = { id: 'existing', originalWidth: 900, originalHeight: 600, variants: {} };
@@ -55,6 +80,12 @@ describe('MediaProcessingService', () => {
     expect(storage.saveFile).not.toHaveBeenCalled();
   });
 
+  it('validates filename and MIME before duplicate reuse', async () => {
+    const buffer = await image('jpeg');
+    prisma.mediaAsset.findUnique.mockResolvedValue({ id: 'existing', originalWidth: 900, originalHeight: 600, variants: {} });
+    await expect(service.processImage({ buffer, originalname: 'same.png', mimetype: 'image/png' })).rejects.toThrow('لا يطابق');
+  });
+
   it('rejects SVG-like, malformed, oversized, and pixel-heavy input', async () => {
     prisma.mediaAsset.findUnique.mockResolvedValue(null);
     await expect(service.processImage({ buffer: Buffer.from('<svg/>'), originalname: 'x.svg', mimetype: 'image/svg+xml' })).rejects.toThrow();
@@ -62,6 +93,8 @@ describe('MediaProcessingService', () => {
     await expect(service.processImage({ buffer: Buffer.alloc(15 * 1024 * 1024 + 1), originalname: 'x.jpg', mimetype: 'image/jpeg' })).rejects.toThrow();
     const large = await image('jpeg', 7100, 7100);
     await expect(service.processImage({ buffer: large, originalname: 'large.jpg', mimetype: 'image/jpeg' })).rejects.toThrow();
+    const validJpeg = await image('jpeg');
+    await expect(service.processImage({ buffer: validJpeg, originalname: 'fake.png', mimetype: 'image/png' })).rejects.toThrow('لا يطابق');
   });
 
   it('marks small images with a user-friendly low resolution warning', async () => {

@@ -41,6 +41,13 @@ export class MediaProcessingService {
   ): Promise<ProcessedMediaAsset> {
     this.validateInputSize(upload.buffer);
 
+    // Validate the decoded content and the user-facing filename before duplicate reuse.
+    // This prevents a duplicate request with a fake extension/MIME from bypassing upload security.
+    const metadata = await this.inspectImage(upload);
+    const width = metadata.width ?? 0;
+    const height = metadata.height ?? 0;
+    this.validateDimensions(width, height);
+
     const checksumSha256 = createHash('sha256').update(upload.buffer).digest('hex');
     const duplicate = await this.prisma.mediaAsset.findUnique({
       where: { checksumSha256 },
@@ -57,11 +64,6 @@ export class MediaProcessingService {
         variants: (duplicate.variants ?? {}) as MediaVariants,
       };
     }
-
-    const metadata = await this.inspectImage(upload);
-    const width = metadata.width ?? 0;
-    const height = metadata.height ?? 0;
-    this.validateDimensions(width, height);
 
     const format = metadata.format ?? '';
     if (!MEDIA_ALLOWED_SHARP_FORMATS.has(format)) {
@@ -123,12 +125,22 @@ export class MediaProcessingService {
         number,
       ]>) {
         const storageKey = `media/${mediaId}/${name}.webp`;
-        const buffer = await sharp(upload.buffer)
+        const { data: contained } = await sharp(upload.buffer)
           .rotate()
           .flatten({ background: '#ffffff' })
-          .resize(size, size, { fit: 'contain', background: '#ffffff', withoutEnlargement: true })
+          .resize(size, size, { fit: 'inside', withoutEnlargement: true })
+          .toBuffer({ resolveWithObject: true });
+        const { data: buffer, info } = await sharp({
+          create: {
+            width: size,
+            height: size,
+            channels: 3,
+            background: '#ffffff',
+          },
+        })
+          .composite([{ input: contained, gravity: 'center' }])
           .webp({ quality: MEDIA_WEBP_QUALITY })
-          .toBuffer();
+          .toBuffer({ resolveWithObject: true });
         const url = await this.storageService.saveFile(buffer, {
           subdirectory: `media/${mediaId}`,
           originalname: `${name}.webp`,
@@ -136,8 +148,8 @@ export class MediaProcessingService {
         });
         savedUrls.push(url);
         variants[name] = {
-          width: size,
-          height: size,
+          width: info.width,
+          height: info.height,
           format: 'webp',
           storageKey,
           url,
@@ -183,6 +195,16 @@ export class MediaProcessingService {
     const detectedMime = this.mimeForFormat(metadata.format ?? '');
     if (!MEDIA_ALLOWED_MIME_TYPES.has(detectedMime)) {
       throw new BadRequestException('نوع الصورة غير مدعوم. استخدم JPG أو PNG أو WebP.');
+    }
+    const extension = extname(upload.originalname).toLowerCase();
+    const expectedMimeByExtension: Record<string, string> = {
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.webp': 'image/webp',
+    };
+    if (expectedMimeByExtension[extension] !== detectedMime || (upload.mimetype && upload.mimetype !== detectedMime)) {
+      throw new BadRequestException('امتداد أو نوع ملف الصورة لا يطابق محتوى الصورة.');
     }
     return metadata;
   }
