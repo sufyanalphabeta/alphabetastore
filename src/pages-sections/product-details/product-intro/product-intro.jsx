@@ -128,7 +128,7 @@ export default function ProductIntro({ product }) {
       <Grid container spacing={3} justifyContent="space-around">
         {/* IMAGE GALLERY AREA */}
         <Grid size={{ lg: 6, md: 7, xs: 12 }}>
-          <ProductGallery images={product.images} productName={product.title} />
+          <ProductGallery gallery={product.gallery} productName={product.title} />
         </Grid>
 
         <Grid size={{ lg: 5, md: 5, xs: 12 }}>

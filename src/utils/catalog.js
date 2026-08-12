@@ -1,19 +1,11 @@
 import { API_BASE_URL } from "./api";
 
-export const FALLBACK_PRODUCT_IMAGE = "/assets/images/products/apple-watch.png";
+export const FALLBACK_PRODUCT_IMAGE = "/assets/images/products/alphabeta-product-placeholder.svg";
 
 const MISSING_PRODUCT_IMAGE_PATHS = new Set([
   "/assets/images/products/placeholder.png",
   "placeholder.png"
 ]);
-
-function getBackendOrigin() {
-  try {
-    return new URL(API_BASE_URL).origin;
-  } catch {
-    return "";
-  }
-}
 
 export function normalizeProductImageUrl(imageUrl) {
   const nextImageUrl = String(imageUrl || "").trim();
@@ -27,8 +19,9 @@ export function normalizeProductImageUrl(imageUrl) {
   }
 
   if (nextImageUrl.startsWith("/uploads/")) {
-    const backendOrigin = getBackendOrigin();
-    return backendOrigin ? `${backendOrigin}${nextImageUrl}` : nextImageUrl;
+    // Public media is always browser-facing. The frontend /uploads rewrite
+    // proxies it to local storage without leaking Docker-only hostnames.
+    return nextImageUrl;
   }
 
   return nextImageUrl;
@@ -173,6 +166,41 @@ export async function fetchCategories(onlyVisible = false) {
   });
 }
 
+export function mapProductGallery(product) {
+  const mediaGallery = Array.isArray(product?.gallery) ? product.gallery
+    .filter(item => item && item.role !== "VIDEO")
+    .sort((left, right) => {
+      const roleDifference = Number(right.role === "PRIMARY") - Number(left.role === "PRIMARY");
+      return roleDifference || Number(left.sortOrder || 0) - Number(right.sortOrder || 0);
+    })
+    .map(item => {
+      const availableUrl = item.productUrl || item.cardUrl || item.thumbnailUrl || item.zoomUrl;
+      const productUrl = normalizeProductImageUrl(item.productUrl || availableUrl);
+      return {
+        id: item.id,
+        mediaAssetId: item.mediaAssetId || null,
+        role: item.role || "GALLERY",
+        sortOrder: Number(item.sortOrder || 0),
+        thumbnailUrl: normalizeProductImageUrl(item.thumbnailUrl || availableUrl),
+        cardUrl: normalizeProductImageUrl(item.cardUrl || productUrl),
+        productUrl,
+        zoomUrl: normalizeProductImageUrl(item.zoomUrl || productUrl),
+        altText: item.altText || null
+      };
+    }) : [];
+
+  if (mediaGallery.length) return mediaGallery;
+  const legacy = Array.isArray(product?.images) ? product.images : [];
+  return legacy.map((item, index) => {
+    const url = normalizeProductImageUrl(item?.imageUrl);
+    return { id: item?.id || `legacy-${index}`, mediaAssetId: null, role: index === 0 ? "PRIMARY" : "GALLERY", sortOrder: index, thumbnailUrl: url, cardUrl: url, productUrl: url, zoomUrl: url, altText: null };
+  });
+}
+
+export function getProductCardImage(product) {
+  return mapProductGallery(product)[0]?.cardUrl || FALLBACK_PRODUCT_IMAGE;
+}
+
 export async function fetchCategoriesTree(onlyVisible = true) {
   const url = onlyVisible ? "/categories/tree?visible=true" : "/categories/tree";
   return fetchCatalog(url, "Failed to load category tree", [], {
@@ -254,7 +282,7 @@ export async function fetchProductsPage(filters = {}) {
 }
 
 export async function fetchProductBySlug(slug) {
-  const product = await fetchCatalog(`/products/${encodeURIComponent(slug)}`, "Failed to load products", null);
+  const product = await fetchCatalog(`/products/${encodeURIComponent(slug)}`, "Failed to load products", null, { cacheMode: "no-store" });
   return mapCatalogProduct(product);
 }
 
@@ -273,8 +301,8 @@ export async function fetchProductCountsByCategory() {
 }
 
 export function mapCatalogProduct(product) {
-  const imageUrls = Array.isArray(product?.images) ? product.images.map(item => normalizeProductImageUrl(item?.imageUrl)).filter(Boolean) : [];
-  const images = imageUrls.length ? imageUrls : [FALLBACK_PRODUCT_IMAGE];
+  const gallery = mapProductGallery(product);
+  const images = gallery.length ? gallery.map(item => item.productUrl) : [FALLBACK_PRODUCT_IMAGE];
   const price = Number(product?.price ?? 0);
   const categoryName = product?.category?.name || "";
   const categories = Array.isArray(product?.categories) ? product.categories.map(item => item?.name || item).filter(Boolean) : categoryName ? [categoryName] : [];
@@ -284,7 +312,8 @@ export function mapCatalogProduct(product) {
     ...product,
     slug,
     title: product?.name || "Untitled Product",
-    thumbnail: images[0],
+    gallery,
+    thumbnail: gallery[0]?.cardUrl || FALLBACK_PRODUCT_IMAGE,
     images,
     categories,
     price: Number.isFinite(price) ? price : 0,

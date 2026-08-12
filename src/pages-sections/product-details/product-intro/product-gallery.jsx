@@ -32,6 +32,22 @@ function NavBtn({ onClick, icon, sx = {} }) {
   );
 }
 
+function GalleryImage({ src, alt, sizes, onError }) {
+  const imageUrl = src || FALLBACK_PRODUCT_IMAGE;
+  if (!imageUrl.startsWith("/uploads/")) {
+    return (
+      <Box
+        component="img"
+        src={imageUrl}
+        alt={alt}
+        sx={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain" }}
+      />
+    );
+  }
+
+  return <Image fill alt={alt} src={imageUrl} sizes={sizes} onError={onError} style={{ objectFit: "contain" }} />;
+}
+
 // ── touch / swipe helpers ─────────────────────────────────────────────────────
 function useSwipe(onLeft, onRight) {
   const startX = useRef(null);
@@ -39,25 +55,37 @@ function useSwipe(onLeft, onRight) {
   const onTouchEnd = e => {
     if (startX.current === null) return;
     const diff = startX.current - e.changedTouches[0].clientX;
-    if (Math.abs(diff) > 40) { diff > 0 ? onLeft() : onRight(); }
+    if (Math.abs(diff) > 40) {
+      if (diff > 0) onLeft();
+      else onRight();
+    }
     startX.current = null;
   };
   return { onTouchStart, onTouchEnd };
 }
 
-export default function ProductGallery({ images, productName = "Product" }) {
-  const galleryImages = images?.length ? images : [FALLBACK_PRODUCT_IMAGE];
+const fallbackGalleryItem = {
+  id: "product-placeholder",
+  thumbnailUrl: FALLBACK_PRODUCT_IMAGE,
+  productUrl: FALLBACK_PRODUCT_IMAGE,
+  zoomUrl: FALLBACK_PRODUCT_IMAGE,
+  altText: null
+};
+
+export default function ProductGallery({ gallery, productName = "Product" }) {
+  const galleryImages = gallery?.length ? gallery : [fallbackGalleryItem];
   const [current, setCurrent] = useState(0);
-  const [resolved, setResolved] = useState(galleryImages);
+  const [failedImages, setFailedImages] = useState(() => new Set());
   const [zoomOpen, setZoomOpen] = useState(false);
+  const resolved = galleryImages.map((item, index) => failedImages.has(index) ? fallbackGalleryItem : item);
 
   useEffect(() => {
-    setResolved(galleryImages);
+    setFailedImages(new Set());
     setCurrent(0);
-  }, [images]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [gallery]);
 
   const handleImageError = index =>
-    setResolved(prev => prev.map((item, i) => i === index ? FALLBACK_PRODUCT_IMAGE : item));
+    setFailedImages(prev => new Set(prev).add(index));
 
   const total = resolved.length;
   const prev = useCallback(() => setCurrent(c => (c - 1 + total) % total), [total]);
@@ -83,13 +111,11 @@ export default function ProductGallery({ images, productName = "Product" }) {
       {/* ── Main image ── */}
       <Box sx={{ position: "relative" }} {...swipeMain}>
         <ProductImageWrapper onClick={() => setZoomOpen(true)}>
-          <Image
-            fill
-            alt={productName}
-            src={resolved[current] || FALLBACK_PRODUCT_IMAGE}
+          <GalleryImage
+            alt={resolved[current]?.altText || productName}
+            src={resolved[current]?.productUrl || FALLBACK_PRODUCT_IMAGE}
             sizes="(max-width: 768px) 100vw, 50vw"
             onError={() => handleImageError(current)}
-            style={{ objectFit: "contain" }}
           />
         </ProductImageWrapper>
 
@@ -125,15 +151,13 @@ export default function ProductGallery({ images, productName = "Product" }) {
       {/* ── Thumbnails ── */}
       {total > 1 && (
         <div className="preview-images">
-          {resolved.map((url, i) => (
-            <PreviewImage key={i} onClick={() => setCurrent(i)} selected={current === i}>
-              <Image
-                fill
+          {resolved.map((item, i) => (
+            <PreviewImage key={item.id || i} onClick={() => setCurrent(i)} selected={current === i}>
+              <GalleryImage
                 alt={`${productName} view ${i + 1}`}
-                src={url || FALLBACK_PRODUCT_IMAGE}
+                src={item.thumbnailUrl || item.productUrl || FALLBACK_PRODUCT_IMAGE}
                 sizes="64px"
                 onError={() => handleImageError(i)}
-                style={{ objectFit: "contain" }}
               />
             </PreviewImage>
           ))}
@@ -141,7 +165,7 @@ export default function ProductGallery({ images, productName = "Product" }) {
       )}
 
       {/* ── Fullscreen viewer ── */}
-      <Dialog open={zoomOpen} onClose={() => setZoomOpen(false)} maxWidth="xl" fullWidth
+      {zoomOpen && <Dialog open onClose={() => setZoomOpen(false)} maxWidth="xl" fullWidth
         PaperProps={{ sx: { bgcolor: "#111", m: 1 } }}
       >
         <DialogContent sx={{ p: 0, position: "relative", bgcolor: "#111" }} {...swipeDialog}>
@@ -165,13 +189,11 @@ export default function ProductGallery({ images, productName = "Product" }) {
 
           {/* Main viewer */}
           <Box sx={{ position: "relative", height: { md: 680, sm: 460, xs: 320 } }}>
-            <Image
-              fill
+            <GalleryImage
               alt={`${productName} fullscreen`}
-              src={resolved[current] || FALLBACK_PRODUCT_IMAGE}
+              src={resolved[current]?.zoomUrl || resolved[current]?.productUrl || FALLBACK_PRODUCT_IMAGE}
               sizes="100vw"
               onError={() => handleImageError(current)}
-              style={{ objectFit: "contain" }}
             />
           </Box>
 
@@ -186,9 +208,9 @@ export default function ProductGallery({ images, productName = "Product" }) {
           {/* Thumbnail strip at bottom */}
           {total > 1 && (
             <Box sx={{ display: "flex", gap: 1, justifyContent: "center", p: 1.5, flexWrap: "nowrap", overflowX: "auto" }}>
-              {resolved.map((url, i) => (
+              {resolved.map((item, i) => (
                 <Box
-                  key={i}
+                  key={item.id || i}
                   onClick={() => setCurrent(i)}
                   sx={{
                     width: 56, height: 56, flexShrink: 0, borderRadius: 1, overflow: "hidden",
@@ -199,13 +221,13 @@ export default function ProductGallery({ images, productName = "Product" }) {
                     bgcolor: "rgba(255,255,255,0.08)"
                   }}
                 >
-                  <Image fill alt="" src={url || FALLBACK_PRODUCT_IMAGE} sizes="56px" style={{ objectFit: "contain" }} />
+                  <GalleryImage alt="" src={item.thumbnailUrl || item.productUrl || FALLBACK_PRODUCT_IMAGE} sizes="56px" onError={() => handleImageError(i)} />
                 </Box>
               ))}
             </Box>
           )}
         </DialogContent>
-      </Dialog>
+      </Dialog>}
     </Fragment>
   );
 }

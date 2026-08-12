@@ -9,7 +9,7 @@ import Typography from "@mui/material/Typography";
 
 import { currency } from "lib";
 import { fetchBundle } from "utils/catalog";
-import { normalizeProductImageUrl } from "utils/catalog";
+import { getProductCardImage } from "utils/catalog";
 import BundleAddToCart from "./BundleAddToCart";
 
 export async function generateMetadata({ params }) {
@@ -88,7 +88,7 @@ export default async function BundlePage({ params }) {
       <Grid container spacing={3} mb={4}>
         {items.map((item) => {
           const product = item?.product;
-          const imageUrl = normalizeProductImageUrl(product?.images?.[0]?.imageUrl ?? product?.thumbnail);
+          const imageUrl = getProductCardImage(product);
           return (
             <Grid key={item.id ?? item.productId} size={{ xs: 12, sm: 6, md: 4 }}>
               <Box

@@ -18,13 +18,13 @@ import AddIcon from "@mui/icons-material/Add";
 
 // UTILS
 import { currency } from "lib";
-import { normalizeProductImageUrl } from "utils/catalog";
+import { getProductCardImage } from "utils/catalog";
 import { useCart } from "contexts/CartContext";
 
 // ── Mini product tile ─────────────────────────────────────────────────────────
 
 function FbtTile({ product, checked, onToggle }) {
-  const imageUrl = normalizeProductImageUrl(product?.images?.[0]?.imageUrl ?? product?.thumbnail);
+  const imageUrl = getProductCardImage(product);
   const price = Number(product?.price ?? 0);
   const inStock = (product?.stockQty ?? 0) > 0;
 

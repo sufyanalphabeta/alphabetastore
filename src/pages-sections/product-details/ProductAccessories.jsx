@@ -16,14 +16,14 @@ import LinkIcon from "@mui/icons-material/Link";
 // UTILS
 import Link from "next/link";
 import { currency } from "lib";
-import { normalizeProductImageUrl } from "utils/catalog";
+import { getProductCardImage } from "utils/catalog";
 import { useCart } from "contexts/CartContext";
 
 // ── Accessory card ────────────────────────────────────────────────────────────
 
 function AccessoryCard({ product }) {
   const { addItem } = useCart();
-  const imageUrl = normalizeProductImageUrl(product?.images?.[0]?.imageUrl ?? product?.thumbnail);
+  const imageUrl = getProductCardImage(product);
   const price = Number(product?.price ?? 0);
   const inStock = (product?.stockQty ?? 0) > 0;
 

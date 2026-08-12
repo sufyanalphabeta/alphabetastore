@@ -15,7 +15,7 @@ import ShoppingBagIcon from "@mui/icons-material/ShoppingBag";
 // UTILS
 import Link from "next/link";
 import { currency } from "lib";
-import { normalizeProductImageUrl } from "utils/catalog";
+import { getProductCardImage } from "utils/catalog";
 
 // ── Single bundle card ────────────────────────────────────────────────────────
 
@@ -52,7 +52,7 @@ function BundleCard({ bundle }) {
         {/* Product thumbnails */}
         <AvatarGroup max={6} sx={{ justifyContent: "flex-start", mb: 1.5 }}>
           {items.map(item => {
-            const img = normalizeProductImageUrl(item?.product?.images?.[0]?.imageUrl);
+            const img = getProductCardImage(item?.product);
             return (
               <Avatar
                 key={item.id}

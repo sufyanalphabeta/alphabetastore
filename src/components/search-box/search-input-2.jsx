@@ -23,8 +23,7 @@ import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import CategoryIcon from "@mui/icons-material/Category";
 
 // UTILS
-import { fetchAutocomplete, fetchPopularSearches, trackSearchTerm } from "utils/catalog";
-import { normalizeProductImageUrl, FALLBACK_PRODUCT_IMAGE } from "utils/catalog";
+import { fetchAutocomplete, fetchPopularSearches, getProductCardImage, trackSearchTerm } from "utils/catalog";
 
 // STYLED COMPONENT
 import { SearchOutlinedIcon } from "./styles";
@@ -314,9 +313,7 @@ function SearchInput2Inner() {
                   </Box>
                   <List dense disablePadding>
                     {suggestions.products.map((product) => {
-                      const img = product.images?.[0]?.imageUrl
-                        ? normalizeProductImageUrl(product.images[0].imageUrl)
-                        : FALLBACK_PRODUCT_IMAGE;
+                      const img = getProductCardImage(product);
                       return (
                         <ListItem key={product.id} disablePadding>
                           <ListItemButton onClick={() => router.push(`/products/${product.slug}`)}>
