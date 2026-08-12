@@ -28,27 +28,27 @@ ENV NODE_ENV=production
 # Required for Prisma query engine (must match builder's openssl version)
 RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
+# Create the non-root runtime identity before copying application files so
+# ownership is applied while layers are created instead of recursively later.
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 --ingroup nodejs nestjs
+
 # 🔥 IMPORTANT: do NOT run npm ci again
 # copy node_modules from builder (includes Prisma client)
-COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
 
 # copy built app
-COPY --from=builder /app/dist ./dist
+COPY --from=builder --chown=nestjs:nodejs /app/dist ./dist
 
 # copy prisma (for migrations if needed)
-COPY prisma ./prisma
+COPY --chown=nestjs:nodejs prisma ./prisma
 
-# ensure uploads dir exists
-RUN mkdir -p /app/uploads
-
-# non-root user
-RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 nestjs && \
-    chown -R nestjs:nodejs /app
+# The runtime user only needs write access to uploads. Docker Compose mounts the
+# development uploads directory at this same path.
+RUN install -d -o nestjs -g nodejs /app/uploads
 
 # entrypoint
-COPY --chown=nestjs:nodejs docker-entrypoint.sh /app/docker-entrypoint.sh
-RUN chmod +x /app/docker-entrypoint.sh
+COPY --chown=nestjs:nodejs --chmod=755 docker-entrypoint.sh /app/docker-entrypoint.sh
 
 USER nestjs
 
