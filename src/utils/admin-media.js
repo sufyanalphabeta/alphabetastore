@@ -21,6 +21,17 @@ function withPublicUrls(media) {
   };
 }
 
+function withGalleryUrls(item) {
+  if (!item) return item;
+  return {
+    ...item,
+    thumbnailUrl: mediaUrl(item.thumbnailUrl),
+    cardUrl: mediaUrl(item.cardUrl),
+    productUrl: mediaUrl(item.productUrl),
+    zoomUrl: mediaUrl(item.zoomUrl)
+  };
+}
+
 export async function listAdminMedia(params = {}) {
   const query = new URLSearchParams({
     page: String(params.page || 1),
@@ -55,3 +66,38 @@ export function deleteAdminMedia(id) {
   return apiDelete(`/admin/media/${encodeURIComponent(id)}`);
 }
 
+export async function listProductMedia(productId) {
+  const data = await apiGet(`/admin/products/${encodeURIComponent(productId)}/media`);
+  if (!Array.isArray(data)) return [];
+  return Promise.all(data.map(async item => {
+    const normalized = withGalleryUrls(item);
+    if (!item.mediaAssetId) return normalized;
+    try {
+      const asset = await getAdminMedia(item.mediaAssetId);
+      return { ...normalized, warning: asset.warning || null };
+    } catch {
+      return normalized;
+    }
+  }));
+}
+
+export async function attachProductMedia(productId, mediaAssetId, role) {
+  const data = await apiPost(`/admin/products/${encodeURIComponent(productId)}/media`, {
+    mediaAssetId,
+    ...(role ? { role } : {})
+  });
+  return data;
+}
+
+export function updateProductMediaRole(productId, productMediaId, role) {
+  return apiPatch(`/admin/products/${encodeURIComponent(productId)}/media/${encodeURIComponent(productMediaId)}`, { role });
+}
+
+export function detachProductMedia(productId, productMediaId) {
+  return apiDelete(`/admin/products/${encodeURIComponent(productId)}/media/${encodeURIComponent(productMediaId)}`);
+}
+
+export async function reorderProductMedia(productId, productMediaIds) {
+  const data = await apiPost(`/admin/products/${encodeURIComponent(productId)}/media/reorder`, { productMediaIds });
+  return Array.isArray(data) ? data.map(withGalleryUrls) : [];
+}

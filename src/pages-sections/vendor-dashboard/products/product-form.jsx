@@ -23,7 +23,7 @@ import Divider from "@mui/material/Divider";
 import Add from "@mui/icons-material/Add";
 import Delete from "@mui/icons-material/Delete";
 
-import DropZone from "components/DropZone";
+import ProductMediaSection from "components/admin/media/ProductMediaSection";
 import { FormProvider, TextField } from "components/form-hook";
 import useSettings from "hooks/useSettings";
 import { buildPricingSettings, computeStorefrontPrice, formatPrice } from "utils/pricing";
@@ -35,9 +35,9 @@ import {
   deleteAdminProductImage,
   fetchAdminCategories,
   fetchAdminProductBySlug,
-  uploadAdminProductImages,
   updateAdminProduct
 } from "utils/admin-catalog";
+import { attachProductMedia, listProductMedia, reorderProductMedia } from "utils/admin-media";
 
 
 // FORM FIELDS VALIDATION SCHEMA
@@ -89,9 +89,7 @@ export default function ProductForm(props) {
   const [product, setProduct] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [pageError, setPageError] = useState("");
-  const [existingImages, setExistingImages] = useState([]);
-  const [removedImageIds, setRemovedImageIds] = useState([]);
-  const [pendingFiles, setPendingFiles] = useState([]);
+  const [productMedia, setProductMedia] = useState([]);
 
   // ── Highlights state ──────────────────────────────────────────────────────
   const [highlights, setHighlights] = useState([]); // string[]
@@ -177,16 +175,6 @@ export default function ProductForm(props) {
   }, [watchedPrice, watchedBaseCurrency, watchedDiscountType, watchedDiscountValue, settings]);
 
   const categoryOptions = useMemo(() => [...categories].sort((left, right) => left.name.localeCompare(right.name)), [categories]);
-  const pendingImagePreviews = useMemo(() => pendingFiles.map(file => ({
-    file,
-    key: `${file.name}-${file.size}-${file.lastModified}`,
-    previewUrl: URL.createObjectURL(file)
-  })), [pendingFiles]);
-
-  useEffect(() => () => {
-    pendingImagePreviews.forEach(item => URL.revokeObjectURL(item.previewUrl));
-  }, [pendingImagePreviews]);
-
   useEffect(() => {
     let isMounted = true;
 
@@ -206,9 +194,7 @@ export default function ProductForm(props) {
         setCategories(Array.isArray(categoryData) ? categoryData : []);
         setBrands(Array.isArray(brandData) ? brandData : []);
         setProduct(productData);
-        setExistingImages(Array.isArray(productData?.images) ? productData.images : []);
-        setRemovedImageIds([]);
-        setPendingFiles([]);
+        setProductMedia(Array.isArray(productData?.gallery) ? productData.gallery : []);
 
         // Hydrate highlights and specs
         setHighlights(Array.isArray(productData?.highlights) ? productData.highlights : []);
@@ -262,29 +248,17 @@ export default function ProductForm(props) {
     };
   }, [reset, slug]);
 
-  const handleDropFiles = acceptedFiles => {
-    setPendingFiles(current => {
-      const nextFiles = [...current];
-
-      acceptedFiles.forEach(file => {
-        const alreadyExists = nextFiles.some(existing => existing.name === file.name && existing.size === file.size && existing.lastModified === file.lastModified);
-
-        if (!alreadyExists) {
-          nextFiles.push(file);
-        }
-      });
-
-      return nextFiles;
-    });
+  const removeLegacyImage = async imageId => {
+    if (product?.id) await deleteAdminProductImage(product.id, imageId);
   };
 
-  const handleRemoveExistingImage = imageId => {
-    setExistingImages(current => current.filter(image => image.id !== imageId));
-    setRemovedImageIds(current => current.includes(imageId) ? current : [...current, imageId]);
-  };
-
-  const handleRemovePendingFile = key => {
-    setPendingFiles(current => current.filter(file => `${file.name}-${file.size}-${file.lastModified}` !== key));
+  const attachCreateMedia = async (productId, selectedItems) => {
+    const attached = [];
+    for (let index = 0; index < selectedItems.length; index += 1) {
+      attached.push(await attachProductMedia(productId, selectedItems[index].mediaAssetId, index === 0 ? "PRIMARY" : "GALLERY"));
+    }
+    if (attached.length > 1) await reorderProductMedia(productId, attached.map(item => item.id));
+    return listProductMedia(productId);
   };
 
 // FORM SUBMIT HANDLER
@@ -336,12 +310,15 @@ export default function ProductForm(props) {
 
       const productId = savedProduct?.id || product?.id;
 
-      if (productId && removedImageIds.length) {
-        await Promise.all(removedImageIds.map(imageId => deleteAdminProductImage(productId, imageId)));
-      }
-
-      if (productId && pendingFiles.length) {
-        await uploadAdminProductImages(productId, pendingFiles);
+      if (!product?.id && productId && productMedia.length) {
+        try {
+          setProductMedia(await attachCreateMedia(productId, productMedia));
+        } catch {
+          setProduct(savedProduct);
+          try { setProductMedia(await listProductMedia(productId)); } catch { /* retain local selections for retry */ }
+          setPageError("تم إنشاء المنتج، لكن تعذر ربط بعض الصور. المنتج محفوظ ويمكنك إعادة إضافة الصور من هذه الصفحة.");
+          return;
+        }
       }
 
       router.replace(`/admin/products?updated=${Date.now()}`);
@@ -636,65 +613,7 @@ export default function ProductForm(props) {
           </Grid>
 
           <Grid size={12}>
-            <Typography variant="h6" sx={{
-            mb: 2
-          }}>
-              Product Images
-            </Typography>
-
-            <DropZone onChange={handleDropFiles} info="Upload up to 10 images. Supported formats: PNG, JPG, JPEG, GIF, WEBP. Max 5 MB per image." />
-
-            {existingImages.length || pendingImagePreviews.length ? <Box mt={3} display="grid" gridTemplateColumns={{
-            md: "repeat(4, minmax(0, 1fr))",
-            sm: "repeat(3, minmax(0, 1fr))",
-            xs: "repeat(2, minmax(0, 1fr))"
-          }} gap={2}>
-                {existingImages.map(image => <Box key={image.id} p={1.5} border="1px solid" borderColor="divider" borderRadius={2} bgcolor="grey.50">
-                    <Box component="img" src={image.imageUrl} alt="Product" sx={{
-                  width: "100%",
-                  height: 140,
-                  objectFit: "cover",
-                  borderRadius: 1,
-                  display: "block",
-                  mb: 1
-                }} />
-
-                    <Box display="flex" alignItems="center" justifyContent="space-between" gap={1}>
-                      <Typography variant="caption" color="text.secondary">
-                        Uploaded image
-                      </Typography>
-
-                      <IconButton color="error" onClick={() => handleRemoveExistingImage(image.id)}>
-                        <Delete fontSize="small" />
-                      </IconButton>
-                    </Box>
-                  </Box>)}
-
-                {pendingImagePreviews.map(item => <Box key={item.key} p={1.5} border="1px solid" borderColor="divider" borderRadius={2} bgcolor="grey.50">
-                    <Box component="img" src={item.previewUrl} alt={item.file.name} sx={{
-                  width: "100%",
-                  height: 140,
-                  objectFit: "cover",
-                  borderRadius: 1,
-                  display: "block",
-                  mb: 1
-                }} />
-
-                    <Box display="flex" alignItems="center" justifyContent="space-between" gap={1}>
-                      <Typography variant="caption" color="text.secondary" sx={{
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap"
-                  }}>
-                        Pending upload
-                      </Typography>
-
-                      <IconButton color="error" onClick={() => handleRemovePendingFile(item.key)}>
-                        <Delete fontSize="small" />
-                      </IconButton>
-                    </Box>
-                  </Box>)}
-              </Box> : null}
+            <ProductMediaSection productId={product?.id || null} items={productMedia} onChange={setProductMedia} onRemoveLegacy={removeLegacyImage} />
           </Grid>
 
           <Grid size={12}>
