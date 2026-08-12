@@ -78,6 +78,13 @@ export class S3StorageService extends StorageService implements OnModuleInit {
     }
   }
 
+  getPublicUrl(storageKey: string): string {
+    if (!storageKey || storageKey.includes('..') || storageKey.startsWith('/')) {
+      throw new Error('Invalid storage key.');
+    }
+    return `${this.publicBaseUrl}/${storageKey.replace(/\\/g, '/')}`;
+  }
+
   private resolveContentType(extension: string): string {
     const types: Record<string, string> = {
       '.jpg': 'image/jpeg',

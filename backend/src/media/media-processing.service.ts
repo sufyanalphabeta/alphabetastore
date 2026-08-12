@@ -71,21 +71,42 @@ export class MediaProcessingService {
     const mediaId = randomUUID();
     const originalExtension = this.getOriginalExtension(format);
     const originalStorageKey = `media/${mediaId}/original${originalExtension}`;
-    const asset = await this.prisma.mediaAsset.create({
-      data: {
-        id: mediaId,
-        originalFilename: upload.originalname.slice(0, 255),
-        storageKey: originalStorageKey,
-        originalMimeType: this.mimeForFormat(format),
-        originalSizeBytes: upload.buffer.length,
-        originalWidth: width,
-        originalHeight: height,
-        checksumSha256,
-        aspectRatio: height ? width / height : null,
-        processingStatus: 'PROCESSING',
-        uploadedById,
-      },
-    });
+    let asset;
+    try {
+      asset = await this.prisma.mediaAsset.create({
+        data: {
+          id: mediaId,
+          originalFilename: upload.originalname.slice(0, 255),
+          storageKey: originalStorageKey,
+          originalMimeType: this.mimeForFormat(format),
+          originalSizeBytes: upload.buffer.length,
+          originalWidth: width,
+          originalHeight: height,
+          checksumSha256,
+          aspectRatio: height ? width / height : null,
+          processingStatus: 'PROCESSING',
+          uploadedById,
+        },
+      });
+    } catch (error) {
+      if ((error as { code?: string }).code === 'P2002') {
+        const concurrentDuplicate = await this.prisma.mediaAsset.findUnique({
+          where: { checksumSha256 },
+          include: { productMedia: true },
+        });
+        if (concurrentDuplicate) {
+          const lowResolution = this.isLowResolution(concurrentDuplicate.originalWidth, concurrentDuplicate.originalHeight);
+          return {
+            asset: concurrentDuplicate,
+            duplicate: true,
+            lowResolution,
+            warning: lowResolution ? 'جودة الصورة منخفضة، يفضل رفع صورة بدقة أعلى.' : undefined,
+            variants: (concurrentDuplicate.variants ?? {}) as MediaVariants,
+          };
+        }
+      }
+      throw error;
+    }
 
     const savedUrls: string[] = [];
     try {

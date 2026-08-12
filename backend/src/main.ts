@@ -38,6 +38,9 @@ async function bootstrap() {
   app.useStaticAssets(join(uploadsPath, 'branding'), {
     prefix: '/uploads/branding/',
   });
+  app.useStaticAssets(join(uploadsPath, 'media'), {
+    prefix: '/uploads/media/',
+  });
 
   app.use(helmet({
     contentSecurityPolicy: {

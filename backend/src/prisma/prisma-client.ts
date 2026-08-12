@@ -1,6 +1,9 @@
 export {
   PrismaClient,
   BaseCurrency,
+  MediaProcessingStatus,
+  MediaType,
+  ProductMediaRole,
   DiscountType,
   HomepageBlockType,
   NotificationType,

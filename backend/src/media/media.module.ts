@@ -4,10 +4,13 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { StorageModule } from '../storage/storage.module';
 import { MediaProcessingService } from './media-processing.service';
 import { ProductMediaService } from './product-media.service';
+import { MediaLibraryController } from './media-library.controller';
+import { MediaLibraryService } from './media-library.service';
 
 @Module({
   imports: [PrismaModule, StorageModule],
-  providers: [MediaProcessingService, ProductMediaService],
-  exports: [MediaProcessingService, ProductMediaService],
+  controllers: [MediaLibraryController],
+  providers: [MediaProcessingService, ProductMediaService, MediaLibraryService],
+  exports: [MediaProcessingService, ProductMediaService, MediaLibraryService],
 })
 export class MediaModule {}

@@ -3,6 +3,7 @@ export const MEDIA_MAX_DECODED_PIXELS = 50_000_000;
 export const MEDIA_MAX_WIDTH_OR_HEIGHT = 10_000;
 export const MEDIA_MAX_PRODUCT_IMAGES = 4;
 export const MEDIA_WEBP_QUALITY = 84;
+export const MEDIA_LOW_RESOLUTION_THRESHOLD = 600;
 
 export const MEDIA_VARIANTS = {
   thumbnail: 300,

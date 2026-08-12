@@ -50,6 +50,9 @@ export abstract class StorageService {
    */
   abstract deleteFile(fileUrl: string): Promise<void>;
 
+  /** Resolve a trusted logical storage key to a public URL. */
+  abstract getPublicUrl(storageKey: string): string;
+
   /**
    * Open a stream to a previously saved file. Used for serving private
    * (non-statically-served) assets via authenticated controllers.
@@ -124,6 +127,12 @@ export class LocalStorageService extends StorageService {
       return null;
     }
     return target;
+  }
+
+  getPublicUrl(storageKey: string): string {
+    const filePath = this.resolveStorageKey(storageKey);
+    if (!filePath) throw new Error('Invalid storage key.');
+    return `/uploads/${storageKey.replace(/\\/g, '/')}`;
   }
 
   private resolveStorageKey(storageKey: string): string | null {
