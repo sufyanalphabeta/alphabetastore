@@ -30,8 +30,13 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-# Required for Prisma query engine (must match builder's openssl version)
-RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+# Required for Prisma query engine (must match builder's openssl version).
+# Upgrade only base packages with published Bookworm security fixes; avoid a
+# broad dist-upgrade so the runtime remains predictable and reproducible.
+RUN apt-get update -y && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends openssl && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --only-upgrade libc6 libc-bin libgnutls30 dpkg && \
+    rm -rf /var/lib/apt/lists/*
 
 # Runtime invokes Node and Prisma directly; package-manager CLIs are unnecessary.
 RUN rm -rf /usr/local/lib/node_modules/npm /opt/yarn-v1.22.22 && \
