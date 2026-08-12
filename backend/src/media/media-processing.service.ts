@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { createHash, randomUUID } from 'crypto';
 import { extname } from 'path';
-import sharp from 'sharp';
+import sharp, { type Metadata } from 'sharp';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/local-storage.service';
@@ -185,7 +185,7 @@ export class MediaProcessingService {
   }
 
   private async inspectImage(upload: ImageUpload) {
-    let metadata: sharp.Metadata;
+    let metadata: Metadata;
     try {
       metadata = await sharp(upload.buffer, { failOn: 'error', limitInputPixels: MEDIA_MAX_DECODED_PIXELS }).metadata();
     } catch {

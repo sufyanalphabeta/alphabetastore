@@ -25,21 +25,21 @@
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.804.0",
+    "@aws-sdk/client-s3": "^3.1108.0",
     "@keyv/redis": "^5.1.5",
     "@nestjs/bullmq": "^11.0.4",
     "@nestjs/cache-manager": "^3.1.2",
-    "@nestjs/common": "^11.1.6",
+    "@nestjs/common": "^11.1.29",
     "@nestjs/config": "^4.0.2",
-    "@nestjs/core": "^11.1.6",
+    "@nestjs/core": "^11.1.29",
     "@nestjs/jwt": "^11.0.1",
     "@nestjs/passport": "^11.0.5",
-    "@nestjs/platform-express": "^11.1.6",
-    "@nestjs/swagger": "^11.2.0",
+    "@nestjs/platform-express": "^11.1.29",
+    "@nestjs/swagger": "11.4.6",
     "@nestjs/throttler": "^6.4.0",
     "@prisma/client": "^6.7.0",
-    "@sentry/nestjs": "^10.51.0",
-    "bcrypt": "^5.1.1",
+    "@sentry/nestjs": "^10.70.0",
+    "bcrypt": "^6.0.0",
     "bullmq": "^5.52.3",
     "cache-manager": "^7.2.8",
     "class-transformer": "^0.5.1",
@@ -47,15 +47,16 @@
     "csv-parse": "^6.2.1",
     "helmet": "^8.1.0",
     "iconv-lite": "^0.7.3",
-    "joi": "^17.13.3",
+    "joi": "^17.13.4",
     "keyv": "^5.6.0",
     "nestjs-pino": "^4.3.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "pino-http": "^10.4.0",
+    "prisma": "^6.19.3",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
-    "sharp": "^0.34.5"
+    "sharp": "^0.35.3"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.10",
@@ -68,11 +69,13 @@
     "@types/passport-jwt": "^4.0.1",
     "jest": "^29.7.0",
     "pino-pretty": "^13.0.0",
-    "prisma": "^6.7.0",
     "ts-jest": "^29.2.5",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3"
+  },
+  "overrides": {
+    "js-yaml": "5.2.3"
   }
 }

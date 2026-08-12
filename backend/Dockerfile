@@ -17,6 +17,11 @@ COPY . .
 # Generate Prisma client + build app
 RUN npm run prisma:generate && npm run build
 
+# Keep the production dependency tree separate from build and test tooling.
+# Prisma remains a runtime dependency because the entrypoint applies migrations.
+FROM builder AS production-deps
+RUN npm prune --omit=dev && npm cache clean --force
+
 
 # ── Stage 2: Production ──────────────────────────────────────────
 FROM node:20-bookworm-slim AS runner
@@ -28,6 +33,10 @@ ENV NODE_ENV=production
 # Required for Prisma query engine (must match builder's openssl version)
 RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
+# Runtime invokes Node and Prisma directly; package-manager CLIs are unnecessary.
+RUN rm -rf /usr/local/lib/node_modules/npm /opt/yarn-v1.22.22 && \
+    rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/yarn /usr/local/bin/yarnpkg
+
 # Create the non-root runtime identity before copying application files so
 # ownership is applied while layers are created instead of recursively later.
 RUN addgroup --system --gid 1001 nodejs && \
@@ -35,7 +44,7 @@ RUN addgroup --system --gid 1001 nodejs && \
 
 # 🔥 IMPORTANT: do NOT run npm ci again
 # copy node_modules from builder (includes Prisma client)
-COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
+COPY --from=production-deps --chown=nestjs:nodejs /app/node_modules ./node_modules
 
 # copy built app
 COPY --from=builder --chown=nestjs:nodejs /app/dist ./dist
