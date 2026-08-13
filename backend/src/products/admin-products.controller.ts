@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, ParseUUIDPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
 
 import { Roles } from '../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -8,6 +8,7 @@ import { AdminProductReviewService } from './admin-product-review.service';
 import { AdminFindProductsQueryDto } from './dto/admin-find-products-query.dto';
 import { AdminProductReviewQueryDto } from './dto/admin-product-review-query.dto';
 import { ProductsService } from './products.service';
+import { ProductReviewAuditService } from './product-review-audit.service';
 
 @Controller('admin/products')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -16,6 +17,7 @@ export class AdminProductsController {
   constructor(
     private readonly productsService: ProductsService,
     private readonly reviewService: AdminProductReviewService,
+    private readonly reviewAuditService: ProductReviewAuditService,
   ) {}
 
   @Get('review/summary')
@@ -31,6 +33,15 @@ export class AdminProductsController {
   @Get('review/next/:currentProductId')
   nextReviewItem(@Param('currentProductId') currentProductId: string, @Query() query: AdminProductReviewQueryDto) {
     return this.reviewService.next(currentProductId, query);
+  }
+
+  @Post(':id/review')
+  async markReviewed(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() request: { user: { sub: string } },
+  ) {
+    await this.reviewAuditService.markReviewed(id, request.user.sub);
+    return this.productsService.findOneAdmin(id);
   }
 
   @Get()

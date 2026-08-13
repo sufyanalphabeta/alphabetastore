@@ -16,6 +16,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CategoriesService } from '../categories/categories.service';
 import { ParsedCsvRow } from './parsing/csv.types';
 import { ProductSkuService } from '../products/product-sku.service';
+import { ProductReviewAuditService } from '../products/product-review-audit.service';
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
 const SAFE_RAKIZA_CATEGORY_MAP: Record<string, string> = {
@@ -55,6 +56,7 @@ export class CatalogImportService {
     private readonly matchingService: ValidationMatchingService,
     private readonly categoriesService: CategoriesService,
     private readonly productSkuService: ProductSkuService,
+    private readonly productReviewAuditService: ProductReviewAuditService,
   ) {}
 
   async createPreview(file: Express.Multer.File, userId: string) {
@@ -206,9 +208,11 @@ export class CatalogImportService {
         else protectedChanges.push('MANUAL_CATEGORY_OVERRIDE_PROTECTED');
       }
       if (row.sourceBarcode !== identity.sourceBarcode) updates.sourceBarcode = row.sourceBarcode;
+      const reviewInvalidated = this.productReviewAuditService.productUpdateInvalidates(product, productUpdates);
       if (Object.keys(productUpdates).length) await tx.product.update({ where: { id: product.id }, data: productUpdates });
       if (productUpdates.price) await tx.priceHistory.create({ data: { productId: product.id, oldBasePrice: product.price, newBasePrice: incomingPrice, oldComparePrice: product.comparePrice, newComparePrice: product.comparePrice, oldCurrency: product.baseCurrency, newCurrency: product.baseCurrency, exchangeRateUsed: new Decimal(1), changeReason: `catalog_import:${profile.sourceSystem}`, changedByUserId: adminUserId } });
       await tx.productSourceIdentity.update({ where: { id: identity.id }, data: { sourceBarcode: row.sourceBarcode, lastImportedPrice: incomingPrice, lastImportedName: name.slice(0, 160), lastImportedSourceCategory: row.sourceCategory?.slice(0, 160) ?? null, lastImportedCategoryId: categoryId, lastImportedAt: appliedAt } });
+      if (reviewInvalidated) await this.productReviewAuditService.invalidate(tx, product.id);
       await tx.catalogImportRow.update({ where: { id: rowId }, data: { status: CatalogImportRowStatus.APPLIED, appliedAt, applyResult: json({ action: 'PRODUCT_UPDATED', protectedChanges, productFieldsChanged: Object.keys(productUpdates), sourceMetadataChanged: Object.keys(updates).filter((key) => key === 'sourceBarcode') }) } });
       return { status: 'APPLIED' as const };
     });

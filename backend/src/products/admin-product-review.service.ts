@@ -23,6 +23,8 @@ const reviewSelect = {
   warrantyText: true,
   sku: true,
   updatedAt: true,
+  catalogReviewedAt: true,
+  catalogReviewedBy: { select: { id: true, name: true } },
   category: { select: { id: true, name: true, slug: true, isActive: true, isVisible: true } },
   brandRef: { select: { id: true, name: true, slug: true } },
   images: { select: { imageUrl: true }, orderBy: { sortOrder: 'asc' as const }, take: 1 },
@@ -93,11 +95,13 @@ export class AdminProductReviewService {
     const missingSpecsCount = products.filter((product) => hasIssue(product, 'MISSING_SPECS')).length;
     const invalidPrice = products.filter((product) => hasIssue(product, 'INVALID_PRICE')).length;
     const invalidCategory = products.filter((product) => hasIssue(product, 'INVALID_CATEGORY')).length;
+    const reviewed = products.filter((product) => product.reviewed).length;
+    const unreviewed = total - reviewed;
 
     return {
       total, active, inactive, imported, manual, blocked, ready,
       missingImage, missingBrand: missingBrandCount, missingSpecs: missingSpecsCount,
-      invalidPrice, invalidCategory,
+      invalidPrice, invalidCategory, reviewed, unreviewed,
     };
   }
 
@@ -122,6 +126,8 @@ export class AdminProductReviewService {
     if (query.sourceSystem) and.push({ sourceIdentities: { some: { sourceSystem: query.sourceSystem } } });
     if (query.categoryId) and.push({ categoryId: query.categoryId });
     if (query.brandId) and.push({ brandId: query.brandId });
+    if (query.reviewed === true) and.push({ catalogReviewedAt: { not: null } });
+    if (query.reviewed === false) and.push({ catalogReviewedAt: null });
     if (query.q?.trim()) {
       const term = query.q.trim();
       and.push({
@@ -189,6 +195,11 @@ export class AdminProductReviewService {
       readiness,
       updatedAt: product.updatedAt,
       importedAt,
+      reviewed: Boolean(product.catalogReviewedAt),
+      catalogReviewedAt: product.catalogReviewedAt,
+      reviewedBy: product.catalogReviewedBy
+        ? { id: product.catalogReviewedBy.id, name: product.catalogReviewedBy.name }
+        : null,
     };
   }
 }

@@ -37,7 +37,7 @@ import {
 } from "utils/admin-catalog";
 
 const PAGE_SIZE = 20;
-const FILTER_KEYS = ["q", "status", "origin", "sourceSystem", "readiness", "issue", "categoryId", "brandId", "sort"];
+const FILTER_KEYS = ["q", "status", "origin", "sourceSystem", "readiness", "reviewed", "issue", "categoryId", "brandId", "sort"];
 
 const ISSUE_LABELS = {
   MISSING_IMAGE: "بدون صورة",
@@ -63,6 +63,7 @@ const QUICK_FILTERS = [
   { label: "تحتاج مواصفات", values: { issue: "MISSING_SPECS" } },
   { label: "جاهزة للنشر", values: { readiness: "READY" } },
   { label: "مستوردة", values: { origin: "IMPORTED" } },
+  { label: "غير مراجعة", values: { reviewed: "false" } },
   { label: "غير نشطة", values: { status: "INACTIVE" } }
 ];
 
@@ -70,6 +71,8 @@ const SUMMARY_METRICS = [
   { key: "total", label: "إجمالي المنتجات", values: {} },
   { key: "blocked", label: "تحتاج مراجعة", values: { readiness: "BLOCKED" }, tone: "warning.main" },
   { key: "ready", label: "جاهزة للنشر", values: { readiness: "READY" }, tone: "success.main" },
+  { key: "unreviewed", label: "غير مراجعة", values: { reviewed: "false" }, tone: "warning.main" },
+  { key: "reviewed", label: "تمت مراجعتها", values: { reviewed: "true" }, tone: "success.main" },
   { key: "missingImage", label: "بدون صورة", values: { issue: "MISSING_IMAGE" } },
   { key: "missingBrand", label: "بدون علامة", values: { issue: "MISSING_BRAND" } },
   { key: "missingSpecs", label: "بدون مواصفات", values: { issue: "MISSING_SPECS" } },
@@ -120,6 +123,10 @@ function Readiness({ product }) {
 
   if (activeBlocked) return <Chip icon={<WarningAmber />} color="warning" label="منشور ويحتاج مراجعة" sx={{ height: "auto", py: 0.5, "& .MuiChip-label": { whiteSpace: "normal" } }} />;
   return <Chip size="small" color={blocked ? "warning" : "success"} variant={blocked ? "outlined" : "filled"} label={blocked ? "يحتاج استكمال" : "جاهز للنشر"} />;
+}
+
+function ReviewAudit({ product }) {
+  return <Chip size="small" color={product.reviewed ? "success" : "default"} variant={product.reviewed ? "filled" : "outlined"} label={product.reviewed ? "تمت المراجعة" : "لم تتم المراجعة"} />;
 }
 
 function ProductIdentity({ product }) {
@@ -276,7 +283,7 @@ function ReviewQueueContent() {
           <TableContainer sx={{ display: { xs: "none", md: "block" } }}>
             <Table size="small" aria-label="طابور مراجعة المنتجات">
               <TableHead><TableRow sx={{ bgcolor: "grey.50" }}>
-                {['المنتج','المصدر','الفئة','السعر','الحالة','الجاهزية','النواقص','آخر تحديث','الإجراء'].map(label => <TableCell key={label} sx={{ fontWeight: 800, whiteSpace: "nowrap" }}>{label}</TableCell>)}
+                {['المنتج','المصدر','الفئة','السعر','الحالة','الجاهزية','المراجعة البشرية','النواقص','آخر تحديث','الإجراء'].map(label => <TableCell key={label} sx={{ fontWeight: 800, whiteSpace: "nowrap" }}>{label}</TableCell>)}
               </TableRow></TableHead>
               <TableBody>{items.map(product => <TableRow key={product.id} hover sx={product.status === "ACTIVE" && !product.readiness?.readyToPublish ? { bgcolor: "warning.50" } : undefined}>
                 <TableCell sx={{ minWidth: 230, maxWidth: 320 }}><ProductIdentity product={product} /></TableCell>
@@ -285,6 +292,7 @@ function ReviewQueueContent() {
                 <TableCell sx={{ whiteSpace: "nowrap", fontWeight: 700 }}>{formatPrice(product.price, product.baseCurrency)}</TableCell>
                 <TableCell><Chip size="small" color={product.status === "ACTIVE" ? "success" : "default"} label={product.status === "ACTIVE" ? "منشور" : "غير نشط"} /></TableCell>
                 <TableCell sx={{ minWidth: 155 }}><Readiness product={product} /></TableCell>
+                <TableCell><ReviewAudit product={product} /></TableCell>
                 <TableCell sx={{ minWidth: 235 }}><IssueChips product={product} /></TableCell>
                 <TableCell sx={{ whiteSpace: "nowrap" }}>{formatDate(product.updatedAt)}</TableCell>
                 <TableCell><Button component={Link} href={reviewHref(product, searchParams)} size="small" variant="outlined">مراجعة</Button></TableCell>
@@ -300,6 +308,7 @@ function ReviewQueueContent() {
                 <Stack direction="row" justifyContent="space-between" gap={1}><SourceBadges product={product} /><Typography fontWeight={700}>{formatPrice(product.price, product.baseCurrency)}</Typography></Stack>
                 <Typography variant="body2"><b>الفئة:</b> {product.category?.name || "غير مصنف"}</Typography>
                 <Readiness product={product} />
+                <ReviewAudit product={product} />
                 <IssueChips product={product} />
                 <Stack direction="row" justifyContent="space-between" alignItems="center"><Typography variant="caption" color="text.secondary">آخر تحديث: {formatDate(product.updatedAt)}</Typography><Button component={Link} href={reviewHref(product, searchParams)} size="small" variant="contained">مراجعة</Button></Stack>
               </Stack>

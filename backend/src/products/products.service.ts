@@ -19,6 +19,7 @@ import { AdminFindProductsQueryDto } from './dto/admin-find-products-query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductSkuService } from './product-sku.service';
 import { ProductReadinessService } from './product-readiness.service';
+import { ProductReviewAuditService } from './product-review-audit.service';
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -112,7 +113,18 @@ const adminProductInclude = {
       lastImportedAt: true,
     },
   },
+  catalogReviewedBy: { select: { id: true, name: true } },
 } satisfies Prisma.ProductInclude;
+
+function normalizePublicProduct<T extends { images?: any[]; media?: any[] }>(product: T) {
+  const {
+    catalogReviewedAt: _catalogReviewedAt,
+    catalogReviewedByUserId: _catalogReviewedByUserId,
+    catalogReviewedBy: _catalogReviewedBy,
+    ...publicProduct
+  } = normalizeProductGallery(product) as ReturnType<typeof normalizeProductGallery> & Record<string, unknown>;
+  return publicProduct;
+}
 
 /**
  * Minimal projection used for list responses.
@@ -193,6 +205,7 @@ export class ProductsService {
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
     private readonly productSkuService: ProductSkuService,
     private readonly productReadinessService: ProductReadinessService,
+    private readonly productReviewAuditService: ProductReviewAuditService,
   ) {}
 
   async findAll(query: FindProductsQueryDto = {}) {
@@ -493,7 +506,7 @@ export class ProductsService {
       throw new NotFoundException('Product not found.');
     }
 
-    const normalized = normalizeProductGallery(product);
+    const normalized = normalizePublicProduct(product);
     await this.cacheManager.set(cacheKey, normalized, PRODUCT_DETAIL_CACHE_TTL_MS);
 
     return normalized;
@@ -509,7 +522,13 @@ export class ProductsService {
 
     if (!product) throw new NotFoundException('Product not found.');
     const readiness = this.productReadinessService.evaluate(product);
-    const { sourceIdentities: _sourceIdentities, ...normalized } = normalizeProductGallery(product);
+    const {
+      sourceIdentities: _sourceIdentities,
+      catalogReviewedAt,
+      catalogReviewedByUserId: _catalogReviewedByUserId,
+      catalogReviewedBy,
+      ...normalized
+    } = normalizeProductGallery(product);
     const sources = product.sourceIdentities.map((source) => ({ ...source }));
     return {
       ...normalized,
@@ -518,6 +537,11 @@ export class ProductsService {
       sourceSystems: [...new Set(sources.map((source) => source.sourceSystem))],
       source: sources[0] ?? null,
       sources,
+      reviewed: Boolean(catalogReviewedAt),
+      catalogReviewedAt,
+      reviewedBy: catalogReviewedBy
+        ? { id: catalogReviewedBy.id, name: catalogReviewedBy.name }
+        : null,
     };
   }
 
@@ -580,6 +604,7 @@ export class ProductsService {
 
   async update(id: string, updateProductDto: UpdateProductDto, changedByUserId?: string) {
     const existing = await this.ensureProductExists(id);
+    const invalidateReview = this.productReviewAuditService.productUpdateInvalidates(existing, updateProductDto);
 
     if (updateProductDto.imageUrls) {
       const migratedMediaCount = await this.prisma.productMedia.count({ where: { productId: id } });
@@ -623,6 +648,7 @@ export class ProductsService {
           specs: updateProductDto.specs as any,
           highlights: updateProductDto.highlights as any,
           isFeatured: updateProductDto.isFeatured,
+          ...this.productReviewAuditService.invalidationData(invalidateReview),
           images: updateProductDto.imageUrls
             ? {
                 deleteMany: {},
@@ -705,6 +731,7 @@ export class ProductsService {
       where: { id },
       include: productInclude,
     });
+    await this.productReviewAuditService.invalidate(this.prisma, id);
     return normalizeProductGallery(product);
   }
 
@@ -745,6 +772,7 @@ export class ProductsService {
       where: { id },
       include: productInclude,
     });
+    await this.productReviewAuditService.invalidate(this.prisma, id);
     return normalizeProductGallery(product);
   }
 
@@ -827,6 +855,25 @@ export class ProductsService {
         baseCurrency: true,
         exchangeRateOverride: true,
         comparePrice: true,
+        name: true,
+        categoryId: true,
+        description: true,
+        shortDescription: true,
+        discountType: true,
+        discountValue: true,
+        discountStartAt: true,
+        discountEndAt: true,
+        stockQty: true,
+        status: true,
+        brand: true,
+        brandId: true,
+        sku: true,
+        warrantyText: true,
+        datasheetUrl: true,
+        specs: true,
+        highlights: true,
+        isFeatured: true,
+        catalogReviewedAt: true,
       },
     });
 

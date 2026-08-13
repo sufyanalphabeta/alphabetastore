@@ -8,13 +8,14 @@ import { ProductsController } from './products.controller';
 import { AdminProductsController } from './admin-products.controller';
 import { AdminProductReviewService } from './admin-product-review.service';
 import { ProductReadinessService } from './product-readiness.service';
+import { ProductReviewAuditService } from './product-review-audit.service';
 import { ProductSkuService } from './product-sku.service';
 import { ProductsService } from './products.service';
 
 @Module({
   imports: [CategoriesModule, PricingModule, StorageModule],
   controllers: [ProductsController, AdminProductsController],
-  providers: [ProductsService, AdminProductReviewService, ProductReadinessService, ProductSkuService, RolesGuard],
-  exports: [ProductSkuService],
+  providers: [ProductsService, AdminProductReviewService, ProductReadinessService, ProductReviewAuditService, ProductSkuService, RolesGuard],
+  exports: [ProductReviewAuditService, ProductSkuService],
 })
 export class ProductsModule {}

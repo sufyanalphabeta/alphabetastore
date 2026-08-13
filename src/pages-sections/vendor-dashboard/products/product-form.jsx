@@ -37,6 +37,7 @@ import {
   fetchAdminCategories,
   fetchAdminProductBySlug,
   fetchNextAdminProductReview,
+  markAdminProductReviewed,
   updateAdminProduct
 } from "utils/admin-catalog";
 import { attachProductMedia, listProductMedia, reorderProductMedia } from "utils/admin-media";
@@ -96,6 +97,7 @@ export default function ProductForm(props) {
   const [productMedia, setProductMedia] = useState([]);
   const [saveIntent, setSaveIntent] = useState("save");
   const [reviewMessage, setReviewMessage] = useState("");
+  const [markingReviewed, setMarkingReviewed] = useState(false);
 
   const reviewFilters = useMemo(() => {
     const result = {};
@@ -297,6 +299,24 @@ export default function ProductForm(props) {
     return refreshed;
   }, [isReviewMode, product?.id]);
 
+  const markReviewed = useCallback(async () => {
+    if (!product?.id || !product?.readiness?.readyToPublish) return null;
+    setPageError("");
+    setMarkingReviewed(true);
+    try {
+      const reviewedProduct = await markAdminProductReviewed(product.id);
+      setProduct(reviewedProduct);
+      setProductMedia(Array.isArray(reviewedProduct?.gallery) ? reviewedProduct.gallery : []);
+      setReviewMessage("تم اعتماد المراجعة البشرية.");
+      return reviewedProduct;
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : "تعذر اعتماد المراجعة.");
+      return null;
+    } finally {
+      setMarkingReviewed(false);
+    }
+  }, [product?.id, product?.readiness?.readyToPublish]);
+
 // FORM SUBMIT HANDLER
   const handleSubmitForm = handleSubmit(async (values, event) => {
     const requestedIntent = event?.nativeEvent?.submitter?.value || saveIntent;
@@ -365,7 +385,15 @@ export default function ProductForm(props) {
         setProductMedia(Array.isArray(refreshed?.gallery) ? refreshed.gallery : []);
         reset({ ...values, sku: refreshed?.sku || values.sku || "" });
 
-        if (requestedIntent === "next") {
+        if (requestedIntent === "review-next") {
+          if (!refreshed?.readiness?.readyToPublish) {
+            setPageError("تم حفظ المنتج، لكن لا يمكن اعتماد المراجعة قبل إكمال موانع النشر.");
+            return;
+          }
+          await markAdminProductReviewed(productId);
+        }
+
+        if (requestedIntent === "next" || requestedIntent === "review-next") {
           const next = await fetchNextAdminProductReview(productId, reviewFilters);
           if (next?.slug) {
             const params = new URLSearchParams();
@@ -399,7 +427,7 @@ export default function ProductForm(props) {
   }
 
   return <>
-    {isReviewMode && product ? <ReviewReadinessPanel product={product} onIssueClick={focusReviewSection} onReturn={() => router.push(reviewQueueHref)} /> : null}
+    {isReviewMode && product ? <ReviewReadinessPanel product={product} onIssueClick={focusReviewSection} onReturn={() => router.push(reviewQueueHref)} onMarkReviewed={markReviewed} markingReviewed={markingReviewed} /> : null}
     <Card className="p-3" dir={isReviewMode ? "rtl" : undefined}>
       <FormProvider methods={methods} onSubmit={handleSubmitForm}>
         <Grid container spacing={3}>
@@ -704,6 +732,7 @@ export default function ProductForm(props) {
               {isReviewMode ? "حفظ التغييرات" : product?.id ? "Update product" : "Save product"}
             </Button>
             {isReviewMode ? <Button loading={isSubmitting && saveIntent === "next"} disabled={isSubmitting} variant="contained" color="success" type="submit" name="reviewAction" value="next" onClick={() => setSaveIntent("next")} sx={{ mr: 1 }}>حفظ والتالي</Button> : null}
+            {isReviewMode ? <Button loading={isSubmitting && saveIntent === "review-next"} disabled={isSubmitting} variant="outlined" color="success" type="submit" name="reviewAction" value="review-next" onClick={() => setSaveIntent("review-next")} sx={{ mr: 1 }}>حفظ واعتماد والتالي</Button> : null}
           </Grid>
         </Grid>
       </FormProvider>

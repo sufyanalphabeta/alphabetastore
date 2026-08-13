@@ -6,7 +6,7 @@ function serviceWithStatus(status: string) {
     catalogImportSession: { findUnique: jest.fn().mockResolvedValue({ id: 's-1', status, profile: {} }) },
     catalogImportRow: {},
   };
-  return new CatalogImportService(prisma, {} as never, {} as never, {} as never);
+  return new CatalogImportService(prisma, {} as never, {} as never, {} as never, {} as never);
 }
 
 describe('CatalogImportService apply gates', () => {

@@ -6,6 +6,7 @@ import type { Cache } from 'cache-manager';
 import { PrismaService } from '../prisma/prisma.service';
 import { MEDIA_MAX_PRODUCT_IMAGES } from './media.constants';
 import { normalizeProductGallery } from './product-gallery.mapper';
+import { ProductReviewAuditService } from '../products/product-review-audit.service';
 
 const galleryInclude = {
   mediaAsset: {
@@ -18,6 +19,7 @@ export class ProductMediaService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
+    private readonly productReviewAuditService: ProductReviewAuditService,
   ) {}
 
   async list(productId: string) {
@@ -65,6 +67,7 @@ export class ProductMediaService {
           include: galleryInclude,
         });
         await this.normalizeOrder(tx, productId, role === ProductMediaRole.PRIMARY ? relation.id : undefined);
+        await this.productReviewAuditService.invalidate(tx, productId);
         return this.findRelation(tx, productId, relation.id);
       });
       await this.invalidateProductCaches(productId);
@@ -79,9 +82,11 @@ export class ProductMediaService {
     return this.runMutation(productId, async (tx) => {
       const relation = await this.requireRelation(tx, productId, productMediaId);
       if (role === 'PRIMARY') {
+        const primaryChanged = relation.role !== ProductMediaRole.PRIMARY;
         await tx.productMedia.updateMany({ where: { productId, role: ProductMediaRole.PRIMARY }, data: { role: ProductMediaRole.GALLERY } });
         await tx.productMedia.update({ where: { id: relation.id }, data: { role: ProductMediaRole.PRIMARY } });
         await this.normalizeOrder(tx, productId, relation.id);
+        if (primaryChanged) await this.productReviewAuditService.invalidate(tx, productId);
       } else {
         const count = await tx.productMedia.count({ where: { productId } });
         if (relation.role === ProductMediaRole.PRIMARY && count > 0) {
@@ -103,6 +108,7 @@ export class ProductMediaService {
         ? remaining[0]?.id
         : remaining.find((item) => item.role === ProductMediaRole.PRIMARY)?.id;
       await this.normalizeOrder(tx, productId, primaryId);
+      await this.productReviewAuditService.invalidate(tx, productId);
       return { removed: true, mediaAssetId: relation.mediaAssetId };
     });
   }
@@ -122,6 +128,7 @@ export class ProductMediaService {
       const primaryId = current.find((item) => item.role === ProductMediaRole.PRIMARY)?.id ?? productMediaIds[0];
       const ordered = [primaryId, ...productMediaIds.filter((id) => id !== primaryId)];
       await this.writeOrder(tx, productId, ordered);
+      await this.productReviewAuditService.invalidate(tx, productId);
       return this.listWithClient(tx, productId);
     });
   }

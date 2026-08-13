@@ -12,6 +12,7 @@ describe('ProductMediaService', () => {
   let prisma: any;
   let cache: any;
   let service: ProductMediaService;
+  let reviewAudit: any;
 
   beforeEach(() => {
     relations = [];
@@ -57,7 +58,8 @@ describe('ProductMediaService', () => {
     };
     prisma = { ...tx, $transaction: jest.fn((callback: any) => callback(tx)) };
     cache = { get: jest.fn().mockResolvedValue([]), del: jest.fn().mockResolvedValue(undefined) };
-    service = new ProductMediaService(prisma, cache);
+    reviewAudit = { invalidate: jest.fn().mockResolvedValue(undefined) };
+    service = new ProductMediaService(prisma, cache, reviewAudit);
   });
 
   const attach = (asset = 'a1', product = 'p1', role?: 'PRIMARY' | 'GALLERY') => service.attachImage(product, asset, role);
@@ -65,6 +67,7 @@ describe('ProductMediaService', () => {
   it('makes the first attached image PRIMARY', async () => {
     await attach();
     expect(relations[0]).toMatchObject({ role: 'PRIMARY', sortOrder: 0 });
+    expect(reviewAudit.invalidate).toHaveBeenCalledWith(expect.anything(), 'p1');
   });
 
   it('makes a second attached image GALLERY', async () => {
@@ -87,6 +90,7 @@ describe('ProductMediaService', () => {
     await service.updateRole('p1', second.id, 'PRIMARY');
     expect(relations.filter((r) => r.role === 'PRIMARY')).toHaveLength(1);
     expect(relations.find((r) => r.role === 'PRIMARY')?.mediaAssetId).toBe('a2');
+    expect(reviewAudit.invalidate).toHaveBeenCalledTimes(3);
   });
 
   it('removes a gallery relation without deleting MediaAsset', async () => {
@@ -94,6 +98,7 @@ describe('ProductMediaService', () => {
     await service.remove('p1', second.id);
     expect(relations).toHaveLength(1);
     expect(assets).toHaveLength(6);
+    expect(reviewAudit.invalidate).toHaveBeenCalledTimes(3);
   });
 
   it('promotes the next image when PRIMARY is removed', async () => {
@@ -110,8 +115,10 @@ describe('ProductMediaService', () => {
 
   it('reorders all relations while keeping PRIMARY first', async () => {
     const first = await attach(); const second = await attach('a2'); const third = await attach('a3');
+    reviewAudit.invalidate.mockClear();
     const result = await service.reorder('p1', [third.id, second.id, first.id]);
     expect(result.map((item) => item.id)).toEqual([first.id, third.id, second.id]);
+    expect(reviewAudit.invalidate).toHaveBeenCalledWith(expect.anything(), 'p1');
   });
 
   it('rejects an incomplete reorder', async () => {

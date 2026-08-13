@@ -221,6 +221,7 @@ const PRODUCT_REVIEW_FILTERS = [
   "categoryId",
   "brandId",
   "sort",
+  "reviewed",
   "page",
   "limit"
 ];
@@ -268,4 +269,9 @@ export function fetchAdminProductReviewSummary() {
 export async function fetchNextAdminProductReview(currentProductId, filters = {}) {
   const data = await apiGet(`/admin/products/review/next/${encodeURIComponent(currentProductId)}${buildProductReviewQuery(filters)}`);
   return data?.item || null;
+}
+
+export async function markAdminProductReviewed(productId) {
+  const data = await apiPost(`/admin/products/${encodeURIComponent(productId)}/review`);
+  return normalizeAdminProduct(data);
 }

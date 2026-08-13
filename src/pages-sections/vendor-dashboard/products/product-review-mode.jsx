@@ -52,7 +52,7 @@ function ReadinessIssues({ title, issues, color, onIssueClick }) {
   </Box>;
 }
 
-export function ReviewReadinessPanel({ product, onIssueClick, onReturn }) {
+export function ReviewReadinessPanel({ product, onIssueClick, onReturn, onMarkReviewed, markingReviewed }) {
   const readiness = product?.readiness || { readyToPublish: false, blockers: [], warnings: [] };
   const activeBlocked = product?.status === "ACTIVE" && !readiness.readyToPublish;
 
@@ -69,6 +69,13 @@ export function ReviewReadinessPanel({ product, onIssueClick, onReturn }) {
         </Stack>
       </Stack>
       {activeBlocked ? <Alert severity="warning">هذا المنتج نشط حاليًا لكنه لا يستوفي متطلبات الجاهزية. راجع العوائق أدناه.</Alert> : null}
+      <Alert severity={product.reviewed ? "success" : "info"} action={!product.reviewed ? <Button color="inherit" loading={markingReviewed} disabled={!readiness.readyToPublish || markingReviewed} onClick={onMarkReviewed}>اعتماد المراجعة</Button> : null}>
+        {product.reviewed
+          ? <>تمت المراجعة {product.reviewedBy?.name ? `بواسطة ${product.reviewedBy.name}` : "سابقًا"}{product.catalogReviewedAt ? ` بتاريخ ${formatDate(product.catalogReviewedAt)}` : ""}.</>
+          : readiness.readyToPublish
+            ? "لم تتم المراجعة البشرية بعد. يمكنك اعتمادها الآن."
+            : "لم تتم المراجعة البشرية بعد. أكمل موانع النشر أولًا."}
+      </Alert>
       <Divider />
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, md: 6 }}><ReadinessIssues title="العوائق" issues={readiness.blockers || []} color="warning" onIssueClick={onIssueClick} /></Grid>

@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsEnum, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, Min, MinLength } from 'class-validator';
+import { IsBoolean, IsEnum, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, Min, MinLength } from 'class-validator';
 
 import { ProductStatus } from '../../prisma/prisma-client';
 
@@ -55,6 +55,14 @@ export class AdminProductReviewQueryDto {
   @IsOptional()
   @IsIn(PRODUCT_REVIEW_SORTS)
   sort?: (typeof PRODUCT_REVIEW_SORTS)[number];
+
+  @IsOptional()
+  @Transform(({ obj, key, value }) => {
+    const raw = obj?.[key];
+    return raw === true || raw === 'true' ? true : raw === false || raw === 'false' ? false : value;
+  })
+  @IsBoolean()
+  reviewed?: boolean;
 
   @IsOptional()
   @Transform(({ value }) => Number(value))
