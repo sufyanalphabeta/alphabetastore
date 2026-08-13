@@ -30,6 +30,7 @@ const productInclude = {
       name: true,
       slug: true,
       isActive: true,
+      isVisible: true,
     },
   },
   brandRef: {

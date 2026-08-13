@@ -1,40 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { MediaProcessingStatus, Prisma, ProductMediaRole } from '@prisma/client';
 
-import { MEDIA_LOW_RESOLUTION_THRESHOLD } from '../media/media.constants';
 import type { MediaVariants } from '../media/media.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { AdminProductReviewQueryDto } from './dto/admin-product-review-query.dto';
 import { ProductReadinessService } from './product-readiness.service';
 
 const PLACEHOLDER_URL = '/assets/images/products/alphabeta-product-placeholder.svg';
-
-const missingImageWhere: Prisma.ProductWhereInput = {
-  OR: [
-    { media: { none: {} }, images: { none: {} } },
-    {
-      media: { some: {} },
-      NOT: {
-        media: {
-          some: {
-            role: ProductMediaRole.PRIMARY,
-            mediaAsset: { processingStatus: MediaProcessingStatus.READY },
-          },
-        },
-      },
-    },
-  ],
-};
-
-const invalidCategoryWhere: Prisma.ProductWhereInput = {
-  OR: [{ category: { is: { isActive: false } } }, { category: { is: { isVisible: false } } }],
-};
-
-const invalidPriceWhere: Prisma.ProductWhereInput = { price: { lte: 0 } };
-const invalidNameWhere: Prisma.ProductWhereInput = { name: '' };
-const blockedWhere: Prisma.ProductWhereInput = {
-  OR: [invalidNameWhere, invalidPriceWhere, invalidCategoryWhere, missingImageWhere],
-};
 
 const reviewSelect = {
   id: true,
@@ -92,19 +64,12 @@ export class AdminProductReviewService {
     const limit = query.limit ?? 20;
     const where = this.buildWhere(query);
     const orderBy = this.buildOrderBy(query.sort);
-
-    const [products, total] = await Promise.all([
-      this.prisma.product.findMany({
-        where,
-        select: reviewSelect,
-        orderBy,
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-      this.prisma.product.count({ where }),
-    ]);
-
-    const items = products.map((product) => this.toListItem(product));
+    const products = await this.prisma.product.findMany({ where, select: reviewSelect, orderBy });
+    const matchingItems = products
+      .map((product) => this.toListItem(product))
+      .filter((product) => this.matchesReadinessFilters(product.readiness, query));
+    const total = matchingItems.length;
+    const items = matchingItems.slice((page - 1) * limit, page * limit);
 
     return {
       items,
@@ -113,28 +78,21 @@ export class AdminProductReviewService {
   }
 
   async summary() {
-    const missingBrand: Prisma.ProductWhereInput = { brandId: null, OR: [{ brand: null }, { brand: '' }] };
-    const missingSpecs: Prisma.ProductWhereInput = {
-      OR: [{ specs: { equals: Prisma.DbNull } }, { specs: { equals: {} } }],
-    };
-
-    const [
-      total, active, inactive, imported, manual, blocked, ready,
-      missingImage, missingBrandCount, missingSpecsCount, invalidPrice, invalidCategory,
-    ] = await Promise.all([
-      this.prisma.product.count(),
-      this.prisma.product.count({ where: { status: 'ACTIVE' } }),
-      this.prisma.product.count({ where: { status: 'INACTIVE' } }),
-      this.prisma.product.count({ where: { sourceIdentities: { some: {} } } }),
-      this.prisma.product.count({ where: { sourceIdentities: { none: {} } } }),
-      this.prisma.product.count({ where: blockedWhere }),
-      this.prisma.product.count({ where: { NOT: blockedWhere } }),
-      this.prisma.product.count({ where: missingImageWhere }),
-      this.prisma.product.count({ where: missingBrand }),
-      this.prisma.product.count({ where: missingSpecs }),
-      this.prisma.product.count({ where: invalidPriceWhere }),
-      this.prisma.product.count({ where: invalidCategoryWhere }),
-    ]);
+    const products = (await this.prisma.product.findMany({ select: reviewSelect })).map((product) => this.toListItem(product));
+    const hasIssue = (product: (typeof products)[number], issue: string) =>
+      product.readiness.blockers.includes(issue as never) || product.readiness.warnings.includes(issue as never);
+    const total = products.length;
+    const active = products.filter((product) => product.status === 'ACTIVE').length;
+    const inactive = total - active;
+    const imported = products.filter((product) => product.origin === 'IMPORTED').length;
+    const manual = total - imported;
+    const ready = products.filter((product) => product.readiness.readyToPublish).length;
+    const blocked = total - ready;
+    const missingImage = products.filter((product) => hasIssue(product, 'MISSING_IMAGE')).length;
+    const missingBrandCount = products.filter((product) => hasIssue(product, 'MISSING_BRAND')).length;
+    const missingSpecsCount = products.filter((product) => hasIssue(product, 'MISSING_SPECS')).length;
+    const invalidPrice = products.filter((product) => hasIssue(product, 'INVALID_PRICE')).length;
+    const invalidCategory = products.filter((product) => hasIssue(product, 'INVALID_CATEGORY')).length;
 
     return {
       total, active, inactive, imported, manual, blocked, ready,
@@ -146,10 +104,14 @@ export class AdminProductReviewService {
   async next(currentProductId: string, query: AdminProductReviewQueryDto) {
     const products = await this.prisma.product.findMany({
       where: this.buildWhere(query),
-      select: { id: true, slug: true },
+      select: reviewSelect,
       orderBy: [this.buildOrderBy(query.sort), { id: 'asc' }],
     });
-    return { item: products.find((product) => product.id !== currentProductId) ?? null };
+    const item = products
+      .map((product) => this.toListItem(product))
+      .filter((product) => this.matchesReadinessFilters(product.readiness, query))
+      .find((product) => product.id !== currentProductId);
+    return { item: item ? { id: item.id, slug: item.slug } : null };
   }
 
   private buildWhere(query: AdminProductReviewQueryDto): Prisma.ProductWhereInput {
@@ -160,9 +122,6 @@ export class AdminProductReviewService {
     if (query.sourceSystem) and.push({ sourceIdentities: { some: { sourceSystem: query.sourceSystem } } });
     if (query.categoryId) and.push({ categoryId: query.categoryId });
     if (query.brandId) and.push({ brandId: query.brandId });
-    if (query.readiness === 'BLOCKED') and.push(blockedWhere);
-    if (query.readiness === 'READY') and.push({ NOT: blockedWhere });
-    if (query.issue) and.push(this.issueWhere(query.issue));
     if (query.q?.trim()) {
       const term = query.q.trim();
       and.push({
@@ -179,29 +138,11 @@ export class AdminProductReviewService {
     return and.length ? { AND: and } : {};
   }
 
-  private issueWhere(issue: string): Prisma.ProductWhereInput {
-    switch (issue) {
-      case 'MISSING_IMAGE': return missingImageWhere;
-      case 'INVALID_PRICE': return invalidPriceWhere;
-      case 'INVALID_CATEGORY': return invalidCategoryWhere;
-      case 'MISSING_BRAND': return { brandId: null, OR: [{ brand: null }, { brand: '' }] };
-      case 'MISSING_SPECS': return { OR: [{ specs: { equals: Prisma.DbNull } }, { specs: { equals: {} } }] };
-      case 'MISSING_SHORT_DESCRIPTION': return { shortDescription: '' };
-      case 'MISSING_DESCRIPTION': return { description: '' };
-      case 'LOW_RESOLUTION_IMAGE':
-        return {
-          media: {
-            some: {
-              role: ProductMediaRole.PRIMARY,
-              OR: [
-                { mediaAsset: { originalWidth: { lt: MEDIA_LOW_RESOLUTION_THRESHOLD } } },
-                { mediaAsset: { originalHeight: { lt: MEDIA_LOW_RESOLUTION_THRESHOLD } } },
-              ],
-            },
-          },
-        };
-      default: return {};
-    }
+  private matchesReadinessFilters(readiness: ReturnType<ProductReadinessService['evaluate']>, query: AdminProductReviewQueryDto) {
+    if (query.readiness === 'READY' && !readiness.readyToPublish) return false;
+    if (query.readiness === 'BLOCKED' && readiness.readyToPublish) return false;
+    if (query.issue && !readiness.blockers.includes(query.issue as never) && !readiness.warnings.includes(query.issue as never)) return false;
+    return true;
   }
 
   private buildOrderBy(sort: AdminProductReviewQueryDto['sort']): Prisma.ProductOrderByWithRelationInput {
