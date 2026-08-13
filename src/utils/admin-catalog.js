@@ -210,3 +210,57 @@ export async function adminAddRelation(productId, data) {
 export async function adminRemoveRelation(productId, targetId, relationType) {
   return apiDelete(`/products/${productId}/relations/${targetId}?type=${relationType}`);
 }
+
+const PRODUCT_REVIEW_FILTERS = [
+  "q",
+  "status",
+  "origin",
+  "sourceSystem",
+  "readiness",
+  "issue",
+  "categoryId",
+  "brandId",
+  "sort",
+  "page",
+  "limit"
+];
+
+function buildProductReviewQuery(filters = {}) {
+  const params = new URLSearchParams();
+
+  PRODUCT_REVIEW_FILTERS.forEach(key => {
+    const value = key === "q" ? filters[key]?.trim() : filters[key];
+
+    if (value !== undefined && value !== null && value !== "") {
+      params.set(key, String(value));
+    }
+  });
+
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
+
+function normalizeReviewItem(product) {
+  return {
+    ...product,
+    thumbnailUrl: normalizeProductImageUrl(product?.thumbnailUrl || FALLBACK_PRODUCT_IMAGE)
+  };
+}
+
+export async function fetchAdminProductReview(filters = {}) {
+  const data = await apiGet(`/admin/products/review${buildProductReviewQuery(filters)}`);
+
+  return {
+    items: ensureArray(data?.items).map(normalizeReviewItem),
+    pagination: {
+      page: Number(data?.pagination?.page || filters.page || 1),
+      limit: Number(data?.pagination?.limit || filters.limit || 20),
+      total: Number(data?.pagination?.total || 0),
+      totalPages: Number(data?.pagination?.totalPages || 1)
+    }
+  };
+}
+
+export function fetchAdminProductReviewSummary() {
+  return apiGet("/admin/products/review/summary");
+}

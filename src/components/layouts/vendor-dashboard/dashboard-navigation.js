@@ -13,6 +13,9 @@ export const navigation = [{
     name: "Product List",
     path: "/admin/products"
   }, {
+    name: "Product Review",
+    path: "/admin/products/review"
+  }, {
     name: "Create Product",
     path: "/admin/products/create"
   }, {
