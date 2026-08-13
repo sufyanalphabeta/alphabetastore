@@ -19,20 +19,15 @@ import { currency } from "lib";
 
 // CUSTOM DATA MODEL
 
-
 // STYLED COMPONENTS
-const StyledRoot = styled("div")(({
-  theme
-}) => ({
+const StyledRoot = styled("div")(({ theme }) => ({
   gap: "1rem",
   display: "flex",
   alignItems: "center",
   padding: "1rem 1.5rem",
   borderBottom: `1px dashed ${theme.palette.divider}`
 }));
-const StyledAvatar = styled(Avatar)(({
-  theme
-}) => ({
+const StyledAvatar = styled(Avatar)(({ theme }) => ({
   width: 80,
   height: 80,
   borderRadius: 6,
@@ -44,9 +39,7 @@ const ContentWrapper = styled("div")(() => ({
   whiteSpace: "nowrap",
   textOverflow: "ellipsis"
 }));
-const QuantityWrapper = styled("div")(({
-  theme
-}) => ({
+const QuantityWrapper = styled("div")(({ theme }) => ({
   gap: "0.5rem",
   display: "flex",
   alignItems: "center",
@@ -62,17 +55,13 @@ const QuantityWrapper = styled("div")(({
   }
 }));
 
+// ==============================================================
 
 // ==============================================================
 
-
-// ==============================================================
-
-export default function MiniCartItem({
-  item,
-  onCart
-}) {
-  return <StyledRoot>
+export default function MiniCartItem({ item, onCart }) {
+  return (
+    <StyledRoot>
       <Link href={`/products/${item.slug}`}>
         <StyledAvatar variant="rounded">
           <Image alt={item.title} src={item.thumbnail} fill sizes="(100px, 100px)" />
@@ -96,16 +85,26 @@ export default function MiniCartItem({
           </Typography>
         )}
 
-        <Typography variant="body1" fontWeight={500} sx={{
-        mt: 0.25,
-        mb: 1.5
-      }}>
+        <Typography
+          variant="body1"
+          fontWeight={500}
+          sx={{
+            mt: 0.25,
+            mb: 1.5
+          }}
+        >
           {currency(item.price * item.qty)}
         </Typography>
 
         <FlexBox alignItems="center" justifyContent="space-between" gap={1}>
           <QuantityWrapper>
-            <Button size="small" color="primary" variant="text" onClick={onCart(item.qty + 1, item)}>
+            <Button
+              size="small"
+              color="primary"
+              variant="text"
+              disabled={item.effectiveMaxQuantity <= 0 || item.qty >= item.effectiveMaxQuantity}
+              onClick={onCart(item.qty + 1, item)}
+            >
               <Add fontSize="small" />
             </Button>
 
@@ -113,17 +112,26 @@ export default function MiniCartItem({
               {item.qty}
             </Typography>
 
-            <Button size="small" color="primary" variant="text" disabled={item.qty === 1} onClick={onCart(item.qty - 1, item)}>
+            <Button
+              size="small"
+              color="primary"
+              variant="text"
+              disabled={item.qty === 1}
+              onClick={onCart(item.qty - 1, item)}
+            >
               <Remove fontSize="small" />
             </Button>
           </QuantityWrapper>
 
           <IconButton size="small" onClick={onCart(0, item)}>
-            <Trash sx={{
-            fontSize: "1rem"
-          }} />
+            <Trash
+              sx={{
+                fontSize: "1rem"
+              }}
+            />
           </IconButton>
         </FlexBox>
       </ContentWrapper>
-    </StyledRoot>;
+    </StyledRoot>
+  );
 }

@@ -48,6 +48,7 @@ const validationSchema = yup.object({
   shortDescription: yup.string().trim().required("Short description is required"),
   description: yup.string().trim().required("Description is required"),
   stockQty: yup.number().transform((value, originalValue) => originalValue === "" ? NaN : value).typeError("Stock quantity must be a number").integer("Stock quantity must be an integer").min(0, "Stock quantity cannot be negative").required("Stock quantity is required"),
+  maxPurchaseQty: yup.number().transform((value, originalValue) => originalValue === "" ? null : value).typeError("الحد الأقصى للشراء يجب أن يكون رقمًا").integer("الحد الأقصى للشراء يجب أن يكون عددًا صحيحًا").min(1, "الحد الأدنى المسموح هو 1").nullable().optional(),
   price: yup.number().transform((value, originalValue) => originalValue === "" ? NaN : value).typeError("Price must be a number").min(0, "Price cannot be negative").required("Price is required"),
   baseCurrency: yup.string().oneOf(["LYD", "USD"]).required("Base currency is required"),
   exchangeRateOverride: yup.number().transform((value, originalValue) => originalValue === "" ? null : value).typeError("Exchange rate must be a number").moreThan(0, "Exchange rate must be greater than 0").nullable().optional(),
@@ -151,6 +152,7 @@ export default function ProductForm(props) {
     shortDescription: "",
     description: "",
     stockQty: "",
+    maxPurchaseQty: "",
     price: "",
     baseCurrency: "LYD",
     exchangeRateOverride: "",
@@ -237,6 +239,7 @@ export default function ProductForm(props) {
             shortDescription: productData.shortDescription || "",
             description: productData.description || "",
             stockQty: String(productData.stockQty ?? ""),
+            maxPurchaseQty: productData.maxPurchaseQty != null ? String(productData.maxPurchaseQty) : "",
             price: String(productData.price ?? ""),
             baseCurrency: productData.baseCurrency || "LYD",
             exchangeRateOverride: productData.exchangeRateOverride != null ? String(productData.exchangeRateOverride) : "",
@@ -304,6 +307,7 @@ export default function ProductForm(props) {
       baseCurrency: values.baseCurrency || "LYD",
       ...(values.exchangeRateOverride ? { exchangeRateOverride: Number(values.exchangeRateOverride) } : { exchangeRateOverride: null }),
       stockQty: Number(values.stockQty),
+      maxPurchaseQty: values.maxPurchaseQty ? Number(values.maxPurchaseQty) : null,
       ...(values.comparePrice ? { comparePrice: Number(values.comparePrice) } : { comparePrice: null }),
       ...(values.discountType && values.discountType !== "NONE"
         ? {
@@ -442,7 +446,14 @@ export default function ProductForm(props) {
           sm: 6,
           xs: 12
         }}>
-            <TextField required fullWidth name="stockQty" color="info" size="medium" type="number" label="Stock Quantity" placeholder="Stock Quantity" />
+            <TextField required fullWidth name="stockQty" color="info" size="medium" type="number" label="المخزون" placeholder="الكمية المتوفرة" slotProps={{ htmlInput: { min: 0, step: 1 } }} />
+          </Grid>
+
+          <Grid size={{
+          sm: 6,
+          xs: 12
+        }}>
+            <TextField fullWidth name="maxPurchaseQty" color="info" size="medium" type="number" label="الحد الأقصى للشراء" placeholder="اتركه فارغًا" helperText="اترك الحد فارغًا للسماح بالشراء حتى الكمية المتوفرة في المخزون." slotProps={{ htmlInput: { min: 1, step: 1 } }} />
           </Grid>
 
           <Grid size={{

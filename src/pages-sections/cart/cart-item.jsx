@@ -10,20 +10,40 @@ import useCart from "hooks/useCart";
 import { currency } from "lib";
 import { ContentWrapper, ImageWrapper, QuantityButton, Wrapper } from "./styles";
 
-
 // =========================================================
-
 
 // =========================================================
 
 export default function CartItem({ item }) {
-  const { id, productId, title, price, thumbnail, slug, qty, variantId, variantName, variantAttributes } = item;
+  const {
+    id,
+    productId,
+    title,
+    price,
+    thumbnail,
+    slug,
+    qty,
+    variantId,
+    variantName,
+    variantAttributes,
+    effectiveMaxQuantity,
+    availabilityChanged
+  } = item;
   const { dispatch } = useCart();
 
-  const handleCartAmountChange = amount => () => {
+  const handleCartAmountChange = (amount) => () => {
     dispatch({
       type: "CHANGE_CART_AMOUNT",
-      payload: { id, productId, title, price, thumbnail, slug, qty: amount, variantId: variantId ?? null },
+      payload: {
+        id,
+        productId,
+        title,
+        price,
+        thumbnail,
+        slug,
+        qty: amount,
+        variantId: variantId ?? null
+      }
     });
   };
 
@@ -31,10 +51,10 @@ export default function CartItem({ item }) {
   const variantSummary = variantName
     ? variantName
     : variantAttributes && typeof variantAttributes === "object"
-    ? Object.entries(variantAttributes)
-        .map(([k, v]) => `${k}: ${v}`)
-        .join(" · ")
-    : null;
+      ? Object.entries(variantAttributes)
+          .map(([k, v]) => `${k}: ${v}`)
+          .join(" · ")
+      : null;
 
   return (
     <Wrapper elevation={0}>
@@ -68,10 +88,19 @@ export default function CartItem({ item }) {
 
           <Typography variant="h6">{qty}</Typography>
 
-          <QuantityButton disabled={qty === 10} onClick={handleCartAmountChange(qty + 1)}>
+          <QuantityButton
+            disabled={effectiveMaxQuantity <= 0 || qty >= effectiveMaxQuantity}
+            onClick={handleCartAmountChange(qty + 1)}
+          >
             <Add fontSize="small" />
           </QuantityButton>
         </div>
+
+        {availabilityChanged ? (
+          <Typography variant="caption" color="warning.main">
+            الكمية الحالية غير متوفرة؛ خفّضها إلى {effectiveMaxQuantity}.
+          </Typography>
+        ) : null}
 
         <Typography noWrap variant="body1" fontSize={16} fontWeight={600}>
           {currency(price * qty)}

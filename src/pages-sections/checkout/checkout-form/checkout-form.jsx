@@ -27,20 +27,16 @@ import { createOrderPayment, fetchPaymentMethods } from "utils/payments";
 // API
 import { apiPost } from "utils/api";
 import { fetchMyAddresses } from "utils/addresses";
+import { purchaseQuantityErrorMessage } from "utils/purchase-quantity";
 
 // STYLED COMPONENT
 import { ButtonWrapper, CardRoot, FormWrapper } from "./styles";
-
 
 export default function CheckoutForm() {
   const router = useRouter();
   const { t } = useTranslation();
   const { isAuthenticated } = useAuth();
-  const {
-    state,
-    refreshCart,
-    ready
-  } = useCart();
+  const { state, refreshCart, ready } = useCart();
   const [submitError, setSubmitError] = useState("");
   // Stable per-attempt idempotency key — regenerated only after a successful order.
   const idempotencyKeyRef = useRef(typeof crypto !== "undefined" ? crypto.randomUUID() : null);
@@ -61,7 +57,10 @@ export default function CheckoutForm() {
   };
   const validationSchema = yup.object().shape({
     fullName: yup.string().trim().required(t("validationNameRequired")),
-    phone: yup.string().required(t("validationPhoneRequired")).test("libya-phone", t("validationPhoneInvalid"), value => isValidLibyaPhone(value || "")),
+    phone: yup
+      .string()
+      .required(t("validationPhoneRequired"))
+      .test("libya-phone", t("validationPhoneInvalid"), value => isValidLibyaPhone(value || "")),
     city: yup.string().oneOf(LIBYAN_CITIES, t("validationCityInvalid")).required(t("validationCityRequired")),
     address: yup.string().trim().required(t("validationAddressRequired")),
     notes: yup.string().trim().optional()
@@ -75,9 +74,7 @@ export default function CheckoutForm() {
   const {
     handleSubmit,
     reset,
-    formState: {
-      isSubmitting
-    }
+    formState: { isSubmitting }
   } = methods;
 
   useEffect(() => {
@@ -203,9 +200,11 @@ export default function CheckoutForm() {
 
     try {
       const order = await apiPost("/orders", {
-        ...(isAuthenticated && selectedAddressId !== "manual" ? {
-          addressId: selectedAddressId
-        } : {}),
+        ...(isAuthenticated && selectedAddressId !== "manual"
+          ? {
+              addressId: selectedAddressId
+            }
+          : {}),
         fullName: values.fullName.trim(),
         phone: formatLibyaPhone(values.phone),
         city: values.city.trim(),
@@ -229,106 +228,200 @@ export default function CheckoutForm() {
 
       router.push(`/order-confirmation?${nextParams.toString()}`);
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : t("checkoutSubmitFailed"));
+      if (["OUT_OF_STOCK", "INSUFFICIENT_STOCK", "MAX_PURCHASE_QUANTITY_EXCEEDED", "CART_STOCK_CHANGED"].includes(error?.code)) {
+        await refreshCart().catch(() => undefined);
+        setSubmitError(purchaseQuantityErrorMessage(error, t("checkoutSubmitFailed")));
+      } else {
+        setSubmitError(error instanceof Error ? error.message : t("checkoutSubmitFailed"));
+      }
     }
   });
 
-  return <FormProvider methods={methods} onSubmit={handleSubmitForm}>
+  return (
+    <FormProvider methods={methods} onSubmit={handleSubmitForm}>
       <CardRoot elevation={0}>
-        <Typography variant="h5" sx={{
-        mb: 2
-      }}>
+        <Typography
+          variant="h5"
+          sx={{
+            mb: 2
+          }}
+        >
           {t("checkoutTitle")}
         </Typography>
 
-        <Typography variant="body2" color="text.secondary" sx={{
-        mb: 3
-      }}>
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          sx={{
+            mb: 3
+          }}
+        >
           {t("checkoutSubtitle")}
         </Typography>
 
-        {submitError ? <Alert severity="error" sx={{
-        mb: 3
-      }}>
+        {submitError ? (
+          <Alert
+            severity="error"
+            sx={{
+              mb: 3
+            }}
+          >
             {submitError}
-          </Alert> : null}
+          </Alert>
+        ) : null}
 
-        {paymentMethodsError ? <Alert severity="error" sx={{
-        mb: 3
-      }}>
+        {paymentMethodsError ? (
+          <Alert
+            severity="error"
+            sx={{
+              mb: 3
+            }}
+          >
             {paymentMethodsError}
-          </Alert> : null}
+          </Alert>
+        ) : null}
 
-        <TextField select fullWidth size="medium" label={t("checkoutPaymentMethod")} value={selectedPaymentCode} onChange={event => setSelectedPaymentCode(event.target.value)} disabled={paymentMethodsLoading || !paymentMethods.length} sx={{
-        mb: 3
-      }}>
-          {paymentMethods.map(method => <MenuItem key={method.id} value={method.code}>{method.name}</MenuItem>)}
+        <TextField
+          select
+          fullWidth
+          size="medium"
+          label={t("checkoutPaymentMethod")}
+          value={selectedPaymentCode}
+          onChange={event => setSelectedPaymentCode(event.target.value)}
+          disabled={paymentMethodsLoading || !paymentMethods.length}
+          sx={{
+            mb: 3
+          }}
+        >
+          {paymentMethods.map(method => (
+            <MenuItem key={method.id} value={method.code}>
+              {method.name}
+            </MenuItem>
+          ))}
         </TextField>
 
-        <Typography variant="body2" color="text.secondary" sx={{
-        mb: 3
-      }}>
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          sx={{
+            mb: 3
+          }}
+        >
           {selectedPaymentCode === "BANK_TRANSFER" ? t("checkoutBankTransferHint") : t("checkoutCodHint")}
         </Typography>
 
-        {isAuthenticated ? <>
-            <TextField select fullWidth size="medium" label={t("checkoutSavedAddress")} value={selectedAddressId} onChange={handleSelectAddress} disabled={addressesLoading} sx={{
-          mb: 3
-        }}>
+        {isAuthenticated ? (
+          <>
+            <TextField
+              select
+              fullWidth
+              size="medium"
+              label={t("checkoutSavedAddress")}
+              value={selectedAddressId}
+              onChange={handleSelectAddress}
+              disabled={addressesLoading}
+              sx={{
+                mb: 3
+              }}
+            >
               <MenuItem value="manual">{t("checkoutManualAddress")}</MenuItem>
-              {addresses.map(address => <MenuItem value={address.id} key={address.id}>
-                  {address.label}{address.isDefault ? ` ${t("checkoutDefaultAddressSuffix")}` : ""}
-                </MenuItem>)}
+              {addresses.map(address => (
+                <MenuItem value={address.id} key={address.id}>
+                  {address.label}
+                  {address.isDefault ? ` ${t("checkoutDefaultAddressSuffix")}` : ""}
+                </MenuItem>
+              ))}
             </TextField>
 
-            <Typography variant="body2" color="text.secondary" sx={{
-          mb: 3
-        }}>
-              {addresses.length ? t("checkoutSavedAddressHint") : t("checkoutNoSavedAddressesHint")}
-              {" "}
-              <Link href="/address">{t("checkoutManageAddresses")}</Link>
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              sx={{
+                mb: 3
+              }}
+            >
+              {addresses.length ? t("checkoutSavedAddressHint") : t("checkoutNoSavedAddressesHint")} <Link href="/address">{t("checkoutManageAddresses")}</Link>
             </Typography>
-          </> : null}
+          </>
+        ) : null}
 
         <FormWrapper>
           <TextField size="medium" fullWidth label={t("checkoutFullName")} name="fullName" />
-          <TextField size="medium" fullWidth label={t("checkoutPhoneNumber")} name="phone" type="tel" helperText={t("checkoutPhoneHelper")} slotProps={{
-          input: {
-            startAdornment: <InputAdornment position="start">{LIBYA_PHONE_PREFIX}</InputAdornment>,
-            inputProps: {
-              inputMode: "numeric",
-              maxLength: 9
-            }
-          }
-        }} />
+          <TextField
+            size="medium"
+            fullWidth
+            label={t("checkoutPhoneNumber")}
+            name="phone"
+            type="tel"
+            helperText={t("checkoutPhoneHelper")}
+            slotProps={{
+              input: {
+                startAdornment: <InputAdornment position="start">{LIBYA_PHONE_PREFIX}</InputAdornment>,
+                inputProps: {
+                  inputMode: "numeric",
+                  maxLength: 9
+                }
+              }
+            }}
+          />
           <TextField select size="medium" fullWidth label={t("checkoutCity")} name="city">
-            {LIBYAN_CITIES.map(city => <MenuItem key={city} value={city}>{city}</MenuItem>)}
+            {LIBYAN_CITIES.map(city => (
+              <MenuItem key={city} value={city}>
+                {city}
+              </MenuItem>
+            ))}
           </TextField>
           <TextField size="medium" fullWidth label={t("checkoutAddress")} name="address" />
-          <TextField multiline rows={4} sx={{
-          gridColumn: {
-            sm: "1 / -1"
-          }
-        }} size="medium" fullWidth label={t("checkoutNotesOptional")} name="notes" />
+          <TextField
+            multiline
+            rows={4}
+            sx={{
+              gridColumn: {
+                sm: "1 / -1"
+              }
+            }}
+            size="medium"
+            fullWidth
+            label={t("checkoutNotesOptional")}
+            name="notes"
+          />
         </FormWrapper>
 
-        {!ready ? <Typography variant="body2" color="text.secondary" sx={{
-        mt: 3
-      }}>
+        {!ready ? (
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{
+              mt: 3
+            }}
+          >
             {t("checkoutLoadingCart")}
-          </Typography> : null}
+          </Typography>
+        ) : null}
 
-        {addressesLoading ? <Typography variant="body2" color="text.secondary" sx={{
-        mt: 2
-      }}>
+        {addressesLoading ? (
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{
+              mt: 2
+            }}
+          >
             {t("checkoutLoadingAddresses")}
-          </Typography> : null}
+          </Typography>
+        ) : null}
 
-        {paymentMethodsLoading ? <Typography variant="body2" color="text.secondary" sx={{
-        mt: 2
-      }}>
+        {paymentMethodsLoading ? (
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{
+              mt: 2
+            }}
+          >
             {t("checkoutLoadingPayments")}
-          </Typography> : null}
+          </Typography>
+        ) : null}
       </CardRoot>
 
       <ButtonWrapper>
@@ -340,5 +433,6 @@ export default function CheckoutForm() {
           {isSubmitting ? t("checkoutPlacingOrder") : t("checkoutPlaceOrder")}
         </Button>
       </ButtonWrapper>
-    </FormProvider>;
+    </FormProvider>
+  );
 }

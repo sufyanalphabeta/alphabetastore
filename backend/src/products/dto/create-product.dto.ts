@@ -12,10 +12,10 @@ import {
   IsUUID,
   MaxLength,
   Min,
-  MinLength,
-} from 'class-validator';
+  MinLength
+} from "class-validator";
 
-import { BaseCurrency, DiscountType } from '../../prisma/prisma-client';
+import { BaseCurrency, DiscountType } from "../../prisma/prisma-client";
 
 export class CreateProductDto {
   @IsUUID()
@@ -81,6 +81,11 @@ export class CreateProductDto {
   @IsInt()
   @Min(0)
   stockQty!: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  maxPurchaseQty?: number;
 
   @IsOptional()
   @IsString()

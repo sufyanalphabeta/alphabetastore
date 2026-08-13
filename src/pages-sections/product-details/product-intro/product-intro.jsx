@@ -33,12 +33,12 @@ import { StyledRoot } from "./styles";
 // ── Availability badge ────────────────────────────────────────────────────────
 function AvailabilityBadge({ stockQty }) {
   if (stockQty <= 0) {
-    return <Chip label="Out of Stock" color="error" size="small" variant="filled" />;
+    return <Chip label="غير متوفر" color="error" size="small" variant="filled" />;
   }
   if (stockQty <= 5) {
-    return <Chip label={`Low Stock — ${stockQty} left`} color="warning" size="small" variant="outlined" />;
+    return <Chip label={`متبقي ${stockQty} فقط`} color="warning" size="small" variant="outlined" />;
   }
-  return <Chip label="In Stock" color="success" size="small" variant="outlined" />;
+  return <Chip label="متوفر" color="success" size="small" variant="outlined" />;
 }
 
 // ── SKU copy button ───────────────────────────────────────────────────────────
@@ -63,11 +63,18 @@ function SkuCopy({ sku }) {
         <Box
           component="span"
           onClick={handleCopy}
-          sx={{ cursor: "pointer", color: copied ? "success.main" : "action.active", display: "flex", alignItems: "center" }}
+          sx={{
+            cursor: "pointer",
+            color: copied ? "success.main" : "action.active",
+            display: "flex",
+            alignItems: "center"
+          }}
         >
-          {copied
-            ? <CheckCircle fontSize="inherit" sx={{ fontSize: 14 }} />
-            : <ContentCopy fontSize="inherit" sx={{ fontSize: 14 }} />}
+          {copied ? (
+            <CheckCircle fontSize="inherit" sx={{ fontSize: 14 }} />
+          ) : (
+            <ContentCopy fontSize="inherit" sx={{ fontSize: 14 }} />
+          )}
         </Box>
       </Tooltip>
     </Stack>
@@ -85,7 +92,13 @@ function HighlightsList({ highlights }) {
       </Typography>
       <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
         {highlights.map((item, i) => (
-          <Typography key={i} component="li" variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+          <Typography
+            key={i}
+            component="li"
+            variant="body2"
+            color="text.secondary"
+            sx={{ mb: 0.5 }}
+          >
             {item}
           </Typography>
         ))}
@@ -97,7 +110,7 @@ function HighlightsList({ highlights }) {
 // ================================================================
 export default function ProductIntro({ product }) {
   const variants = Array.isArray(product?.variants) ? product.variants : [];
-  const defaultVariant = variants.find(v => v.isDefault) || variants[0] || null;
+  const defaultVariant = variants.find((v) => v.isDefault) || variants[0] || null;
   const [selectedVariant, setSelectedVariant] = useState(defaultVariant);
   const { settings } = useSettings();
 
@@ -105,15 +118,17 @@ export default function ProductIntro({ product }) {
   const effectivePrice = selectedVariant ? Number(selectedVariant.price) : (product.price ?? 0);
   const effectiveCompare = selectedVariant?.comparePrice
     ? Number(selectedVariant.comparePrice)
-    : (product.comparePrice ? Number(product.comparePrice) : null);
+    : product.comparePrice
+      ? Number(product.comparePrice)
+      : null;
   const effectiveStock = selectedVariant ? selectedVariant.stockQty : (product.stockQty ?? 0);
   const computedPrice = computeProductPrice(
     {
       ...product,
       price: effectivePrice,
-      comparePrice: effectiveCompare,
+      comparePrice: effectiveCompare
     },
-    settings,
+    settings
   );
 
   const stockQty = effectiveStock;
@@ -186,7 +201,10 @@ export default function ProductIntro({ product }) {
             <Typography variant="body2" sx={{ mt: 0.25, color: "text.secondary" }}>
               Category:{" "}
               {product.categorySlug ? (
-                <Link href={`/products/search?category=${product.categorySlug}`} style={{ color: "inherit", fontWeight: 600 }}>
+                <Link
+                  href={`/products/search?category=${product.categorySlug}`}
+                  style={{ color: "inherit", fontWeight: 600 }}
+                >
                   {product.categoryName}
                 </Link>
               ) : (
@@ -220,7 +238,11 @@ export default function ProductIntro({ product }) {
                 {computedPrice.finalFormatted}
               </Typography>
               {effectiveCompare && effectiveCompare > effectivePrice && (
-                <Typography variant="body1" color="text.disabled" sx={{ textDecoration: "line-through" }}>
+                <Typography
+                  variant="body1"
+                  color="text.disabled"
+                  sx={{ textDecoration: "line-through" }}
+                >
                   {computedPrice.compareFormatted || computedPrice.baseFormatted}
                 </Typography>
               )}
