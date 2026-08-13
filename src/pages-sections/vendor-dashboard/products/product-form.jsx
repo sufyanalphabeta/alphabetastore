@@ -30,13 +30,10 @@ import useSettings from "hooks/useSettings";
 import { buildPricingSettings, computeStorefrontPrice, formatPrice } from "utils/pricing";
 import { fetchBrands } from "utils/admin-brands";
 import {
-  ACTIVE_STATUS,
-  INACTIVE_STATUS,
   createAdminProduct,
   deleteAdminProductImage,
   fetchAdminCategories,
   fetchAdminProductBySlug,
-  fetchNextAdminProductReview,
   markAdminProductReviewed,
   updateAdminProduct
 } from "utils/admin-catalog";
@@ -59,7 +56,6 @@ const validationSchema = yup.object({
   discountValue: yup.number().transform((value, originalValue) => originalValue === "" ? NaN : value).typeError("Discount value must be a number").min(0, "Discount value cannot be negative").nullable().optional(),
   discountStartAt: yup.string().optional().nullable(),
   discountEndAt: yup.string().optional().nullable(),
-  status: yup.string().oneOf([ACTIVE_STATUS, INACTIVE_STATUS]).required("Status is required"),
   sku: yup.string().trim().optional(),
   warrantyText: yup.string().trim().max(120).optional(),
   datasheetUrl: yup.string().trim().test("datasheet-url", "Datasheet URL must be a valid URL", value => {
@@ -97,11 +93,10 @@ export default function ProductForm(props) {
   const [productMedia, setProductMedia] = useState([]);
   const [saveIntent, setSaveIntent] = useState("save");
   const [reviewMessage, setReviewMessage] = useState("");
-  const [markingReviewed, setMarkingReviewed] = useState(false);
 
   const reviewFilters = useMemo(() => {
     const result = {};
-    ["q", "status", "origin", "sourceSystem", "readiness", "issue", "categoryId", "brandId", "sort"].forEach(key => {
+    ["q", "status", "origin", "sourceSystem", "readiness", "reviewed", "workspace", "importSessionId", "issue", "categoryId", "brandId", "sort"].forEach(key => {
       const value = searchParams.get(key);
       if (value) result[key] = value;
     });
@@ -112,7 +107,7 @@ export default function ProductForm(props) {
     const params = new URLSearchParams();
     Object.entries(reviewFilters).forEach(([key, value]) => params.set(key, value));
     const query = params.toString();
-    return query ? `/admin/products/review?${query}` : "/admin/products/review";
+    return query ? `/admin/products?${query}` : "/admin/products";
   }, [reviewFilters]);
 
   const focusReviewSection = useCallback(sectionId => {
@@ -164,7 +159,6 @@ export default function ProductForm(props) {
     discountValue: "",
     discountStartAt: "",
     discountEndAt: "",
-    status: ACTIVE_STATUS,
     sku: "",
     warrantyText: "",
     datasheetUrl: "",
@@ -251,7 +245,6 @@ export default function ProductForm(props) {
             discountValue: productData.discountValue != null ? String(productData.discountValue) : "",
             discountStartAt: productData.discountStartAt ? productData.discountStartAt.slice(0, 16) : "",
             discountEndAt: productData.discountEndAt ? productData.discountEndAt.slice(0, 16) : "",
-            status: productData.status || ACTIVE_STATUS,
             sku: productData.sku || "",
             warrantyText: productData.warrantyText || "",
             datasheetUrl: productData.datasheetUrl || "",
@@ -299,24 +292,6 @@ export default function ProductForm(props) {
     return refreshed;
   }, [isReviewMode, product?.id]);
 
-  const markReviewed = useCallback(async () => {
-    if (!product?.id || !product?.readiness?.readyToPublish) return null;
-    setPageError("");
-    setMarkingReviewed(true);
-    try {
-      const reviewedProduct = await markAdminProductReviewed(product.id);
-      setProduct(reviewedProduct);
-      setProductMedia(Array.isArray(reviewedProduct?.gallery) ? reviewedProduct.gallery : []);
-      setReviewMessage("تم اعتماد المراجعة البشرية.");
-      return reviewedProduct;
-    } catch (error) {
-      setPageError(error instanceof Error ? error.message : "تعذر اعتماد المراجعة.");
-      return null;
-    } finally {
-      setMarkingReviewed(false);
-    }
-  }, [product?.id, product?.readiness?.readyToPublish]);
-
 // FORM SUBMIT HANDLER
   const handleSubmitForm = handleSubmit(async (values, event) => {
     const requestedIntent = event?.nativeEvent?.submitter?.value || saveIntent;
@@ -329,7 +304,6 @@ export default function ProductForm(props) {
       baseCurrency: values.baseCurrency || "LYD",
       ...(values.exchangeRateOverride ? { exchangeRateOverride: Number(values.exchangeRateOverride) } : { exchangeRateOverride: null }),
       stockQty: Number(values.stockQty),
-      status: values.status,
       ...(values.comparePrice ? { comparePrice: Number(values.comparePrice) } : { comparePrice: null }),
       ...(values.discountType && values.discountType !== "NONE"
         ? {
@@ -385,26 +359,15 @@ export default function ProductForm(props) {
         setProductMedia(Array.isArray(refreshed?.gallery) ? refreshed.gallery : []);
         reset({ ...values, sku: refreshed?.sku || values.sku || "" });
 
-        if (requestedIntent === "review-next") {
+        if (requestedIntent === "review") {
           if (!refreshed?.readiness?.readyToPublish) {
             setPageError("تم حفظ المنتج، لكن لا يمكن اعتماد المراجعة قبل إكمال موانع النشر.");
             return;
           }
-          await markAdminProductReviewed(productId);
-        }
-
-        if (requestedIntent === "next" || requestedIntent === "review-next") {
-          const next = await fetchNextAdminProductReview(productId, reviewFilters);
-          if (next?.slug) {
-            const params = new URLSearchParams();
-            Object.entries(reviewFilters).forEach(([key, value]) => params.set(key, value));
-            params.set("from", "review");
-            router.push(`/admin/products/${next.slug}?${params.toString()}`);
-          } else {
-            setReviewMessage("تم حفظ المنتج. وصلت إلى نهاية المنتجات المطابقة لسياق المراجعة الحالي.");
-          }
-        } else {
-          setReviewMessage("تم حفظ المنتج وتحديث حالة الجاهزية.");
+          const reviewedProduct = await markAdminProductReviewed(productId);
+          setProduct(reviewedProduct);
+          setProductMedia(Array.isArray(reviewedProduct?.gallery) ? reviewedProduct.gallery : []);
+          setReviewMessage("تم حفظ التغييرات واعتماد المراجعة البشرية.");
         }
         return;
       }
@@ -427,7 +390,7 @@ export default function ProductForm(props) {
   }
 
   return <>
-    {isReviewMode && product ? <ReviewReadinessPanel product={product} onIssueClick={focusReviewSection} onReturn={() => router.push(reviewQueueHref)} onMarkReviewed={markReviewed} markingReviewed={markingReviewed} /> : null}
+    {isReviewMode && product ? <ReviewReadinessPanel product={product} onIssueClick={focusReviewSection} /> : null}
     <Card className="p-3" dir={isReviewMode ? "rtl" : undefined}>
       <FormProvider methods={methods} onSubmit={handleSubmitForm}>
         <Grid container spacing={3}>
@@ -442,7 +405,7 @@ export default function ProductForm(props) {
           sm: 6,
           xs: 12
         }}>
-            <TextField fullWidth name="name" label={isReviewMode ? "اسم المنتج" : "Name"} color="info" size="medium" placeholder="Name" />
+            <TextField required fullWidth name="name" label={isReviewMode ? "اسم المنتج" : "Name"} color="info" size="medium" placeholder="Name" />
           </Grid>
 
           <Grid size={{
@@ -458,29 +421,19 @@ export default function ProductForm(props) {
           sm: 6,
           xs: 12
         }}>
-            <TextField select fullWidth color="info" size="medium" name="categoryId" placeholder="Category" label="Select Category">
+            <TextField required select fullWidth color="info" size="medium" name="categoryId" placeholder="Category" label="Select Category">
               {categoryOptions.map(option => <MenuItem key={option.id} value={option.id}>{option.parent?.name ? `${option.parent.name} / ${option.name}` : option.name}</MenuItem>)}
-            </TextField>
-          </Grid>
-
-          <Grid size={{
-          sm: 6,
-          xs: 12
-        }}>
-            <TextField select fullWidth color="info" size="medium" name="status" placeholder="Status" label="Status">
-              <MenuItem value={ACTIVE_STATUS}>Active</MenuItem>
-              <MenuItem value={INACTIVE_STATUS}>Inactive</MenuItem>
             </TextField>
           </Grid>
 
           {isReviewMode ? <ReviewSectionHeading id="review-content" title="المحتوى التجاري" description="راجع الوصف، المزايا، الضمان وملف المواصفات." /> : null}
 
           <Grid size={12}>
-            <TextField fullWidth name="shortDescription" color="info" size="medium" label="Short Description" placeholder="Short Description" />
+            <TextField required fullWidth name="shortDescription" color="info" size="medium" label="Short Description" placeholder="Short Description" />
           </Grid>
 
           <Grid size={12}>
-            <TextField rows={6} multiline fullWidth color="info" size="medium" name="description" label="Description" placeholder="Description" />
+            <TextField required rows={6} multiline fullWidth color="info" size="medium" name="description" label="Description" placeholder="Description" />
           </Grid>
 
           {isReviewMode ? <ReviewSectionHeading id="review-pricing" title="السعر والمخزون" description="راجع السعر الأساسي، عملة الشراء، سعر الصرف والخصم." /> : null}
@@ -489,21 +442,21 @@ export default function ProductForm(props) {
           sm: 6,
           xs: 12
         }}>
-            <TextField fullWidth name="stockQty" color="info" size="medium" type="number" label="Stock Quantity" placeholder="Stock Quantity" />
+            <TextField required fullWidth name="stockQty" color="info" size="medium" type="number" label="Stock Quantity" placeholder="Stock Quantity" />
           </Grid>
 
           <Grid size={{
           sm: 6,
           xs: 12
         }}>
-            <TextField fullWidth name="price" color="info" size="medium" type="number" label="Price" placeholder="Price" />
+            <TextField required fullWidth name="price" color="info" size="medium" type="number" label="Price" placeholder="Price" />
           </Grid>
 
           <Grid size={{
           sm: 6,
           xs: 12
         }}>
-            <TextField select fullWidth color="info" size="medium" name="baseCurrency" label="Base Currency">
+            <TextField required select fullWidth color="info" size="medium" name="baseCurrency" label="Base Currency">
               <MenuItem value="LYD">LYD (Libyan Dinar)</MenuItem>
               <MenuItem value="USD">USD (US Dollar)</MenuItem>
             </TextField>
@@ -728,11 +681,9 @@ export default function ProductForm(props) {
               {isReviewMode ? "العودة للطابور" : "Cancel"}
             </Button>
 
-            <Button loading={isSubmitting && saveIntent === "save"} variant="contained" color="info" type="submit" name="reviewAction" value="save" onClick={() => setSaveIntent("save")}>
-              {isReviewMode ? "حفظ التغييرات" : product?.id ? "Update product" : "Save product"}
-            </Button>
-            {isReviewMode ? <Button loading={isSubmitting && saveIntent === "next"} disabled={isSubmitting} variant="contained" color="success" type="submit" name="reviewAction" value="next" onClick={() => setSaveIntent("next")} sx={{ mr: 1 }}>حفظ والتالي</Button> : null}
-            {isReviewMode ? <Button loading={isSubmitting && saveIntent === "review-next"} disabled={isSubmitting} variant="outlined" color="success" type="submit" name="reviewAction" value="review-next" onClick={() => setSaveIntent("review-next")} sx={{ mr: 1 }}>حفظ واعتماد والتالي</Button> : null}
+            {isReviewMode
+              ? <Button loading={isSubmitting} disabled={isSubmitting} variant="contained" color="success" type="submit" name="reviewAction" value="review" onClick={() => setSaveIntent("review")}>اعتماد المراجعة</Button>
+              : <Button loading={isSubmitting} variant="contained" color="info" type="submit" name="reviewAction" value="save" onClick={() => setSaveIntent("save")}>{product?.id ? "Update product" : "Save product"}</Button>}
           </Grid>
         </Grid>
       </FormProvider>

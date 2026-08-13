@@ -10,11 +10,8 @@ export const navigation = [{
   name: "Products",
   icon: duotone.Products,
   children: [{
-    name: "Product List",
+    name: "Product Management",
     path: "/admin/products"
-  }, {
-    name: "Product Review",
-    path: "/admin/products/review"
   }, {
     name: "Create Product",
     path: "/admin/products/create"

@@ -52,7 +52,7 @@ function ReadinessIssues({ title, issues, color, onIssueClick }) {
   </Box>;
 }
 
-export function ReviewReadinessPanel({ product, onIssueClick, onReturn, onMarkReviewed, markingReviewed }) {
+export function ReviewReadinessPanel({ product, onIssueClick }) {
   const readiness = product?.readiness || { readyToPublish: false, blockers: [], warnings: [] };
   const activeBlocked = product?.status === "ACTIVE" && !readiness.readyToPublish;
 
@@ -65,11 +65,10 @@ export function ReviewReadinessPanel({ product, onIssueClick, onReturn, onMarkRe
         </Box>
         <Stack direction="row" gap={1} alignItems="center">
           <Chip color={readiness.readyToPublish ? "success" : "warning"} label={readiness.readyToPublish ? "جاهز للنشر" : "يحتاج استكمال"} />
-          <Button color="inherit" variant="outlined" onClick={onReturn}>العودة إلى طابور المراجعة</Button>
         </Stack>
       </Stack>
       {activeBlocked ? <Alert severity="warning">هذا المنتج نشط حاليًا لكنه لا يستوفي متطلبات الجاهزية. راجع العوائق أدناه.</Alert> : null}
-      <Alert severity={product.reviewed ? "success" : "info"} action={!product.reviewed ? <Button color="inherit" loading={markingReviewed} disabled={!readiness.readyToPublish || markingReviewed} onClick={onMarkReviewed}>اعتماد المراجعة</Button> : null}>
+      <Alert severity={product.reviewed ? "success" : "info"}>
         {product.reviewed
           ? <>تمت المراجعة {product.reviewedBy?.name ? `بواسطة ${product.reviewedBy.name}` : "سابقًا"}{product.catalogReviewedAt ? ` بتاريخ ${formatDate(product.catalogReviewedAt)}` : ""}.</>
           : readiness.readyToPublish

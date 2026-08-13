@@ -19,6 +19,8 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
+import Tab from "@mui/material/Tab";
+import Tabs from "@mui/material/Tabs";
 import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
@@ -33,11 +35,20 @@ import { fetchBrands } from "utils/admin-brands";
 import {
   fetchAdminCategories,
   fetchAdminProductReview,
-  fetchAdminProductReviewSummary
+  fetchAdminProductReviewSummary,
+  publishAdminProduct,
+  unpublishAdminProduct
 } from "utils/admin-catalog";
 
 const PAGE_SIZE = 20;
-const FILTER_KEYS = ["q", "status", "origin", "sourceSystem", "readiness", "reviewed", "issue", "categoryId", "brandId", "sort"];
+const FILTER_KEYS = ["q", "status", "origin", "sourceSystem", "readiness", "reviewed", "workspace", "importSessionId", "issue", "categoryId", "brandId", "sort"];
+
+const WORKSPACE_TABS = [
+  ["ALL", "جميع المنتجات", "total"],
+  ["NEEDS_REVIEW", "تحتاج مراجعة", "needsReview"],
+  ["READY_TO_PUBLISH", "جاهزة للنشر", "readyToPublish"],
+  ["PUBLISHED", "منشورة", "published"]
+];
 
 const ISSUE_LABELS = {
   MISSING_IMAGE: "بدون صورة",
@@ -61,7 +72,7 @@ const QUICK_FILTERS = [
   { label: "تحتاج صورة", values: { issue: "MISSING_IMAGE" } },
   { label: "تحتاج علامة", values: { issue: "MISSING_BRAND" } },
   { label: "تحتاج مواصفات", values: { issue: "MISSING_SPECS" } },
-  { label: "جاهزة للنشر", values: { readiness: "READY" } },
+  { label: "جاهزة للنشر", values: { workspace: "READY_TO_PUBLISH" } },
   { label: "مستوردة", values: { origin: "IMPORTED" } },
   { label: "غير مراجعة", values: { reviewed: "false" } },
   { label: "غير نشطة", values: { status: "INACTIVE" } }
@@ -69,8 +80,8 @@ const QUICK_FILTERS = [
 
 const SUMMARY_METRICS = [
   { key: "total", label: "إجمالي المنتجات", values: {} },
-  { key: "blocked", label: "تحتاج مراجعة", values: { readiness: "BLOCKED" }, tone: "warning.main" },
-  { key: "ready", label: "جاهزة للنشر", values: { readiness: "READY" }, tone: "success.main" },
+  { key: "needsReview", label: "تحتاج مراجعة", values: { workspace: "NEEDS_REVIEW" }, tone: "warning.main" },
+  { key: "readyToPublish", label: "جاهزة للنشر", values: { workspace: "READY_TO_PUBLISH" }, tone: "success.main" },
   { key: "unreviewed", label: "غير مراجعة", values: { reviewed: "false" }, tone: "warning.main" },
   { key: "reviewed", label: "تمت مراجعتها", values: { reviewed: "true" }, tone: "success.main" },
   { key: "missingImage", label: "بدون صورة", values: { issue: "MISSING_IMAGE" } },
@@ -172,6 +183,7 @@ function ReviewQueueContent() {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [publicationActionId, setPublicationActionId] = useState("");
 
   const filters = useMemo(() => {
     const currentParams = new URLSearchParams(paramsKey);
@@ -240,9 +252,47 @@ function ReviewQueueContent() {
   const filterValue = key => searchParams.get(key) || "";
   const applyQuickFilter = values => navigate(values, true);
 
-  return <PageWrapper title="مراجعة المنتجات">
+  const selectWorkspace = value => {
+    const next = new URLSearchParams(searchParams.toString());
+    ["page", "status", "readiness", "reviewed"].forEach(key => next.delete(key));
+    if (value === "ALL") next.delete("workspace");
+    else next.set("workspace", value);
+    router.push(`${pathname}${next.toString() ? `?${next.toString()}` : ""}`);
+  };
+
+  const handlePublication = async (product, shouldPublish) => {
+    setPublicationActionId(product.id);
+    setError("");
+    try {
+      if (shouldPublish) await publishAdminProduct(product.id);
+      else await unpublishAdminProduct(product.id);
+      const [listData, summaryData] = await Promise.all([fetchAdminProductReview(filters), fetchAdminProductReviewSummary()]);
+      setItems(listData.items);
+      setPagination(listData.pagination);
+      setSummary(summaryData);
+    } catch (actionError) {
+      setError(actionError instanceof Error ? actionError.message : "تعذر تحديث حالة نشر المنتج.");
+    } finally {
+      setPublicationActionId("");
+    }
+  };
+
+  const workspace = filterValue("workspace") || "ALL";
+
+  return <PageWrapper title="إدارة المنتجات">
     <Box dir="rtl">
-      <Typography color="text.secondary" mb={2.5}>راجع جودة الكتالوج واعرف ما يحتاج إلى استكمال قبل النشر.</Typography>
+      <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ sm: "center" }} gap={1.5} mb={2}>
+        <Typography color="text.secondary">مساحة واحدة لمراجعة المنتجات واعتمادها ونشرها.</Typography>
+        <Button component={Link} href="/admin/products/create" variant="contained">إضافة منتج</Button>
+      </Stack>
+
+      <Card sx={{ mb: 2, px: { xs: 0.5, sm: 1 } }}>
+        <Tabs value={workspace} onChange={(_, value) => selectWorkspace(value)} variant="scrollable" scrollButtons="auto" allowScrollButtonsMobile aria-label="حالات إدارة المنتجات">
+          {WORKSPACE_TABS.map(([value, label, countKey]) => <Tab key={value} value={value} label={`${label}${summary ? ` (${Number(summary[countKey] || 0).toLocaleString("ar-LY")})` : ""}`} />)}
+        </Tabs>
+      </Card>
+
+      {filterValue("importSessionId") ? <Alert severity="info" sx={{ mb: 2 }}>تعرض هذه القائمة منتجات جلسة الاستيراد المحددة فقط.</Alert> : null}
 
       <Box display="grid" gridTemplateColumns={{ xs: "repeat(2, minmax(0, 1fr))", md: "repeat(4, minmax(0, 1fr))" }} gap={1.25} mb={2.5}>
         {SUMMARY_METRICS.map(metric => <Paper key={metric.key} component="button" type="button" onClick={() => applyQuickFilter(metric.values)} elevation={0} sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.paper", textAlign: "right", cursor: "pointer", color: "text.primary", font: "inherit", "&:focus-visible": { outline: "3px solid", outlineColor: "primary.light" } }}>
@@ -295,7 +345,14 @@ function ReviewQueueContent() {
                 <TableCell><ReviewAudit product={product} /></TableCell>
                 <TableCell sx={{ minWidth: 235 }}><IssueChips product={product} /></TableCell>
                 <TableCell sx={{ whiteSpace: "nowrap" }}>{formatDate(product.updatedAt)}</TableCell>
-                <TableCell><Button component={Link} href={reviewHref(product, searchParams)} size="small" variant="outlined">مراجعة</Button></TableCell>
+                <TableCell><Stack direction="row" spacing={0.75}>
+                  <Button component={Link} href={reviewHref(product, searchParams)} size="small" variant="outlined">مراجعة</Button>
+                  {product.status === "ACTIVE"
+                    ? <Button size="small" color="warning" loading={publicationActionId === product.id} onClick={() => handlePublication(product, false)}>إلغاء النشر</Button>
+                    : product.readiness?.readyToPublish && product.reviewed
+                      ? <Button size="small" color="success" variant="contained" loading={publicationActionId === product.id} onClick={() => handlePublication(product, true)}>نشر</Button>
+                      : null}
+                </Stack></TableCell>
               </TableRow>)}</TableBody>
             </Table>
           </TableContainer>
@@ -310,7 +367,15 @@ function ReviewQueueContent() {
                 <Readiness product={product} />
                 <ReviewAudit product={product} />
                 <IssueChips product={product} />
-                <Stack direction="row" justifyContent="space-between" alignItems="center"><Typography variant="caption" color="text.secondary">آخر تحديث: {formatDate(product.updatedAt)}</Typography><Button component={Link} href={reviewHref(product, searchParams)} size="small" variant="contained">مراجعة</Button></Stack>
+                <Typography variant="caption" color="text.secondary">آخر تحديث: {formatDate(product.updatedAt)}</Typography>
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={0.75}>
+                  <Button fullWidth component={Link} href={reviewHref(product, searchParams)} size="small" variant="outlined">مراجعة</Button>
+                  {product.status === "ACTIVE"
+                    ? <Button fullWidth size="small" color="warning" loading={publicationActionId === product.id} onClick={() => handlePublication(product, false)}>إلغاء النشر</Button>
+                    : product.readiness?.readyToPublish && product.reviewed
+                      ? <Button fullWidth size="small" color="success" variant="contained" loading={publicationActionId === product.id} onClick={() => handlePublication(product, true)}>نشر</Button>
+                      : null}
+                </Stack>
               </Stack>
             </Paper>)}
           </Stack>

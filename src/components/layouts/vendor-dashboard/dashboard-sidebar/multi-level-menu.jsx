@@ -27,6 +27,7 @@ const ARABIC_LABELS = {
   Dashboard: "لوحة التحكم",
   Products: "المنتجات",
   "Product List": "قائمة المنتجات",
+  "Product Management": "إدارة المنتجات",
   "Product Review": "مراجعة المنتجات",
   "Create Product": "إضافة منتج",
   "مكتبة الوسائط": "مكتبة الوسائط",

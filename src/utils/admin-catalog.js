@@ -129,6 +129,14 @@ export async function updateAdminProduct(id, payload) {
   return apiPatch(`/products/${id}`, payload);
 }
 
+export async function publishAdminProduct(id) {
+  return apiPost(`/admin/products/${encodeURIComponent(id)}/publish`);
+}
+
+export async function unpublishAdminProduct(id) {
+  return apiPost(`/admin/products/${encodeURIComponent(id)}/unpublish`);
+}
+
 export async function uploadAdminProductImages(id, files) {
   const formData = new FormData();
 
@@ -222,6 +230,8 @@ const PRODUCT_REVIEW_FILTERS = [
   "brandId",
   "sort",
   "reviewed",
+  "workspace",
+  "importSessionId",
   "page",
   "limit"
 ];
