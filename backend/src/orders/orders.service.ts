@@ -1,13 +1,18 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 
-import { OrderPaymentStatus, OrderStatus, PaymentMethodCode } from '../prisma/prisma-client';
-import { PrismaService } from '../prisma/prisma.service';
-import { NotificationService } from '../queue/notification.service';
-import { PricingService } from '../pricing/pricing.service';
-import { CreateOrderDto } from './dto/create-order.dto';
-import { FindOrdersQueryDto } from './dto/find-orders-query.dto';
-import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
+import { OrderPaymentStatus, OrderStatus, PaymentMethodCode } from "../prisma/prisma-client";
+import { PrismaService } from "../prisma/prisma.service";
+import { NotificationService } from "../queue/notification.service";
+import { PricingService } from "../pricing/pricing.service";
+import { CreateOrderDto } from "./dto/create-order.dto";
+import { FindOrdersQueryDto } from "./dto/find-orders-query.dto";
+import { UpdateOrderStatusDto } from "./dto/update-order-status.dto";
+import { ProductsService } from "../products/products.service";
+import {
+  assertPurchaseQuantity,
+  PURCHASE_QUANTITY_ERROR
+} from "../inventory/purchase-quantity.policy";
 
 type OrderIdentity = {
   userId: string | null;
@@ -21,12 +26,12 @@ const orderInclude = {
       name: true,
       email: true,
       phone: true,
-      role: true,
-    },
+      role: true
+    }
   },
   items: {
     orderBy: {
-      id: 'asc',
+      id: "asc"
     },
     include: {
       product: {
@@ -36,25 +41,25 @@ const orderInclude = {
           slug: true,
           images: {
             orderBy: {
-              sortOrder: 'asc',
+              sortOrder: "asc"
             },
             select: {
-              imageUrl: true,
-            },
-          },
-        },
-      },
-    },
+              imageUrl: true
+            }
+          }
+        }
+      }
+    }
   },
   savedAddress: {
     select: {
       id: true,
-      label: true,
-    },
+      label: true
+    }
   },
   paymentTransactions: {
     orderBy: {
-      createdAt: 'desc',
+      createdAt: "desc"
     },
     take: 1,
     include: {
@@ -62,68 +67,72 @@ const orderInclude = {
         select: {
           id: true,
           code: true,
-          name: true,
-        },
+          name: true
+        }
       },
       receipts: {
         orderBy: {
-          createdAt: 'desc',
+          createdAt: "desc"
         },
         take: 1,
         select: {
           id: true,
           fileUrl: true,
           reviewStatus: true,
-          createdAt: true,
-        },
-      },
-    },
+          createdAt: true
+        }
+      }
+    }
   },
   statusHistory: {
     orderBy: {
-      createdAt: 'asc',
+      createdAt: "asc"
     },
     include: {
       changedByUser: {
         select: {
           id: true,
           name: true,
-          role: true,
-        },
-      },
-    },
-  },
+          role: true
+        }
+      }
+    }
+  }
 } as const;
 
 const cartForOrderInclude = {
   items: {
     orderBy: {
-      id: 'asc',
+      id: "asc"
     },
     include: {
       product: {
         select: {
           id: true,
           name: true,
+          slug: true,
           stockQty: true,
+          maxPurchaseQty: true,
+          status: true,
+          hasVariants: true,
           baseCurrency: true,
           comparePrice: true,
           discountType: true,
           discountValue: true,
           discountStartAt: true,
-          discountEndAt: true,
-        },
+          discountEndAt: true
+        }
       },
       variant: {
         select: {
           id: true,
           name: true,
           attributes: true,
-          stockQty: true,
-        },
-      },
-    },
-  },
+          stockQty: true
+        }
+      }
+    }
+  }
 } as const;
 
 type CartForOrder = Prisma.CartGetPayload<{ include: typeof cartForOrderInclude }>;
@@ -134,9 +143,7 @@ const ORDER_STATUS_VALUES = Object.values(OrderStatus) as Array<
 >;
 
 function isUuidLike(value: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-    value,
-  );
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 @Injectable()
@@ -145,51 +152,60 @@ export class OrdersService {
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
     private readonly pricingService: PricingService,
+    private readonly productsService: ProductsService
   ) {}
 
   async createOrder(identity: OrderIdentity, createOrderDto: CreateOrderDto) {
     const cart = await this.findCartWithItems(identity);
 
     if (!cart || cart.items.length === 0) {
-      throw new BadRequestException('Cart is empty.');
+      throw new BadRequestException("Cart is empty.");
     }
 
     // Idempotency: if a key was provided, return any existing order with that key.
     if (createOrderDto.idempotencyKey) {
       const existing = await this.prisma.order.findUnique({
         where: { idempotencyKey: createOrderDto.idempotencyKey },
-        include: orderInclude,
+        include: orderInclude
       });
       if (existing) {
         return this.serializeOrder(existing);
       }
     }
 
-    // Pre-check stock outside the transaction (fast path — can be stale under load,
-    // but the authoritative check is inside the transaction below).
+    const productQuantities = this.sumProductQuantities(cart);
+
+    // Fast-path validation. Current database state is checked again in the transaction.
     for (const item of cart.items) {
       const effectiveStock = item.variant ? item.variant.stockQty : item.product.stockQty;
-      if (effectiveStock < item.quantity) {
-        throw new BadRequestException(
-          `"${item.product.name}" has insufficient stock (available: ${effectiveStock}).`,
-        );
-      }
+      assertPurchaseQuantity(
+        item.quantity,
+        {
+          stockQty:
+            item.product.status === "ACTIVE" &&
+            (!item.product.hasVariants || (item.variantId && item.variant))
+              ? effectiveStock
+              : 0,
+          maxPurchaseQty: item.product.maxPurchaseQty,
+          otherProductQuantity:
+            (productQuantities.get(item.productId) ?? item.quantity) - item.quantity
+        },
+        { staleCart: true }
+      );
     }
 
     const savedAddress = await this.resolveSavedAddress(identity.userId, createOrderDto.addressId);
 
     const totalAmount = cart.items.reduce(
-      (sum: number, item: CartForOrder['items'][number]) =>
+      (sum: number, item: CartForOrder["items"][number]) =>
         sum + Number(item.unitPrice) * item.quantity,
-      0,
+      0
     );
 
     const minimumOrderAmount = await this.getMinimumOrderAmount();
 
     if (totalAmount < minimumOrderAmount) {
-      throw new BadRequestException(
-        `Minimum order amount is ${minimumOrderAmount}.`,
-      );
+      throw new BadRequestException(`Minimum order amount is ${minimumOrderAmount}.`);
     }
 
     const orderNumber = await this.generateOrderNumber(identity.userId);
@@ -199,96 +215,150 @@ export class OrdersService {
 
     // Use an interactive transaction so we can atomically decrement stock
     // with an UPDATE ... WHERE stock_qty >= qty check that prevents overselling.
-    const order = await this.prisma.$transaction(async (tx) => {
-      // Atomically decrement stock for each line item.
-      // If stockQty < quantity, updateMany returns count=0 → throw immediately.
-      for (const item of cart.items) {
-        if (item.variantId && item.variant) {
-          // Decrement variant stock
-          const variantResult = await tx.productVariant.updateMany({
-            where: {
-              id: item.variantId,
-              stockQty: { gte: item.quantity },
-            },
-            data: { stockQty: { decrement: item.quantity } },
+    let order: OrderWithRelations;
+    try {
+      order = await this.prisma.$transaction(
+        async (tx) => {
+          const currentProducts = await tx.product.findMany({
+            where: { id: { in: [...productQuantities.keys()] } },
+            select: { id: true, status: true, maxPurchaseQty: true, hasVariants: true }
           });
-          if (variantResult.count === 0) {
-            throw new BadRequestException(
-              `Selected variant of "${item.product.name}" is out of stock.`,
-            );
-          }
-        } else {
-          // Decrement product stock
-          const productResult = await tx.product.updateMany({
-            where: {
-              id: item.productId,
-              stockQty: { gte: item.quantity },
-            },
-            data: { stockQty: { decrement: item.quantity } },
-          });
-          if (productResult.count === 0) {
-            throw new BadRequestException(
-              `"${item.product.name}" is out of stock or has insufficient stock.`,
-            );
-          }
-        }
-      }
+          const currentProductById = new Map(
+            currentProducts.map((product) => [product.id, product])
+          );
 
-      const newOrder = await tx.order.create({
-        data: {
-          userId: identity.userId,
-          sessionId: identity.userId ? null : this.requireSessionId(identity),
-          addressId: savedAddress?.id ?? null,
-          orderNumber,
-          idempotencyKey: createOrderDto.idempotencyKey ?? null,
-          fullName: createOrderDto.fullName,
-          phone: createOrderDto.phone,
-          city: createOrderDto.city,
-          address: createOrderDto.address,
-          notes: createOrderDto.notes?.trim() || null,
-          paymentStatus: OrderPaymentStatus.PENDING,
-          totalAmount,
-          status: OrderStatus.PENDING,
-          items: {
-            create: cart.items.map((item: CartForOrder['items'][number]) => ({
-              productId: item.productId,
-              variantId: item.variantId ?? null,
-              variantName: item.variantName ?? item.variant?.name ?? null,
-              variantAttributes: item.variantAttributes
-                ? (item.variantAttributes as Prisma.InputJsonValue)
-                : (item.variant?.attributes
-                    ? (item.variant.attributes as Prisma.InputJsonValue)
-                    : undefined),
-              productName: item.product.name,
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
-              baseCurrency: item.product.baseCurrency,
-              comparePrice: item.product.comparePrice,
-              exchangeRateUsed: pricingSettings.exchangeRate,
-            })),
-          },
-          statusHistory: {
-            create: {
+          // Atomically decrement stock for each line item.
+          // If stockQty < quantity, updateMany returns count=0 → throw immediately.
+          for (const item of cart.items) {
+            const currentProduct = currentProductById.get(item.productId);
+            const totalProductQuantity = productQuantities.get(item.productId) ?? item.quantity;
+            if (
+              !currentProduct ||
+              currentProduct.status !== "ACTIVE" ||
+              (currentProduct.hasVariants && (!item.variantId || !item.variant))
+            ) {
+              throw new BadRequestException({
+                errorCode: PURCHASE_QUANTITY_ERROR.CART_STOCK_CHANGED,
+                message: `"${item.product.name}" is no longer available.`
+              });
+            }
+            if (
+              currentProduct.maxPurchaseQty != null &&
+              totalProductQuantity > currentProduct.maxPurchaseQty
+            ) {
+              throw new BadRequestException({
+                errorCode: PURCHASE_QUANTITY_ERROR.MAX_PURCHASE_QUANTITY_EXCEEDED,
+                message: `Maximum purchase quantity for "${item.product.name}" is ${currentProduct.maxPurchaseQty}.`
+              });
+            }
+
+            if (item.variantId && item.variant) {
+              // Decrement variant stock
+              const variantResult = await tx.productVariant.updateMany({
+                where: {
+                  id: item.variantId,
+                  stockQty: { gte: item.quantity }
+                },
+                data: { stockQty: { decrement: item.quantity } }
+              });
+              if (variantResult.count === 0) {
+                throw new BadRequestException({
+                  errorCode: PURCHASE_QUANTITY_ERROR.CART_STOCK_CHANGED,
+                  message: `Requested quantity for "${item.product.name}" is no longer available.`
+                });
+              }
+            } else {
+              // Decrement product stock
+              const productResult = await tx.product.updateMany({
+                where: {
+                  id: item.productId,
+                  stockQty: { gte: item.quantity }
+                },
+                data: { stockQty: { decrement: item.quantity } }
+              });
+              if (productResult.count === 0) {
+                throw new BadRequestException({
+                  errorCode: PURCHASE_QUANTITY_ERROR.CART_STOCK_CHANGED,
+                  message: `Requested quantity for "${item.product.name}" is no longer available.`
+                });
+              }
+            }
+          }
+
+          const newOrder = await tx.order.create({
+            data: {
+              userId: identity.userId,
+              sessionId: identity.userId ? null : this.requireSessionId(identity),
+              addressId: savedAddress?.id ?? null,
+              orderNumber,
+              idempotencyKey: createOrderDto.idempotencyKey ?? null,
+              fullName: createOrderDto.fullName,
+              phone: createOrderDto.phone,
+              city: createOrderDto.city,
+              address: createOrderDto.address,
+              notes: createOrderDto.notes?.trim() || null,
+              paymentStatus: OrderPaymentStatus.PENDING,
+              totalAmount,
               status: OrderStatus.PENDING,
-              note: null,
-              changedByUserId: identity.userId,
+              items: {
+                create: cart.items.map((item: CartForOrder["items"][number]) => ({
+                  productId: item.productId,
+                  variantId: item.variantId ?? null,
+                  variantName: item.variantName ?? item.variant?.name ?? null,
+                  variantAttributes: item.variantAttributes
+                    ? (item.variantAttributes as Prisma.InputJsonValue)
+                    : item.variant?.attributes
+                      ? (item.variant.attributes as Prisma.InputJsonValue)
+                      : undefined,
+                  productName: item.product.name,
+                  quantity: item.quantity,
+                  unitPrice: item.unitPrice,
+                  baseCurrency: item.product.baseCurrency,
+                  comparePrice: item.product.comparePrice,
+                  exchangeRateUsed: pricingSettings.exchangeRate
+                }))
+              },
+              statusHistory: {
+                create: {
+                  status: OrderStatus.PENDING,
+                  note: null,
+                  changedByUserId: identity.userId
+                }
+              }
             },
-          },
+            include: orderInclude
+          });
+
+          await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
+          await tx.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } });
+
+          return newOrder;
         },
-        include: orderInclude,
-      });
-
-      await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
-      await tx.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } });
-
-      return newOrder;
-    });
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+      );
+    } catch (error) {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "P2034"
+      ) {
+        throw new BadRequestException({
+          errorCode: PURCHASE_QUANTITY_ERROR.CART_STOCK_CHANGED,
+          message: "Inventory changed while placing the order. Refresh the cart and try again."
+        });
+      }
+      throw error;
+    }
 
     void this.notificationService.notifyOrderPlaced({
       orderId: order.id,
       userId: identity.userId,
-      totalAmount: Number(order.totalAmount),
+      totalAmount: Number(order.totalAmount)
     });
+    await this.invalidateInventoryProductCaches(
+      cart.items.map((item) => ({ id: item.productId, slug: item.product.slug }))
+    );
 
     return this.serializeOrder(order);
   }
@@ -301,7 +371,7 @@ export class OrdersService {
     return this.findOneForAccess({
       id,
       userId: null,
-      isAdmin: true,
+      isAdmin: true
     });
   }
 
@@ -313,46 +383,55 @@ export class OrdersService {
     return this.findOneForAccess({
       id,
       userId,
-      isAdmin,
+      isAdmin
     });
   }
 
   async updateStatus(id: string, adminUserId: string, updateOrderStatusDto: UpdateOrderStatusDto) {
+    if (updateOrderStatusDto.status === OrderStatus.CANCELLED) {
+      throw new BadRequestException(
+        "Use the explicit cancel action so inventory is restored safely."
+      );
+    }
     const existingOrder = await this.prisma.order.findUnique({
       where: { id },
       select: {
         id: true,
-        status: true,
-      },
+        status: true
+      }
     });
 
     if (!existingOrder) {
-      throw new NotFoundException('Order not found.');
+      throw new NotFoundException("Order not found.");
+    }
+
+    if (existingOrder.status === OrderStatus.CANCELLED) {
+      throw new BadRequestException("Cancelled orders cannot transition to another status.");
     }
 
     if (existingOrder.status === updateOrderStatusDto.status) {
-      throw new BadRequestException('Order is already in the requested status.');
+      throw new BadRequestException("Order is already in the requested status.");
     }
 
     const transactionResults = await this.prisma.$transaction([
       this.prisma.order.update({
         where: { id },
         data: {
-          status: updateOrderStatusDto.status,
-        },
+          status: updateOrderStatusDto.status
+        }
       }),
       this.prisma.orderStatusHistory.create({
         data: {
           orderId: id,
           status: updateOrderStatusDto.status,
           note: updateOrderStatusDto.note?.trim() || null,
-          changedByUserId: adminUserId,
-        },
+          changedByUserId: adminUserId
+        }
       }),
       this.prisma.order.findUniqueOrThrow({
         where: { id },
-        include: orderInclude,
-      }),
+        include: orderInclude
+      })
     ]);
 
     const updatedOrder = transactionResults[2];
@@ -360,7 +439,7 @@ export class OrdersService {
     void this.notificationService.notifyOrderStatusChanged({
       orderId: updatedOrder.id,
       userId: updatedOrder.userId,
-      status: updatedOrder.status,
+      status: updatedOrder.status
     });
 
     return this.serializeOrder(updatedOrder);
@@ -374,67 +453,87 @@ export class OrdersService {
   async cancelOrder(orderId: string, userId: string, isAdmin: boolean, note?: string) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
-      include: { items: { select: { productId: true, quantity: true } } },
+      include: {
+        items: {
+          select: {
+            productId: true,
+            variantId: true,
+            quantity: true,
+            product: { select: { slug: true } }
+          }
+        }
+      }
     });
 
     if (!order) {
-      throw new NotFoundException('Order not found.');
+      throw new NotFoundException("Order not found.");
     }
 
     if (!isAdmin && order.userId !== userId) {
-      throw new NotFoundException('Order not found.');
+      throw new NotFoundException("Order not found.");
     }
 
     if (order.status !== OrderStatus.PENDING) {
-      throw new BadRequestException(
-        'Only orders in PENDING status can be cancelled.',
-      );
+      throw new BadRequestException("Only orders in PENDING status can be cancelled.");
     }
 
-    await this.prisma.$transaction(async tx => {
-      await tx.order.update({
-        where: { id: orderId },
+    await this.prisma.$transaction(async (tx) => {
+      const cancelled = await tx.order.updateMany({
+        where: { id: orderId, status: OrderStatus.PENDING },
         data: {
           status: OrderStatus.CANCELLED,
           paymentStatus:
             order.paymentStatus === OrderPaymentStatus.PAID
               ? order.paymentStatus
-              : OrderPaymentStatus.REJECTED,
-        },
+              : OrderPaymentStatus.REJECTED
+        }
       });
+      if (cancelled.count !== 1) {
+        throw new BadRequestException("Order is no longer eligible for cancellation.");
+      }
 
       for (const item of order.items) {
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { stockQty: { increment: item.quantity } },
-        });
+        if (item.variantId) {
+          await tx.productVariant.update({
+            where: { id: item.variantId },
+            data: { stockQty: { increment: item.quantity } }
+          });
+        } else {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stockQty: { increment: item.quantity } }
+          });
+        }
       }
 
       await tx.orderStatusHistory.create({
         data: {
           orderId,
           status: OrderStatus.CANCELLED,
-          note: note?.trim() || (isAdmin ? 'Cancelled by admin' : 'Cancelled by customer'),
-          changedByUserId: userId,
-        },
+          note: note?.trim() || (isAdmin ? "Cancelled by admin" : "Cancelled by customer"),
+          changedByUserId: userId
+        }
       });
 
       // Mark any still-pending payment transactions as REJECTED for this order.
       await tx.paymentTransaction.updateMany({
-        where: { orderId, status: 'PENDING' },
-        data: { status: 'REJECTED' },
+        where: { orderId, status: "PENDING" },
+        data: { status: "REJECTED" }
       });
     });
 
     const fresh = await this.prisma.order.findUniqueOrThrow({
       where: { id: orderId },
-      include: orderInclude,
+      include: orderInclude
     });
+    await this.invalidateInventoryProductCaches(
+      order.items.map((item) => ({ id: item.productId, slug: item.product.slug }))
+    );
 
     void this.notificationService.notifyOrderStatusChanged({
       orderId: fresh.id,
       userId: fresh.userId,
-      status: fresh.status,
+      status: fresh.status
     });
 
     return this.serializeOrder(fresh);
@@ -444,18 +543,35 @@ export class OrdersService {
     return this.prisma.cart.findFirst({
       where: identity.userId
         ? {
-            userId: identity.userId,
+            userId: identity.userId
           }
         : {
-            sessionId: this.requireSessionId(identity),
+            sessionId: this.requireSessionId(identity)
           },
-      include: cartForOrderInclude,
+      include: cartForOrderInclude
     });
+  }
+
+  private sumProductQuantities(cart: CartForOrder) {
+    const totals = new Map<string, number>();
+    for (const item of cart.items) {
+      totals.set(item.productId, (totals.get(item.productId) ?? 0) + item.quantity);
+    }
+    return totals;
+  }
+
+  private async invalidateInventoryProductCaches(products: Array<{ id: string; slug: string }>) {
+    const unique = new Map(products.map((product) => [product.id, product]));
+    await Promise.all(
+      [...unique.values()].map((product) =>
+        this.productsService.invalidatePublicationCaches(product.id, product.slug)
+      )
+    );
   }
 
   private requireSessionId(identity: OrderIdentity) {
     if (!identity.sessionId?.trim()) {
-      throw new BadRequestException('Session id is required for guest checkout.');
+      throw new BadRequestException("Session id is required for guest checkout.");
     }
 
     return identity.sessionId;
@@ -464,7 +580,7 @@ export class OrdersService {
   private async findOneForAccess({
     id,
     userId,
-    isAdmin,
+    isAdmin
   }: {
     id: string;
     userId: string | null;
@@ -473,13 +589,13 @@ export class OrdersService {
     const order = await this.prisma.order.findFirst({
       where: {
         id,
-        ...(isAdmin ? {} : { userId }),
+        ...(isAdmin ? {} : { userId })
       },
-      include: orderInclude,
+      include: orderInclude
     });
 
     if (!order) {
-      throw new NotFoundException('Order not found.');
+      throw new NotFoundException("Order not found.");
     }
 
     return this.serializeOrder(order);
@@ -491,29 +607,27 @@ export class OrdersService {
     }
 
     if (!userId) {
-      throw new BadRequestException('Guests cannot use saved addresses.');
+      throw new BadRequestException("Guests cannot use saved addresses.");
     }
 
     const address = await this.prisma.address.findFirst({
       where: {
         id: addressId,
-        userId,
+        userId
       },
       select: {
-        id: true,
-      },
+        id: true
+      }
     });
 
     if (!address) {
-      throw new NotFoundException('Address not found.');
+      throw new NotFoundException("Address not found.");
     }
 
     return address;
   }
 
-  private serializeOrder(
-    order: OrderWithRelations,
-  ) {
+  private serializeOrder(order: OrderWithRelations) {
     const latestPayment = order.paymentTransactions[0] ?? null;
     const latestReceipt = latestPayment?.receipts[0] ?? null;
     const statusHistory = order.statusHistory.length
@@ -530,10 +644,10 @@ export class OrdersService {
               ? {
                   id: order.user.id,
                   name: order.user.name,
-                  role: order.user.role,
+                  role: order.user.role
                 }
-              : null,
-          },
+              : null
+          }
         ];
 
     return {
@@ -552,20 +666,23 @@ export class OrdersService {
       orderPaymentMethod: order.paymentMethod,
       paymentTransactionId: latestPayment?.id ?? null,
       paymentMethodCode:
-        order.paymentMethod ?? latestPayment?.paymentMethodCode ?? latestPayment?.paymentMethod.code ?? null,
+        order.paymentMethod ??
+        latestPayment?.paymentMethodCode ??
+        latestPayment?.paymentMethod.code ??
+        null,
       paymentMethod:
         order.paymentMethod === PaymentMethodCode.COD
-          ? 'Cash on Delivery'
+          ? "Cash on Delivery"
           : order.paymentMethod === PaymentMethodCode.BANK_TRANSFER
-            ? 'Bank Transfer'
-            : latestPayment?.paymentMethod.name ?? null,
+            ? "Bank Transfer"
+            : (latestPayment?.paymentMethod.name ?? null),
       paymentStatus: order.paymentStatus ?? latestPayment?.status ?? null,
       paymentReceipt: latestReceipt
         ? {
             id: latestReceipt.id,
             fileUrl: latestReceipt.fileUrl,
             reviewStatus: latestReceipt.reviewStatus,
-            createdAt: latestReceipt.createdAt,
+            createdAt: latestReceipt.createdAt
           }
         : null,
       createdAt: order.createdAt,
@@ -576,9 +693,9 @@ export class OrdersService {
         status: entry.status,
         note: entry.note,
         createdAt: entry.createdAt,
-        changedByUser: entry.changedByUser,
+        changedByUser: entry.changedByUser
       })),
-      items: order.items.map((item: OrderWithRelations['items'][number]) => ({
+      items: order.items.map((item: OrderWithRelations["items"][number]) => ({
         id: item.id,
         productId: item.productId,
         variantId: item.variantId ?? null,
@@ -591,20 +708,20 @@ export class OrdersService {
           id: item.product.id,
           name: item.productName || item.product.name,
           slug: item.product.slug,
-          imageUrl: item.product.images[0]?.imageUrl ?? null,
-        },
-      })),
+          imageUrl: item.product.images[0]?.imageUrl ?? null
+        }
+      }))
     };
   }
 
   private async getMinimumOrderAmount() {
     const setting = await this.prisma.systemSetting.findUnique({
       where: {
-        key: 'min_order',
+        key: "min_order"
       },
       select: {
-        value: true,
-      },
+        value: true
+      }
     });
 
     const value = Number(setting?.value || 0);
@@ -617,25 +734,25 @@ export class OrdersService {
     if (userId) {
       const user = await this.prisma.user.findUnique({
         where: { id: userId },
-        select: { customerCode: true },
+        select: { customerCode: true }
       });
       customerCode = user?.customerCode ?? null;
     }
 
-    const code = customerCode ?? 'GUEST';
+    const code = customerCode ?? "GUEST";
 
     const count = await this.prisma.order.count({
-      where: userId ? { userId } : {},
+      where: userId ? { userId } : {}
     });
 
-    const seq = String(count + 1).padStart(4, '0');
+    const seq = String(count + 1).padStart(4, "0");
     return `ORD-${code}-${seq}`;
   }
 
   private async findManyWithQuery(baseWhere: Record<string, unknown>, query: FindOrdersQueryDto) {
     const where = {
       ...baseWhere,
-      ...this.buildSearchWhere(query.q),
+      ...this.buildSearchWhere(query.q)
     };
 
     if (!this.shouldPaginate(query)) {
@@ -643,8 +760,8 @@ export class OrdersService {
         where,
         include: orderInclude,
         orderBy: {
-          createdAt: 'desc',
-        },
+          createdAt: "desc"
+        }
       });
 
       return orders.map((order: OrderWithRelations) => this.serializeOrder(order));
@@ -657,12 +774,12 @@ export class OrdersService {
         where,
         include: orderInclude,
         orderBy: {
-          createdAt: 'desc',
+          createdAt: "desc"
         },
         skip: (page - 1) * limit,
-        take: limit,
+        take: limit
       }),
-      this.prisma.order.count({ where }),
+      this.prisma.order.count({ where })
     ]);
 
     return {
@@ -671,8 +788,8 @@ export class OrdersService {
         page,
         limit,
         total,
-        totalPages: Math.max(1, Math.ceil(total / limit)),
-      },
+        totalPages: Math.max(1, Math.ceil(total / limit))
+      }
     };
   }
 
@@ -688,39 +805,39 @@ export class OrdersService {
     }
 
     const normalizedStatus = ORDER_STATUS_VALUES.find(
-      status => status.toLowerCase() === normalizedQuery.toLowerCase(),
+      (status) => status.toLowerCase() === normalizedQuery.toLowerCase()
     );
 
     const orConditions: Array<Record<string, unknown>> = [
       {
         fullName: {
           contains: normalizedQuery,
-          mode: 'insensitive' as const,
-        },
+          mode: "insensitive" as const
+        }
       },
       {
         phone: {
           contains: normalizedQuery,
-          mode: 'insensitive' as const,
-        },
+          mode: "insensitive" as const
+        }
       },
       {
         city: {
           contains: normalizedQuery,
-          mode: 'insensitive' as const,
-        },
+          mode: "insensitive" as const
+        }
       },
       {
         address: {
           contains: normalizedQuery,
-          mode: 'insensitive' as const,
-        },
-      },
+          mode: "insensitive" as const
+        }
+      }
     ];
 
     if (isUuidLike(normalizedQuery)) {
       orConditions.unshift({
-        id: normalizedQuery,
+        id: normalizedQuery
       });
     }
 
@@ -729,7 +846,7 @@ export class OrdersService {
     }
 
     return {
-      OR: orConditions,
+      OR: orConditions
     };
   }
 }
