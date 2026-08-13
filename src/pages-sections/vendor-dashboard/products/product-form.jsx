@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm, useWatch } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
@@ -24,6 +24,7 @@ import Add from "@mui/icons-material/Add";
 import Delete from "@mui/icons-material/Delete";
 
 import ProductMediaSection from "components/admin/media/ProductMediaSection";
+import { ProductSourceReview, ReviewReadinessPanel, ReviewSectionHeading } from "./product-review-mode";
 import { FormProvider, TextField } from "components/form-hook";
 import useSettings from "hooks/useSettings";
 import { buildPricingSettings, computeStorefrontPrice, formatPrice } from "utils/pricing";
@@ -35,6 +36,7 @@ import {
   deleteAdminProductImage,
   fetchAdminCategories,
   fetchAdminProductBySlug,
+  fetchNextAdminProductReview,
   updateAdminProduct
 } from "utils/admin-catalog";
 import { attachProductMedia, listProductMedia, reorderProductMedia } from "utils/admin-media";
@@ -83,6 +85,8 @@ export default function ProductForm(props) {
     slug
   } = props;
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isReviewMode = searchParams.get("from") === "review" && Boolean(slug);
   const { settings } = useSettings();
   const [categories, setCategories] = useState([]);
   const [brands, setBrands] = useState([]);
@@ -90,6 +94,30 @@ export default function ProductForm(props) {
   const [isLoading, setIsLoading] = useState(true);
   const [pageError, setPageError] = useState("");
   const [productMedia, setProductMedia] = useState([]);
+  const [saveIntent, setSaveIntent] = useState("save");
+  const [reviewMessage, setReviewMessage] = useState("");
+
+  const reviewFilters = useMemo(() => {
+    const result = {};
+    ["q", "status", "origin", "sourceSystem", "readiness", "issue", "categoryId", "brandId", "sort"].forEach(key => {
+      const value = searchParams.get(key);
+      if (value) result[key] = value;
+    });
+    return result;
+  }, [searchParams]);
+
+  const reviewQueueHref = useMemo(() => {
+    const params = new URLSearchParams();
+    Object.entries(reviewFilters).forEach(([key, value]) => params.set(key, value));
+    const query = params.toString();
+    return query ? `/admin/products/review?${query}` : "/admin/products/review";
+  }, [reviewFilters]);
+
+  const focusReviewSection = useCallback(sectionId => {
+    const target = document.getElementById(sectionId);
+    target?.scrollIntoView({ behavior: "smooth", block: "start" });
+    target?.focus({ preventScroll: true });
+  }, []);
 
   // ── Highlights state ──────────────────────────────────────────────────────
   const [highlights, setHighlights] = useState([]); // string[]
@@ -261,8 +289,17 @@ export default function ProductForm(props) {
     return listProductMedia(productId);
   };
 
+  const refreshReviewDetail = useCallback(async () => {
+    if (!isReviewMode || !product?.id) return null;
+    const refreshed = await fetchAdminProductBySlug(product.id);
+    setProduct(refreshed);
+    setProductMedia(Array.isArray(refreshed?.gallery) ? refreshed.gallery : []);
+    return refreshed;
+  }, [isReviewMode, product?.id]);
+
 // FORM SUBMIT HANDLER
-  const handleSubmitForm = handleSubmit(async values => {
+  const handleSubmitForm = handleSubmit(async (values, event) => {
+    const requestedIntent = event?.nativeEvent?.submitter?.value || saveIntent;
     const payload = {
       categoryId: values.categoryId,
       name: values.name.trim(),
@@ -298,6 +335,7 @@ export default function ProductForm(props) {
     };
 
     setPageError("");
+    setReviewMessage("");
 
     try {
       let savedProduct;
@@ -321,6 +359,28 @@ export default function ProductForm(props) {
         }
       }
 
+      if (isReviewMode) {
+        const refreshed = await fetchAdminProductBySlug(productId);
+        setProduct(refreshed);
+        setProductMedia(Array.isArray(refreshed?.gallery) ? refreshed.gallery : []);
+        reset({ ...values, sku: refreshed?.sku || values.sku || "" });
+
+        if (requestedIntent === "next") {
+          const next = await fetchNextAdminProductReview(productId, reviewFilters);
+          if (next?.slug) {
+            const params = new URLSearchParams();
+            Object.entries(reviewFilters).forEach(([key, value]) => params.set(key, value));
+            params.set("from", "review");
+            router.push(`/admin/products/${next.slug}?${params.toString()}`);
+          } else {
+            setReviewMessage("تم حفظ المنتج. وصلت إلى نهاية المنتجات المطابقة لسياق المراجعة الحالي.");
+          }
+        } else {
+          setReviewMessage("تم حفظ المنتج وتحديث حالة الجاهزية.");
+        }
+        return;
+      }
+
       router.replace(`/admin/products?updated=${Date.now()}`);
       router.refresh();
     } catch (error) {
@@ -338,18 +398,23 @@ export default function ProductForm(props) {
       </Card>;
   }
 
-  return <Card className="p-3">
+  return <>
+    {isReviewMode && product ? <ReviewReadinessPanel product={product} onIssueClick={focusReviewSection} onReturn={() => router.push(reviewQueueHref)} /> : null}
+    <Card className="p-3" dir={isReviewMode ? "rtl" : undefined}>
       <FormProvider methods={methods} onSubmit={handleSubmitForm}>
         <Grid container spacing={3}>
           {pageError ? <Grid size={12}>
               <Alert severity="error">{pageError}</Alert>
             </Grid> : null}
+          {reviewMessage ? <Grid size={12}><Alert severity="success" onClose={() => setReviewMessage("")}>{reviewMessage}</Alert></Grid> : null}
+
+          {isReviewMode ? <ReviewSectionHeading id="review-basic" title="البيانات الأساسية" description="اسم المنتج، الرابط، الحالة ورمز المتجر الداخلي." /> : null}
 
           <Grid size={{
           sm: 6,
           xs: 12
         }}>
-            <TextField fullWidth name="name" label="Name" color="info" size="medium" placeholder="Name" />
+            <TextField fullWidth name="name" label={isReviewMode ? "اسم المنتج" : "Name"} color="info" size="medium" placeholder="Name" />
           </Grid>
 
           <Grid size={{
@@ -358,6 +423,8 @@ export default function ProductForm(props) {
         }}>
             <TextField fullWidth name="slug" label="Slug" color="info" size="medium" placeholder="product-slug" helperText="Optional. Leave blank on create to generate automatically." />
           </Grid>
+
+          {isReviewMode ? <ReviewSectionHeading id="review-classification" title="التصنيف والعلامة" description="اربط المنتج بالفئة والعلامة التجارية الصحيحتين، وراجع رمز المتجر الداخلي." /> : null}
 
           <Grid size={{
           sm: 6,
@@ -378,6 +445,8 @@ export default function ProductForm(props) {
             </TextField>
           </Grid>
 
+          {isReviewMode ? <ReviewSectionHeading id="review-content" title="المحتوى التجاري" description="راجع الوصف، المزايا، الضمان وملف المواصفات." /> : null}
+
           <Grid size={12}>
             <TextField fullWidth name="shortDescription" color="info" size="medium" label="Short Description" placeholder="Short Description" />
           </Grid>
@@ -385,6 +454,8 @@ export default function ProductForm(props) {
           <Grid size={12}>
             <TextField rows={6} multiline fullWidth color="info" size="medium" name="description" label="Description" placeholder="Description" />
           </Grid>
+
+          {isReviewMode ? <ReviewSectionHeading id="review-pricing" title="السعر والمخزون" description="راجع السعر الأساسي، عملة الشراء، سعر الصرف والخصم." /> : null}
 
           <Grid size={{
           sm: 6,
@@ -515,7 +586,7 @@ export default function ProductForm(props) {
           sm: 6,
           xs: 12
         }}>
-            <TextField fullWidth name="sku" color="info" size="medium" label="SKU" placeholder="e.g. PROD-001" helperText="Optional. Must be unique across all products." />
+            <TextField fullWidth name="sku" color="info" size="medium" label={isReviewMode ? "رمز المنتج الداخلي (SKU)" : "SKU"} placeholder="AB-000001" helperText={isReviewMode ? "معرّف داخلي ثابت للمتجر، وهو مستقل عن رقم Rakiza والباركود." : "Optional. Must be unique across all products."} />
           </Grid>
 
           <Grid size={{
@@ -572,6 +643,8 @@ export default function ProductForm(props) {
             <Divider />
           </Grid>
 
+          {isReviewMode ? <ReviewSectionHeading id="review-specs" title="المواصفات الفنية" description="أضف الخصائص التي تساعد العميل على المقارنة واتخاذ القرار." /> : null}
+
           {/* ── Specifications ── */}
           <Grid size={12}>
             <Typography variant="h6" sx={{ mb: 1 }}>Specifications</Typography>
@@ -612,22 +685,28 @@ export default function ProductForm(props) {
             </Stack>
           </Grid>
 
+          {isReviewMode ? <ReviewSectionHeading id="review-media" title="الصور والمعرض" description="راجع الصورة الأساسية والترتيب وجودة الصور." /> : null}
+
           <Grid size={12}>
-            <ProductMediaSection productId={product?.id || null} items={productMedia} onChange={setProductMedia} onRemoveLegacy={removeLegacyImage} />
+            <ProductMediaSection productId={product?.id || null} items={productMedia} onChange={setProductMedia} onRemoveLegacy={removeLegacyImage} onMutationComplete={refreshReviewDetail} />
           </Grid>
 
+          {isReviewMode ? <ProductSourceReview product={product} /> : null}
+
           <Grid size={12}>
-            <Button variant="outlined" color="inherit" onClick={() => router.push("/admin/products")} sx={{
+            <Button variant="outlined" color="inherit" onClick={() => router.push(isReviewMode ? reviewQueueHref : "/admin/products")} sx={{
             mr: 2
           }}>
-              Cancel
+              {isReviewMode ? "العودة للطابور" : "Cancel"}
             </Button>
 
-            <Button loading={isSubmitting} variant="contained" color="info" type="submit">
-              {product?.id ? "Update product" : "Save product"}
+            <Button loading={isSubmitting && saveIntent === "save"} variant="contained" color="info" type="submit" name="reviewAction" value="save" onClick={() => setSaveIntent("save")}>
+              {isReviewMode ? "حفظ التغييرات" : product?.id ? "Update product" : "Save product"}
             </Button>
+            {isReviewMode ? <Button loading={isSubmitting && saveIntent === "next"} disabled={isSubmitting} variant="contained" color="success" type="submit" name="reviewAction" value="next" onClick={() => setSaveIntent("next")} sx={{ mr: 1 }}>حفظ والتالي</Button> : null}
           </Grid>
         </Grid>
       </FormProvider>
-    </Card>;
+    </Card>
+  </>;
 }

@@ -139,6 +139,13 @@ function EmptyState({ hasFilters }) {
     </Stack>;
 }
 
+function reviewHref(product, searchParams) {
+  const next = new URLSearchParams(searchParams.toString());
+  next.set("from", "review");
+  next.delete("page");
+  return `/admin/products/${product.slug}?${next.toString()}`;
+}
+
 export default function ProductReviewQueuePageView() {
   return <Suspense fallback={<Stack alignItems="center" py={8}><CircularProgress /></Stack>}><ReviewQueueContent /></Suspense>;
 }
@@ -280,7 +287,7 @@ function ReviewQueueContent() {
                 <TableCell sx={{ minWidth: 155 }}><Readiness product={product} /></TableCell>
                 <TableCell sx={{ minWidth: 235 }}><IssueChips product={product} /></TableCell>
                 <TableCell sx={{ whiteSpace: "nowrap" }}>{formatDate(product.updatedAt)}</TableCell>
-                <TableCell><Button component={Link} href={`/admin/products/${product.slug}?from=review`} size="small" variant="outlined">مراجعة</Button></TableCell>
+                <TableCell><Button component={Link} href={reviewHref(product, searchParams)} size="small" variant="outlined">مراجعة</Button></TableCell>
               </TableRow>)}</TableBody>
             </Table>
           </TableContainer>
@@ -294,7 +301,7 @@ function ReviewQueueContent() {
                 <Typography variant="body2"><b>الفئة:</b> {product.category?.name || "غير مصنف"}</Typography>
                 <Readiness product={product} />
                 <IssueChips product={product} />
-                <Stack direction="row" justifyContent="space-between" alignItems="center"><Typography variant="caption" color="text.secondary">آخر تحديث: {formatDate(product.updatedAt)}</Typography><Button component={Link} href={`/admin/products/${product.slug}?from=review`} size="small" variant="contained">مراجعة</Button></Stack>
+                <Stack direction="row" justifyContent="space-between" alignItems="center"><Typography variant="caption" color="text.secondary">آخر تحديث: {formatDate(product.updatedAt)}</Typography><Button component={Link} href={reviewHref(product, searchParams)} size="small" variant="contained">مراجعة</Button></Stack>
               </Stack>
             </Paper>)}
           </Stack>

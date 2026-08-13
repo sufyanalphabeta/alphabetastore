@@ -59,4 +59,25 @@ describe('AdminProductReviewService', () => {
       missingSpecs: 329, invalidPrice: 0, invalidCategory: 0,
     });
   });
+
+  it('returns the next matching product deterministically and skips the current product', async () => {
+    const prisma = { product: { findMany: jest.fn().mockResolvedValue([
+      { id: 'p1', slug: 'current-product' },
+      { id: 'p2', slug: 'next-product' },
+    ]) } };
+    const service = new AdminProductReviewService(prisma as never, new ProductReadinessService());
+    await expect(service.next('p1', { origin: 'IMPORTED', issue: 'MISSING_IMAGE', sort: 'name' })).resolves.toEqual({
+      item: { id: 'p2', slug: 'next-product' },
+    });
+    expect(prisma.product.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { AND: expect.any(Array) },
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+    }));
+  });
+
+  it('returns null when no other product matches the preserved review context', async () => {
+    const prisma = { product: { findMany: jest.fn().mockResolvedValue([{ id: 'p1', slug: 'current-product' }]) } };
+    const service = new AdminProductReviewService(prisma as never, new ProductReadinessService());
+    await expect(service.next('p1', { readiness: 'READY' })).resolves.toEqual({ item: null });
+  });
 });

@@ -264,3 +264,8 @@ export async function fetchAdminProductReview(filters = {}) {
 export function fetchAdminProductReviewSummary() {
   return apiGet("/admin/products/review/summary");
 }
+
+export async function fetchNextAdminProductReview(currentProductId, filters = {}) {
+  const data = await apiGet(`/admin/products/review/next/${encodeURIComponent(currentProductId)}${buildProductReviewQuery(filters)}`);
+  return data?.item || null;
+}

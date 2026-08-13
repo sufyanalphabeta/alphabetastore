@@ -52,7 +52,7 @@ function localItem(asset, index) {
   };
 }
 
-export default function ProductMediaSection({ productId, items, onChange, onRemoveLegacy }) {
+export default function ProductMediaSection({ productId, items, onChange, onRemoveLegacy, onMutationComplete }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState(null);
@@ -72,6 +72,7 @@ export default function ProductMediaSection({ productId, items, onChange, onRemo
     setMessage(null);
     try {
       await operation();
+      await onMutationComplete?.();
     } catch (error) {
       setMessage({ severity: "error", text: readableError(error) });
       try { await refresh(); } catch { /* keep the actionable error and current state */ }

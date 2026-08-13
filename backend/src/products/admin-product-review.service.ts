@@ -143,6 +143,15 @@ export class AdminProductReviewService {
     };
   }
 
+  async next(currentProductId: string, query: AdminProductReviewQueryDto) {
+    const products = await this.prisma.product.findMany({
+      where: this.buildWhere(query),
+      select: { id: true, slug: true },
+      orderBy: [this.buildOrderBy(query.sort), { id: 'asc' }],
+    });
+    return { item: products.find((product) => product.id !== currentProductId) ?? null };
+  }
+
   private buildWhere(query: AdminProductReviewQueryDto): Prisma.ProductWhereInput {
     const and: Prisma.ProductWhereInput[] = [];
     if (query.status) and.push({ status: query.status });

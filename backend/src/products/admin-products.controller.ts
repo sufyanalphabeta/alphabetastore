@@ -28,6 +28,11 @@ export class AdminProductsController {
     return this.reviewService.list(query);
   }
 
+  @Get('review/next/:currentProductId')
+  nextReviewItem(@Param('currentProductId') currentProductId: string, @Query() query: AdminProductReviewQueryDto) {
+    return this.reviewService.next(currentProductId, query);
+  }
+
   @Get()
   findAll(@Query() query: AdminFindProductsQueryDto) {
     return this.productsService.findAllAdmin(query);

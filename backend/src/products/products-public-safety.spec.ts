@@ -21,7 +21,8 @@ function serviceWith(prismaOverrides: Record<string, unknown> = {}) {
   const cache = { get: jest.fn().mockResolvedValue(undefined), set: jest.fn(), del: jest.fn() };
   const pricing = { getPricingSettings: jest.fn(), computePrice: jest.fn() };
   const sku = { resolve: jest.fn().mockResolvedValue('AB-000001') };
-  return { service: new ProductsService(prisma as never, {} as never, pricing as never, cache as never, sku as never), prisma, cache };
+  const readiness = { evaluate: jest.fn() };
+  return { service: new ProductsService(prisma as never, {} as never, pricing as never, cache as never, sku as never, readiness as never), prisma, cache, readiness };
 }
 
 describe('ProductsService public safety', () => {
@@ -67,6 +68,27 @@ describe('ProductsService public safety', () => {
 
     const inactiveSetup = serviceWith({ findUnique: jest.fn().mockResolvedValue(null) });
     await expect(inactiveSetup.service.findOneBySlug('inactive')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('returns source snapshots and readiness only from the ADMIN detail contract', async () => {
+    const imported = {
+      id: 'p1', slug: 'imported', status: 'INACTIVE', name: 'Store name', price: 120,
+      images: [], media: [], category: { id: 'c1', name: 'Laptops' }, brandRef: null,
+      sourceRelations: [], sourceIdentities: [{ sourceSystem: 'RAKIZA', externalId: '5500029', sourceBarcode: '*5500029*', lastImportedName: 'Source name', lastImportedPrice: 100 }],
+    };
+    const setup = serviceWith({ findUnique: jest.fn().mockResolvedValue(imported) });
+    setup.readiness.evaluate.mockReturnValue({ readyToPublish: false, blockers: ['MISSING_IMAGE'], warnings: [] });
+
+    const result = await setup.service.findOneAdmin('imported');
+    expect(result).toMatchObject({
+      origin: 'IMPORTED',
+      source: { sourceSystem: 'RAKIZA', externalId: '5500029', sourceBarcode: '*5500029*' },
+      readiness: { readyToPublish: false, blockers: ['MISSING_IMAGE'] },
+    });
+    expect(result).not.toHaveProperty('sourceIdentities');
+    expect(setup.prisma.product.findUnique).toHaveBeenCalledWith(expect.objectContaining({
+      include: expect.objectContaining({ sourceIdentities: expect.any(Object) }),
+    }));
   });
 
   it('filters public by-ids and category counts to ACTIVE', async () => {

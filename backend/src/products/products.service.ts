@@ -18,6 +18,7 @@ import { FindProductsQueryDto } from './dto/find-products-query.dto';
 import { AdminFindProductsQueryDto } from './dto/admin-find-products-query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductSkuService } from './product-sku.service';
+import { ProductReadinessService } from './product-readiness.service';
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -86,6 +87,29 @@ const productInclude = {
       },
     },
     orderBy: { sortOrder: 'asc' as const },
+  },
+} satisfies Prisma.ProductInclude;
+
+const adminProductInclude = {
+  ...productInclude,
+  media: {
+    orderBy: { sortOrder: 'asc' as const },
+    include: {
+      mediaAsset: { select: { altText: true, variants: true, processingStatus: true, originalWidth: true, originalHeight: true } },
+    },
+  },
+  sourceIdentities: {
+    orderBy: { lastImportedAt: 'desc' as const },
+    select: {
+      sourceSystem: true,
+      externalId: true,
+      sourceBarcode: true,
+      lastImportedName: true,
+      lastImportedPrice: true,
+      lastImportedSourceCategory: true,
+      lastImportedCategoryId: true,
+      lastImportedAt: true,
+    },
   },
 } satisfies Prisma.ProductInclude;
 
@@ -167,6 +191,7 @@ export class ProductsService {
     private readonly pricingService: PricingService,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
     private readonly productSkuService: ProductSkuService,
+    private readonly productReadinessService: ProductReadinessService,
   ) {}
 
   async findAll(query: FindProductsQueryDto = {}) {
@@ -477,12 +502,22 @@ export class ProductsService {
     const product = UUID_PATTERN.test(slugOrId)
       ? await this.prisma.product.findFirst({
           where: { OR: [{ id: slugOrId }, { slug: slugOrId }] },
-          include: productInclude,
+          include: adminProductInclude,
         })
-      : await this.prisma.product.findUnique({ where: { slug: slugOrId }, include: productInclude });
+      : await this.prisma.product.findUnique({ where: { slug: slugOrId }, include: adminProductInclude });
 
     if (!product) throw new NotFoundException('Product not found.');
-    return normalizeProductGallery(product);
+    const readiness = this.productReadinessService.evaluate(product);
+    const { sourceIdentities: _sourceIdentities, ...normalized } = normalizeProductGallery(product);
+    const sources = product.sourceIdentities.map((source) => ({ ...source }));
+    return {
+      ...normalized,
+      readiness,
+      origin: sources.length ? 'IMPORTED' : 'MANUAL',
+      sourceSystems: [...new Set(sources.map((source) => source.sourceSystem))],
+      source: sources[0] ?? null,
+      sources,
+    };
   }
 
   async create(createProductDto: CreateProductDto) {
