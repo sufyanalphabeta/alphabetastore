@@ -15,6 +15,7 @@ import { ValidationMatchingService, ClassifiedCatalogRow } from './matching';
 import { PrismaService } from '../prisma/prisma.service';
 import { CategoriesService } from '../categories/categories.service';
 import { ParsedCsvRow } from './parsing/csv.types';
+import { ProductSkuService } from '../products/product-sku.service';
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
 const SAFE_RAKIZA_CATEGORY_MAP: Record<string, string> = {
@@ -53,6 +54,7 @@ export class CatalogImportService {
     private readonly prisma: PrismaService,
     private readonly matchingService: ValidationMatchingService,
     private readonly categoriesService: CategoriesService,
+    private readonly productSkuService: ProductSkuService,
   ) {}
 
   async createPreview(file: Express.Multer.File, userId: string) {
@@ -176,7 +178,8 @@ export class CatalogImportService {
         // non-marketing fallback so the inactive product can be enriched later.
         const descriptionOrigin = row.sourceDescription?.trim() ? 'SOURCE_DESCRIPTION' : 'SOURCE_NAME_FALLBACK';
         const description = (row.sourceDescription?.trim() || name).slice(0, 10000);
-        const product = await tx.product.create({ data: { categoryId: category.id, name: name.slice(0, 160), slug, description, shortDescription: description.slice(0, 255), price: new Decimal(price), baseCurrency: 'LYD', stockQty: 0, status: 'INACTIVE', brandId: brand?.id ?? null } });
+        const sku = await this.productSkuService.resolve(undefined, tx);
+        const product = await tx.product.create({ data: { categoryId: category.id, name: name.slice(0, 160), slug, description, shortDescription: description.slice(0, 255), price: new Decimal(price), baseCurrency: 'LYD', stockQty: 0, status: 'INACTIVE', brandId: brand?.id ?? null, sku } });
         await tx.productSourceIdentity.create({ data: { productId: product.id, sourceSystem: profile.sourceSystem, externalId: externalId.slice(0, 160), sourceBarcode: row.sourceBarcode?.slice(0, 120) ?? null, lastImportedPrice: new Decimal(price), lastImportedName: name.slice(0, 160), lastImportedSourceCategory: row.sourceCategory?.slice(0, 160) ?? null, lastImportedCategoryId: categoryId, lastImportedAt: appliedAt } });
         await tx.catalogImportRow.update({ where: { id: rowId }, data: { matchedProductId: product.id, status: CatalogImportRowStatus.APPLIED, appliedAt, applyResult: json({ action: 'PRODUCT_CREATED', productId: product.id, stockQty: 0, descriptionOrigin }) } });
         return { status: 'APPLIED' as const };

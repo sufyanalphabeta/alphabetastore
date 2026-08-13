@@ -20,7 +20,8 @@ function serviceWith(prismaOverrides: Record<string, unknown> = {}) {
   };
   const cache = { get: jest.fn().mockResolvedValue(undefined), set: jest.fn(), del: jest.fn() };
   const pricing = { getPricingSettings: jest.fn(), computePrice: jest.fn() };
-  return { service: new ProductsService(prisma as never, {} as never, pricing as never, cache as never), prisma, cache };
+  const sku = { resolve: jest.fn().mockResolvedValue('AB-000001') };
+  return { service: new ProductsService(prisma as never, {} as never, pricing as never, cache as never, sku as never), prisma, cache };
 }
 
 describe('ProductsService public safety', () => {

@@ -50,6 +50,11 @@ describe('ProductReadinessService', () => {
     expect(result.blockers).toContain('MISSING_IMAGE');
   });
 
+  it('does not emit MISSING_SKU after an internal SKU is assigned', () => {
+    const result = service.evaluate({ ...readyProduct(), sku: 'AB-000001' });
+    expect(result.warnings).not.toContain('MISSING_SKU');
+  });
+
   it('emits supported quality warnings without blocking publication', () => {
     const result = service.evaluate({
       ...readyProduct(),

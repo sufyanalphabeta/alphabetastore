@@ -17,6 +17,7 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { FindProductsQueryDto } from './dto/find-products-query.dto';
 import { AdminFindProductsQueryDto } from './dto/admin-find-products-query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { ProductSkuService } from './product-sku.service';
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -165,6 +166,7 @@ export class ProductsService {
     private readonly storageService: StorageService,
     private readonly pricingService: PricingService,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
+    private readonly productSkuService: ProductSkuService,
   ) {}
 
   async findAll(query: FindProductsQueryDto = {}) {
@@ -487,6 +489,7 @@ export class ProductsService {
     await this.ensureCategoryExists(createProductDto.categoryId);
 
     const slug = this.createSlug(createProductDto.slug ?? createProductDto.name);
+    const sku = await this.productSkuService.resolve(createProductDto.sku);
 
     try {
       const product = await this.prisma.product.create({
@@ -512,7 +515,7 @@ export class ProductsService {
           status: createProductDto.status ?? ProductStatus.ACTIVE,
           brand: createProductDto.brand,
           brandId: createProductDto.brandId,
-          sku: createProductDto.sku,
+          sku,
           warrantyText: createProductDto.warrantyText,
           datasheetUrl: createProductDto.datasheetUrl,
           specs: createProductDto.specs as any,
@@ -534,7 +537,7 @@ export class ProductsService {
 
       return normalizeProductGallery(product);
     } catch (error) {
-      this.handleUniqueConstraint(error, 'Product slug already exists.');
+      this.handleProductUniqueConstraint(error);
       throw error;
     }
   }
@@ -578,7 +581,7 @@ export class ProductsService {
           status: updateProductDto.status,
           brand: updateProductDto.brand,
           brandId: updateProductDto.brandId,
-          sku: updateProductDto.sku,
+          sku: updateProductDto.sku?.trim() || undefined,
           warrantyText: updateProductDto.warrantyText,
           datasheetUrl: updateProductDto.datasheetUrl,
           specs: updateProductDto.specs as any,
@@ -627,7 +630,7 @@ export class ProductsService {
 
       return normalizeProductGallery(product);
     } catch (error) {
-      this.handleUniqueConstraint(error, 'Product slug already exists.');
+      this.handleProductUniqueConstraint(error);
       throw error;
     }
   }
@@ -819,6 +822,15 @@ export class ProductsService {
       error.code === 'P2002'
     ) {
       throw new ConflictException(message);
+    }
+  }
+
+  private handleProductUniqueConstraint(error: unknown) {
+    if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002') {
+      const target = 'meta' in error && error.meta && typeof error.meta === 'object' && 'target' in error.meta
+        ? String(error.meta.target)
+        : '';
+      throw new ConflictException(target.includes('sku') ? 'Product SKU already exists.' : 'Product slug already exists.');
     }
   }
 
