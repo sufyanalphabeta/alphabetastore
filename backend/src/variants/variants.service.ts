@@ -14,7 +14,8 @@ export class VariantsService {
   // ── Public ──────────────────────────────────────────────────────────────────
 
   async findProductVariants(productId: string) {
-    await this.ensureProductExists(productId);
+    const product = await this.prisma.product.findFirst({ where: { id: productId, status: 'ACTIVE' }, select: { id: true } });
+    if (!product) throw new NotFoundException('Product not found.');
     return this.prisma.productVariant.findMany({
       where: { productId },
       orderBy: [{ isDefault: 'desc' }, { sortOrder: 'asc' }],

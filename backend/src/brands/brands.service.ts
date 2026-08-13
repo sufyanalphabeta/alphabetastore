@@ -46,7 +46,7 @@ export class BrandsService {
     const counts = await this.prisma.product.groupBy({
       by: ['brandId'],
       _count: { _all: true },
-      where: { brandId: { in: brands.map((b) => b.id) } },
+      where: { brandId: { in: brands.map((b) => b.id) }, status: 'ACTIVE' },
     });
     const countMap = new Map(counts.map((c) => [c.brandId, c._count._all]));
 

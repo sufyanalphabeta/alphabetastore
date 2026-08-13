@@ -86,7 +86,7 @@ function buildAdminProductsQuery(filters = {}) {
 }
 
 export async function fetchAdminProducts(filters = {}) {
-  const data = await apiGet(`/products${buildAdminProductsQuery(filters)}`);
+  const data = await apiGet(`/admin/products${buildAdminProductsQuery(filters)}`);
 
   if (Array.isArray(data)) {
     return {
@@ -112,7 +112,7 @@ export async function fetchAdminProducts(filters = {}) {
 }
 
 export async function fetchAdminProductBySlug(slug) {
-  const data = await apiGet(`/products/${encodeURIComponent(slug)}`);
+  const data = await apiGet(`/admin/products/${encodeURIComponent(slug)}`);
   return normalizeAdminProduct(data);
 }
 

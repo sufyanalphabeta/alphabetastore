@@ -30,8 +30,10 @@ export class ProductRelationsService {
   // ── Public ──────────────────────────────────────────────────────────────────
 
   async findRelatedGrouped(sourceId: string) {
+    const source = await this.prisma.product.findFirst({ where: { id: sourceId, status: 'ACTIVE' }, select: { id: true } });
+    if (!source) throw new NotFoundException('Product not found.');
     const rows = await this.prisma.productRelation.findMany({
-      where: { sourceId },
+      where: { sourceId, target: { status: 'ACTIVE' } },
       include: { target: { select: targetProductSelect } },
       orderBy: { sortOrder: 'asc' },
     });
@@ -46,7 +48,7 @@ export class ProductRelationsService {
 
   async findByType(sourceId: string, relationType: ProductRelationType) {
     const rows = await this.prisma.productRelation.findMany({
-      where: { sourceId, relationType },
+      where: { sourceId, relationType, source: { status: 'ACTIVE' }, target: { status: 'ACTIVE' } },
       include: { target: { select: targetProductSelect } },
       orderBy: { sortOrder: 'asc' },
     });

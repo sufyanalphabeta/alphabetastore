@@ -5,11 +5,14 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { PricingModule } from '../pricing/pricing.module';
 import { StorageModule } from '../storage/storage.module';
 import { ProductsController } from './products.controller';
+import { AdminProductsController } from './admin-products.controller';
+import { AdminProductReviewService } from './admin-product-review.service';
+import { ProductReadinessService } from './product-readiness.service';
 import { ProductsService } from './products.service';
 
 @Module({
   imports: [CategoriesModule, PricingModule, StorageModule],
-  controllers: [ProductsController],
-  providers: [ProductsService, RolesGuard],
+  controllers: [ProductsController, AdminProductsController],
+  providers: [ProductsService, AdminProductReviewService, ProductReadinessService, RolesGuard],
 })
 export class ProductsModule {}

@@ -11,8 +11,6 @@ import {
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 
-import { ProductStatus } from '../../prisma/prisma-client';
-
 const PRODUCT_SORT_VALUES = ['relevance', 'date', 'newest', 'asc', 'desc'] as const;
 
 export class FindProductsQueryDto {
@@ -61,10 +59,6 @@ export class FindProductsQueryDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   maxPrice?: number;
-
-  @IsOptional()
-  @IsEnum(ProductStatus)
-  status?: (typeof ProductStatus)[keyof typeof ProductStatus];
 
   @IsOptional()
   @IsIn(PRODUCT_SORT_VALUES)

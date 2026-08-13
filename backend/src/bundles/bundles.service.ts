@@ -9,6 +9,7 @@ import { UpdateBundleDto } from './dto/update-bundle.dto';
 
 const bundleInclude = {
   items: {
+    where: { product: { status: 'ACTIVE' as const } },
     orderBy: { sortOrder: 'asc' as const },
     include: {
       product: {
@@ -34,15 +35,15 @@ export class BundlesService {
 
   async findActive() {
     return this.prisma.bundle.findMany({
-      where: { isActive: true },
+      where: { isActive: true, items: { some: { product: { status: 'ACTIVE' } } } },
       include: bundleInclude,
       orderBy: { sortOrder: 'asc' },
     });
   }
 
   async findOne(id: string) {
-    const bundle = await this.prisma.bundle.findUnique({
-      where: { id },
+    const bundle = await this.prisma.bundle.findFirst({
+      where: { id, isActive: true, items: { some: { product: { status: 'ACTIVE' } } } },
       include: bundleInclude,
     });
     if (!bundle) throw new NotFoundException('Bundle not found.');
@@ -50,8 +51,8 @@ export class BundlesService {
   }
 
   async findBySlug(slug: string) {
-    const bundle = await this.prisma.bundle.findUnique({
-      where: { slug },
+    const bundle = await this.prisma.bundle.findFirst({
+      where: { slug, isActive: true, items: { some: { product: { status: 'ACTIVE' } } } },
       include: bundleInclude,
     });
     if (!bundle) throw new NotFoundException('Bundle not found.');

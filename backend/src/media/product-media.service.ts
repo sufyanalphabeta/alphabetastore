@@ -149,7 +149,9 @@ export class ProductMediaService {
       ...listKeys.map((key) => this.cacheManager.del(key)),
       this.cacheManager.del(registryKey),
       this.cacheManager.del(`products:detail:${productId}`),
+      this.cacheManager.del(`products:detail:public:${productId}`),
       ...(product?.slug ? [this.cacheManager.del(`products:detail:${product.slug}`)] : []),
+      ...(product?.slug ? [this.cacheManager.del(`products:detail:public:${product.slug}`)] : []),
     ]);
   }
 

@@ -15,6 +15,7 @@ import { StorageService } from '../storage/local-storage.service';
 import { normalizeProductGallery } from '../media/product-gallery.mapper';
 import { CreateProductDto } from './dto/create-product.dto';
 import { FindProductsQueryDto } from './dto/find-products-query.dto';
+import { AdminFindProductsQueryDto } from './dto/admin-find-products-query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 
 const UUID_PATTERN =
@@ -63,6 +64,7 @@ const productInclude = {
     orderBy: [{ isDefault: 'desc' as const }, { sortOrder: 'asc' as const }],
   },
   sourceRelations: {
+    where: { target: { status: ProductStatus.ACTIVE } },
     include: {
       target: {
         select: {
@@ -166,7 +168,9 @@ export class ProductsService {
   ) {}
 
   async findAll(query: FindProductsQueryDto = {}) {
-    const cacheKey = `${PRODUCT_LIST_CACHE_PREFIX}${JSON.stringify(query)}`;
+    // The public namespace prevents pre-P1A mixed-status cache entries from
+    // being reused after deployment.
+    const cacheKey = `${PRODUCT_LIST_CACHE_PREFIX}public:${JSON.stringify(query)}`;
     const cached = await this.cacheManager.get(cacheKey);
 
     if (cached) {
@@ -180,13 +184,17 @@ export class ProductsService {
     return result;
   }
 
-  private async queryProducts(query: FindProductsQueryDto) {
+  async findAllAdmin(query: AdminFindProductsQueryDto = {}) {
+    return this.queryProducts(query, false);
+  }
+
+  private async queryProducts(query: FindProductsQueryDto | AdminFindProductsQueryDto, publicOnly = true) {
     const searchTerm = query.q?.trim() || query.search?.trim();
     const categoryFilter = query.category?.trim();
     const brandFilter = query.brand?.trim();
-    const whereClauses: Prisma.ProductWhereInput[] = [];
+    const whereClauses: Prisma.ProductWhereInput[] = publicOnly ? [{ status: ProductStatus.ACTIVE }] : [];
 
-    if (query.status) {
+    if (!publicOnly && 'status' in query && query.status) {
       whereClauses.push({
         status: query.status,
       });
@@ -433,7 +441,7 @@ export class ProductsService {
   }
 
   async findOneBySlug(slugOrId: string) {
-    const cacheKey = `${PRODUCT_DETAIL_CACHE_PREFIX}${slugOrId}`;
+    const cacheKey = `${PRODUCT_DETAIL_CACHE_PREFIX}public:${slugOrId}`;
     const cached = await this.cacheManager.get(cacheKey);
 
     if (cached) {
@@ -443,12 +451,13 @@ export class ProductsService {
     const product = UUID_PATTERN.test(slugOrId)
       ? await this.prisma.product.findFirst({
           where: {
+            status: ProductStatus.ACTIVE,
             OR: [{ id: slugOrId }, { slug: slugOrId }],
           },
           include: productInclude,
         })
       : await this.prisma.product.findUnique({
-          where: { slug: slugOrId },
+          where: { slug: slugOrId, status: ProductStatus.ACTIVE },
           include: productInclude,
         });
 
@@ -460,6 +469,18 @@ export class ProductsService {
     await this.cacheManager.set(cacheKey, normalized, PRODUCT_DETAIL_CACHE_TTL_MS);
 
     return normalized;
+  }
+
+  async findOneAdmin(slugOrId: string) {
+    const product = UUID_PATTERN.test(slugOrId)
+      ? await this.prisma.product.findFirst({
+          where: { OR: [{ id: slugOrId }, { slug: slugOrId }] },
+          include: productInclude,
+        })
+      : await this.prisma.product.findUnique({ where: { slug: slugOrId }, include: productInclude });
+
+    if (!product) throw new NotFoundException('Product not found.');
+    return normalizeProductGallery(product);
   }
 
   async create(createProductDto: CreateProductDto) {
@@ -580,6 +601,8 @@ export class ProductsService {
         this.invalidateProductListCache(),
         this.cacheManager.del(`${PRODUCT_DETAIL_CACHE_PREFIX}${id}`),
         this.cacheManager.del(`${PRODUCT_DETAIL_CACHE_PREFIX}${existing.slug}`),
+        this.cacheManager.del(`${PRODUCT_DETAIL_CACHE_PREFIX}public:${id}`),
+        this.cacheManager.del(`${PRODUCT_DETAIL_CACHE_PREFIX}public:${existing.slug}`),
       ]);
 
       // Record price history if price changed
@@ -632,8 +655,11 @@ export class ProductsService {
     });
 
     await Promise.all([
+      this.invalidateProductListCache(),
       this.cacheManager.del(`${PRODUCT_DETAIL_CACHE_PREFIX}${id}`),
       this.cacheManager.del(`${PRODUCT_DETAIL_CACHE_PREFIX}${existing.slug}`),
+      this.cacheManager.del(`${PRODUCT_DETAIL_CACHE_PREFIX}public:${id}`),
+      this.cacheManager.del(`${PRODUCT_DETAIL_CACHE_PREFIX}public:${existing.slug}`),
     ]);
 
     const product = await this.prisma.product.findUniqueOrThrow({
@@ -669,8 +695,11 @@ export class ProductsService {
 
     await this.storageService.deleteFile(productImage.imageUrl);
     await Promise.all([
+      this.invalidateProductListCache(),
       this.cacheManager.del(`${PRODUCT_DETAIL_CACHE_PREFIX}${id}`),
       this.cacheManager.del(`${PRODUCT_DETAIL_CACHE_PREFIX}${existing.slug}`),
+      this.cacheManager.del(`${PRODUCT_DETAIL_CACHE_PREFIX}public:${id}`),
+      this.cacheManager.del(`${PRODUCT_DETAIL_CACHE_PREFIX}public:${existing.slug}`),
     ]);
 
     const product = await this.prisma.product.findUniqueOrThrow({
@@ -709,6 +738,8 @@ export class ProductsService {
       this.invalidateProductListCache(),
       this.cacheManager.del(`${PRODUCT_DETAIL_CACHE_PREFIX}${id}`),
       this.cacheManager.del(`${PRODUCT_DETAIL_CACHE_PREFIX}${existingProduct.slug}`),
+      this.cacheManager.del(`${PRODUCT_DETAIL_CACHE_PREFIX}public:${id}`),
+      this.cacheManager.del(`${PRODUCT_DETAIL_CACHE_PREFIX}public:${existingProduct.slug}`),
     ]);
 
     return {
@@ -821,9 +852,9 @@ export class ProductsService {
   async findRelated(productId: string, limit = 8) {
     const source = await this.prisma.product.findUnique({
       where: { id: productId },
-      select: { id: true, categoryId: true, brandId: true },
+      select: { id: true, categoryId: true, brandId: true, status: true },
     });
-    if (!source) {
+    if (!source || source.status !== ProductStatus.ACTIVE) {
       throw new NotFoundException('Product not found.');
     }
 
@@ -884,9 +915,9 @@ export class ProductsService {
   ): Promise<void> {
     const exists = await this.prisma.product.findUnique({
       where: { id: productId },
-      select: { id: true },
+      select: { id: true, status: true },
     });
-    if (!exists) return;
+    if (!exists || exists.status !== ProductStatus.ACTIVE) return;
 
     await this.prisma.product.update({
       where: { id: productId },
@@ -920,7 +951,7 @@ export class ProductsService {
     if (!where) return [];
 
     const rows = await this.prisma.recentlyViewedItem.findMany({
-      where,
+      where: { ...where, product: { status: ProductStatus.ACTIVE } },
       orderBy: { viewedAt: 'desc' },
       take: limit,
       include: { product: { select: productListSelect } },
@@ -933,7 +964,7 @@ export class ProductsService {
   async findByIds(ids: string[]) {
     if (!ids.length) return [];
     const rows = await this.prisma.product.findMany({
-      where: { id: { in: ids } },
+      where: { id: { in: ids }, status: ProductStatus.ACTIVE },
       select: productListSelect,
     });
     // Preserve caller's order
@@ -947,6 +978,7 @@ export class ProductsService {
     const rows = await this.prisma.product.groupBy({
       by: ['categoryId'],
       _count: { _all: true },
+      where: { status: ProductStatus.ACTIVE },
     });
     return rows.map((r) => ({ categoryId: r.categoryId, count: r._count._all }));
   }
