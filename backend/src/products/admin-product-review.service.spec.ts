@@ -80,6 +80,7 @@ describe('AdminProductReviewService', () => {
       total: 4, active: 1, inactive: 3, imported: 3, manual: 1,
       blocked: 3, ready: 1, missingImage: 1, missingBrand: 4,
       missingSpecs: 4, invalidPrice: 1, invalidCategory: 1, reviewed: 1, unreviewed: 3,
+      needsReview: 3, readyToPublish: 0, published: 1,
     });
   });
 
@@ -109,5 +110,31 @@ describe('AdminProductReviewService', () => {
     const service = new AdminProductReviewService(prisma as never, new ProductReadinessService());
     await service.list({ reviewed });
     expect(prisma.product.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { AND: expect.arrayContaining([predicate]) } }));
+  });
+
+  it.each([
+    ['NEEDS_REVIEW', ['blocked', 'ready-unreviewed']],
+    ['READY_TO_PUBLISH', ['ready-reviewed']],
+    ['PUBLISHED', ['published']],
+  ])('applies authoritative workspace=%s state', async (workspace, expectedIds) => {
+    const products = [
+      product({ id: 'blocked', slug: 'blocked' }),
+      product({ id: 'ready-unreviewed', slug: 'ready-unreviewed', images: [{ imageUrl: '/image.jpg' }], _count: { media: 0, images: 1 } }),
+      product({ id: 'ready-reviewed', slug: 'ready-reviewed', images: [{ imageUrl: '/image.jpg' }], _count: { media: 0, images: 1 }, catalogReviewedAt: new Date(), catalogReviewedBy: { id: 'u1', name: 'Admin' } }),
+      product({ id: 'published', slug: 'published', status: 'ACTIVE', images: [{ imageUrl: '/image.jpg' }], _count: { media: 0, images: 1 }, catalogReviewedAt: new Date(), catalogReviewedBy: { id: 'u1', name: 'Admin' } }),
+    ];
+    const prisma = { product: { findMany: jest.fn().mockResolvedValue(products) } };
+    const service = new AdminProductReviewService(prisma as never, new ProductReadinessService());
+    const result = await service.list({ workspace: workspace as never, page: 1, limit: 20 });
+    expect(result.items.map((item) => item.id)).toEqual(expectedIds);
+  });
+
+  it('filters products by their exact Catalog Import session relation', async () => {
+    const prisma = { product: { findMany: jest.fn().mockResolvedValue([]) } };
+    const service = new AdminProductReviewService(prisma as never, new ProductReadinessService());
+    await service.list({ importSessionId: '11111111-1111-4111-8111-111111111111' });
+    expect(prisma.product.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { AND: expect.arrayContaining([{ catalogImportRows: { some: { sessionId: '11111111-1111-4111-8111-111111111111' } } }]) },
+    }));
   });
 });

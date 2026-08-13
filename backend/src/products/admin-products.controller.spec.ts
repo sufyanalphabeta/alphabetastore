@@ -20,7 +20,8 @@ describe('AdminProductsController', () => {
       next: jest.fn().mockResolvedValue({ item: { id: 'p2', slug: 'next-product' } }),
     };
     const reviewAudit = { markReviewed: jest.fn().mockResolvedValue({ id: 'p1' }) };
-    const controller = new AdminProductsController(products as never, review as never, reviewAudit as never);
+    const publication = { publish: jest.fn().mockResolvedValue({ id: 'p1', status: 'ACTIVE' }), unpublish: jest.fn().mockResolvedValue({ id: 'p1', status: 'INACTIVE' }) };
+    const controller = new AdminProductsController(products as never, review as never, reviewAudit as never, publication as never);
     await expect(controller.findAll({ page: 1 })).resolves.toEqual({ items: [] });
     await expect(controller.findOne('p1')).resolves.toEqual({ id: 'p1' });
     await expect(controller.reviewList({ origin: 'IMPORTED' })).resolves.toEqual({ items: [] });
@@ -29,12 +30,14 @@ describe('AdminProductsController', () => {
     expect(review.next).toHaveBeenCalledWith('p1', { origin: 'IMPORTED' });
     await expect(controller.markReviewed('p1', { user: { sub: 'admin-1' } })).resolves.toEqual({ id: 'p1' });
     expect(reviewAudit.markReviewed).toHaveBeenCalledWith('p1', 'admin-1');
+    await expect(controller.publish('p1')).resolves.toMatchObject({ status: 'ACTIVE' });
+    await expect(controller.unpublish('p1')).resolves.toMatchObject({ status: 'INACTIVE' });
   });
 
   it('takes reviewer identity only from the authenticated request and ignores spoofed client data', async () => {
     const products = { findOneAdmin: jest.fn().mockResolvedValue({ id: 'p1' }) };
     const reviewAudit = { markReviewed: jest.fn().mockResolvedValue({ id: 'p1' }) };
-    const controller = new AdminProductsController(products as never, {} as never, reviewAudit as never);
+    const controller = new AdminProductsController(products as never, {} as never, reviewAudit as never, {} as never);
 
     await (controller.markReviewed as any)('p1', { user: { sub: 'real-admin' } }, { reviewerUserId: 'attacker' });
 

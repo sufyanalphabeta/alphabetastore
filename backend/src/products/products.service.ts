@@ -572,7 +572,7 @@ export class ProductsService {
             ? new Date(createProductDto.discountEndAt)
             : undefined,
           stockQty: createProductDto.stockQty,
-          status: createProductDto.status ?? ProductStatus.ACTIVE,
+          status: ProductStatus.INACTIVE,
           brand: createProductDto.brand,
           brandId: createProductDto.brandId,
           sku,
@@ -603,6 +603,9 @@ export class ProductsService {
   }
 
   async update(id: string, updateProductDto: UpdateProductDto, changedByUserId?: string) {
+    if ('status' in updateProductDto) {
+      throw new ConflictException('Publication status cannot be changed through Product update. Use publish/unpublish actions.');
+    }
     const existing = await this.ensureProductExists(id);
     const invalidateReview = this.productReviewAuditService.productUpdateInvalidates(existing, updateProductDto);
 
@@ -639,7 +642,6 @@ export class ProductsService {
             ? new Date(updateProductDto.discountEndAt)
             : undefined,
           stockQty: updateProductDto.stockQty,
-          status: updateProductDto.status,
           brand: updateProductDto.brand,
           brandId: updateProductDto.brandId,
           sku: updateProductDto.sku?.trim() || undefined,
@@ -906,6 +908,16 @@ export class ProductsService {
     ) {
       throw new ConflictException(message);
     }
+  }
+
+  async invalidatePublicationCaches(id: string, slug: string) {
+    await Promise.all([
+      this.invalidateProductListCache(),
+      this.cacheManager.del(`${PRODUCT_DETAIL_CACHE_PREFIX}${id}`),
+      this.cacheManager.del(`${PRODUCT_DETAIL_CACHE_PREFIX}${slug}`),
+      this.cacheManager.del(`${PRODUCT_DETAIL_CACHE_PREFIX}public:${id}`),
+      this.cacheManager.del(`${PRODUCT_DETAIL_CACHE_PREFIX}public:${slug}`),
+    ]);
   }
 
   private handleProductUniqueConstraint(error: unknown) {

@@ -19,4 +19,12 @@ describe('AdminProductReviewQueryDto', () => {
     expect(validateSync(dto)).toHaveLength(0);
     expect(dto.reviewed).toBe(expected);
   });
+
+  it('accepts workspace and import session filters', () => {
+    const dto = plainToInstance(AdminProductReviewQueryDto, {
+      workspace: 'NEEDS_REVIEW',
+      importSessionId: '11111111-1111-4111-8111-111111111111',
+    });
+    expect(validateSync(dto)).toHaveLength(0);
+  });
 });

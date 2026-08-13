@@ -326,7 +326,7 @@ model Product {
   discountStartAt  DateTime?      @map("discount_start_at") @db.Timestamptz(6)
   discountEndAt    DateTime?      @map("discount_end_at") @db.Timestamptz(6)
   stockQty         Int            @map("stock_qty")
-  status           ProductStatus  @default(ACTIVE)
+  status           ProductStatus  @default(INACTIVE)
   brand            String?        @db.VarChar(120)
   brandId          String?        @map("brand_id") @db.Uuid
   sku              String?        @unique @db.VarChar(120)

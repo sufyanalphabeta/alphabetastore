@@ -130,15 +130,10 @@ describe('ProductsService public safety', () => {
     expect(prisma.product.update).not.toHaveBeenCalled();
   });
 
-  it('invalidates public list and detail caches after deactivation', async () => {
-    const existing = { id: 'p1', slug: 'item', price: { equals: () => true }, baseCurrency: 'LYD', comparePrice: null, images: [] };
-    const updated = { ...existing, status: 'INACTIVE', media: [], category: {}, sourceRelations: [] };
-    const { service, cache } = serviceWith({
-      findUnique: jest.fn().mockResolvedValue(existing),
-      update: jest.fn().mockResolvedValue(updated),
-    });
+  it('invalidates public list and detail caches after a publication transition', async () => {
+    const { service, cache } = serviceWith();
     cache.get.mockResolvedValueOnce(['products:list:{}']);
-    await service.update('p1', { status: ProductStatus.INACTIVE });
+    await service.invalidatePublicationCaches('p1', 'item');
     expect(cache.del).toHaveBeenCalledWith('products:detail:public:p1');
     expect(cache.del).toHaveBeenCalledWith('products:detail:public:item');
     expect(cache.del).toHaveBeenCalledWith('products:list:{}');

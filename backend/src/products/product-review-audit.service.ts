@@ -7,7 +7,7 @@ import { ProductReadinessService } from './product-readiness.service';
 const PRODUCT_REVIEW_FIELDS = [
   'name', 'slug', 'price', 'baseCurrency', 'exchangeRateOverride', 'comparePrice',
   'discountType', 'discountValue', 'discountStartAt', 'discountEndAt',
-  'categoryId', 'status', 'shortDescription', 'description', 'brand', 'brandId',
+  'categoryId', 'shortDescription', 'description', 'brand', 'brandId',
   'specs', 'highlights', 'warrantyText', 'datasheetUrl', 'sku', 'imageUrls',
 ] as const;
 

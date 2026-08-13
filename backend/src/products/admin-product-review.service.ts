@@ -69,7 +69,7 @@ export class AdminProductReviewService {
     const products = await this.prisma.product.findMany({ where, select: reviewSelect, orderBy });
     const matchingItems = products
       .map((product) => this.toListItem(product))
-      .filter((product) => this.matchesReadinessFilters(product.readiness, query));
+      .filter((product) => this.matchesFilters(product, query));
     const total = matchingItems.length;
     const items = matchingItems.slice((page - 1) * limit, page * limit);
 
@@ -97,11 +97,13 @@ export class AdminProductReviewService {
     const invalidCategory = products.filter((product) => hasIssue(product, 'INVALID_CATEGORY')).length;
     const reviewed = products.filter((product) => product.reviewed).length;
     const unreviewed = total - reviewed;
+    const needsReview = products.filter((product) => !product.readiness.readyToPublish || !product.reviewed).length;
+    const readyToPublish = products.filter((product) => product.readiness.readyToPublish && product.reviewed && product.status === 'INACTIVE').length;
 
     return {
       total, active, inactive, imported, manual, blocked, ready,
       missingImage, missingBrand: missingBrandCount, missingSpecs: missingSpecsCount,
-      invalidPrice, invalidCategory, reviewed, unreviewed,
+      invalidPrice, invalidCategory, reviewed, unreviewed, needsReview, readyToPublish, published: active,
     };
   }
 
@@ -113,7 +115,7 @@ export class AdminProductReviewService {
     });
     const item = products
       .map((product) => this.toListItem(product))
-      .filter((product) => this.matchesReadinessFilters(product.readiness, query))
+      .filter((product) => this.matchesFilters(product, query))
       .find((product) => product.id !== currentProductId);
     return { item: item ? { id: item.id, slug: item.slug } : null };
   }
@@ -124,6 +126,7 @@ export class AdminProductReviewService {
     if (query.origin === 'IMPORTED') and.push({ sourceIdentities: { some: {} } });
     if (query.origin === 'MANUAL') and.push({ sourceIdentities: { none: {} } });
     if (query.sourceSystem) and.push({ sourceIdentities: { some: { sourceSystem: query.sourceSystem } } });
+    if (query.importSessionId) and.push({ catalogImportRows: { some: { sessionId: query.importSessionId } } });
     if (query.categoryId) and.push({ categoryId: query.categoryId });
     if (query.brandId) and.push({ brandId: query.brandId });
     if (query.reviewed === true) and.push({ catalogReviewedAt: { not: null } });
@@ -148,6 +151,15 @@ export class AdminProductReviewService {
     if (query.readiness === 'READY' && !readiness.readyToPublish) return false;
     if (query.readiness === 'BLOCKED' && readiness.readyToPublish) return false;
     if (query.issue && !readiness.blockers.includes(query.issue as never) && !readiness.warnings.includes(query.issue as never)) return false;
+    return true;
+  }
+
+  private matchesFilters(product: ReturnType<AdminProductReviewService['toListItem']>, query: AdminProductReviewQueryDto) {
+    if (!this.matchesReadinessFilters(product.readiness, query)) return false;
+    if (query.workspace === 'NEEDS_REVIEW' && product.readiness.readyToPublish && product.reviewed) return false;
+    if (query.workspace === 'READY_TO_PUBLISH' && (!product.readiness.readyToPublish || !product.reviewed || product.status !== 'INACTIVE')) return false;
+    if (query.workspace === 'PUBLISHED' && product.status !== 'ACTIVE') return false;
+    if (query.workspace === 'UNPUBLISHED' && product.status !== 'INACTIVE') return false;
     return true;
   }
 

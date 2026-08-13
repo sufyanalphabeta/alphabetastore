@@ -15,7 +15,7 @@ import {
   MinLength,
 } from 'class-validator';
 
-import { BaseCurrency, DiscountType, ProductStatus } from '../../prisma/prisma-client';
+import { BaseCurrency, DiscountType } from '../../prisma/prisma-client';
 
 export class UpdateProductDto {
   @IsOptional()
@@ -83,10 +83,6 @@ export class UpdateProductDto {
   @IsInt()
   @Min(0)
   stockQty?: number;
-
-  @IsOptional()
-  @IsEnum(ProductStatus)
-  status?: (typeof ProductStatus)[keyof typeof ProductStatus];
 
   @IsOptional()
   @IsString()

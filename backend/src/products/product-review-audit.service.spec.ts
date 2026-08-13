@@ -26,7 +26,7 @@ describe('ProductReviewAuditService', () => {
     ['name', 'Old', 'New'], ['price', new Decimal(100), new Decimal(101)],
     ['categoryId', 'c1', 'c2'], ['brandId', 'b1', 'b2'],
     ['specs', { CPU: 'i5' }, { CPU: 'i7' }], ['description', 'Old', 'New'],
-    ['shortDescription', 'Old', 'New'], ['status', 'INACTIVE', 'ACTIVE'], ['slug', 'old', 'new'],
+    ['shortDescription', 'Old', 'New'], ['slug', 'old', 'new'],
   ])('invalidates review when %s changes', (field, previous, next) => {
     expect(service.productUpdateInvalidates({ [field]: previous }, { [field]: next })).toBe(true);
   });

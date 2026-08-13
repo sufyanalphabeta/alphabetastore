@@ -38,6 +38,7 @@ describe('ProductsService automatic SKU integration', () => {
     await service.create(createDto);
     expect(sku.resolve).toHaveBeenCalledWith(undefined);
     expect(prisma.product.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ sku: 'AB-000123' }) }));
+    expect(prisma.product.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: ProductStatus.INACTIVE }) }));
   });
 
   it('preserves an explicitly supplied custom SKU', async () => {
@@ -58,5 +59,11 @@ describe('ProductsService automatic SKU integration', () => {
     await service.update('product-1', { name: 'Updated name' });
     expect(sku.resolve).not.toHaveBeenCalled();
     expect(prisma.product.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ sku: undefined }) }));
+  });
+
+  it('rejects publication state in a generic Product update', async () => {
+    const { service, prisma } = setup();
+    await expect(service.update('product-1', { status: ProductStatus.ACTIVE } as never)).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.product.update).not.toHaveBeenCalled();
   });
 });

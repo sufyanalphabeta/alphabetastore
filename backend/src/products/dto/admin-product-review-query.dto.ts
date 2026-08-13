@@ -16,6 +16,7 @@ export const PRODUCT_REVIEW_ISSUES = [
   'LOW_RESOLUTION_IMAGE',
 ] as const;
 export const PRODUCT_REVIEW_SORTS = ['updatedAt', 'name', 'price', 'status'] as const;
+export const PRODUCT_WORKSPACE_VALUES = ['ALL', 'NEEDS_REVIEW', 'READY_TO_PUBLISH', 'PUBLISHED', 'UNPUBLISHED'] as const;
 
 export class AdminProductReviewQueryDto {
   @IsOptional()
@@ -35,6 +36,14 @@ export class AdminProductReviewQueryDto {
   @IsString()
   @MinLength(1)
   sourceSystem?: string;
+
+  @IsOptional()
+  @IsUUID()
+  importSessionId?: string;
+
+  @IsOptional()
+  @IsIn(PRODUCT_WORKSPACE_VALUES)
+  workspace?: (typeof PRODUCT_WORKSPACE_VALUES)[number];
 
   @IsOptional()
   @IsIn(PRODUCT_READINESS_VALUES)
