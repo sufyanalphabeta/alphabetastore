@@ -132,7 +132,6 @@ export default function ProductSearchPageView() {
           maxPrice: maxPrice ? Number(maxPrice) : undefined,
           inStock: inStock || undefined,
           sort,
-          status: "ACTIVE",
           page: Number(page) || 1,
           limit: PAGE_SIZE
         });

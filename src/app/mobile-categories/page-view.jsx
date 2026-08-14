@@ -81,6 +81,16 @@ export default function MobileCategoriesPageView({ data }) {
           </Box>
         </Box>
 
+        {!current ? <Button
+            component={Link}
+            href="/products/search"
+            fullWidth
+            variant="contained"
+            sx={{ mb: 2, minHeight: 46 }}
+          >
+            {isArabic ? "عرض كل المنتجات" : "View all products"}
+          </Button> : null}
+
         {current ? <Button
             component={Link}
             href={`/categories/${current.slug}`}
