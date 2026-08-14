@@ -1,11 +1,11 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { CACHE_MANAGER } from "@nestjs/cache-manager";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import type { Cache } from "cache-manager";
 
 import { PrismaService } from "../prisma/prisma.service";
-import { ProductStatus } from "../prisma/prisma-client";
-import { PricingService } from "../pricing/pricing.service";
+import { ProductMediaRole, ProductStatus } from "../prisma/prisma-client";
+import { PricingService, type PricingSettings } from "../pricing/pricing.service";
 import { StorageService } from "../storage/local-storage.service";
 import { normalizeProductGallery } from "../media/product-gallery.mapper";
 import { CreateProductDto } from "./dto/create-product.dto";
@@ -209,6 +209,63 @@ const productListSelect = {
   }
 } satisfies Prisma.ProductSelect;
 
+const publicProductListSelect = {
+  id: true,
+  name: true,
+  slug: true,
+  price: true,
+  baseCurrency: true,
+  exchangeRateOverride: true,
+  comparePrice: true,
+  discountType: true,
+  discountValue: true,
+  discountStartAt: true,
+  discountEndAt: true,
+  stockQty: true,
+  brand: true,
+  brandId: true,
+  sku: true,
+  isFeatured: true,
+  hasVariants: true,
+  ratingAvg: true,
+  ratingCount: true,
+  createdAt: true,
+  category: {
+    select: { id: true, name: true, slug: true }
+  },
+  brandRef: {
+    select: { id: true, name: true, slug: true, logoUrl: true }
+  },
+  images: {
+    orderBy: { sortOrder: "asc" as const },
+    take: 1,
+    select: { imageUrl: true }
+  },
+  media: {
+    where: { role: { in: [ProductMediaRole.PRIMARY, ProductMediaRole.GALLERY] } },
+    orderBy: { sortOrder: "asc" as const },
+    take: 1,
+    select: {
+      mediaAsset: {
+        select: { processingStatus: true, variants: true }
+      }
+    }
+  },
+  _count: { select: { media: true } }
+} satisfies Prisma.ProductSelect;
+
+type PublicProductListRow = Prisma.ProductGetPayload<{
+  select: typeof publicProductListSelect;
+}>;
+
+type PricedProductIdRow = {
+  id: string | null;
+  display_price: string | null;
+  total: number | bigint;
+  position: number | bigint | null;
+  is_meta: boolean;
+};
+
 const PRODUCT_LIST_CACHE_PREFIX = "products:list:";
 const PRODUCT_DETAIL_CACHE_PREFIX = "products:detail:";
 const PRODUCT_LIST_CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
@@ -255,6 +312,9 @@ export class ProductsService {
     const searchTerm = query.q?.trim() || query.search?.trim();
     const categoryFilter = query.category?.trim();
     const brandFilter = query.brand?.trim();
+    const categoryScope = categoryFilter
+      ? await this.categoryTreeService.resolveScope(categoryFilter, { publicOnly })
+      : null;
     const whereClauses: Prisma.ProductWhereInput[] = publicOnly
       ? [{ status: ProductStatus.ACTIVE }]
       : [];
@@ -267,10 +327,11 @@ export class ProductsService {
 
     if (brandFilter) {
       whereClauses.push({
-        brand: {
-          contains: brandFilter,
-          mode: "insensitive"
-        }
+        OR: [
+          { brand: { contains: brandFilter, mode: "insensitive" } },
+          { brandRef: { name: { contains: brandFilter, mode: "insensitive" } } },
+          { brandRef: { slug: { equals: brandFilter, mode: "insensitive" } } }
+        ]
       });
     }
 
@@ -279,22 +340,28 @@ export class ProductsService {
     }
 
     if (query.brandSlug) {
-      whereClauses.push({ brandRef: { slug: query.brandSlug } });
+      whereClauses.push({
+        OR: [
+          { brandRef: { slug: query.brandSlug } },
+          { brand: { equals: query.brandSlug, mode: "insensitive" } }
+        ]
+      });
     }
 
     if (query.featured) {
       whereClauses.push({ isFeatured: true });
     }
 
-    if (query.inStock) {
+    if (query.inStock || ("availability" in query && query.availability === "in-stock")) {
       whereClauses.push({ stockQty: { gt: 0 } });
     }
 
+    if ("availability" in query && query.availability === "out-of-stock") {
+      whereClauses.push({ stockQty: { lte: 0 } });
+    }
+
     if (categoryFilter) {
-      const scope = await this.categoryTreeService.resolveScope(categoryFilter, {
-        publicOnly
-      });
-      whereClauses.push({ categoryId: { in: scope?.categoryIds ?? [] } });
+      whereClauses.push({ categoryId: { in: categoryScope?.categoryIds ?? [] } });
     }
 
     if (searchTerm) {
@@ -337,6 +404,14 @@ export class ProductsService {
             }
           },
           {
+            brandRef: {
+              name: {
+                contains: searchTerm,
+                mode: "insensitive"
+              }
+            }
+          },
+          {
             category: {
               name: {
                 contains: searchTerm,
@@ -350,9 +425,19 @@ export class ProductsService {
 
     const where = whereClauses.length ? { AND: whereClauses } : undefined;
     const hasPagination = Boolean(query.page || query.limit);
-
     const hasStorefrontPriceFilter = query.minPrice !== undefined || query.maxPrice !== undefined;
-    if (hasStorefrontPriceFilter) {
+    const hasStorefrontPriceSort = ["asc", "desc", "price-asc", "price-desc"].includes(
+      query.sort ?? ""
+    );
+
+    if (publicOnly && (hasStorefrontPriceFilter || hasStorefrontPriceSort)) {
+      return this.findPublicProductsByDisplayPrice(
+        query as FindProductsQueryDto,
+        categoryScope?.categoryIds ?? null
+      );
+    }
+
+    if (!publicOnly && hasStorefrontPriceFilter) {
       const candidates = await this.prisma.product.findMany({
         where,
         select: productListSelect,
@@ -400,39 +485,311 @@ export class ProductsService {
     }
 
     if (!hasPagination) {
-      const products = await this.prisma.product.findMany({
-        where,
-        select: productListSelect,
-        orderBy: this.buildOrderBy(query.sort)
-      });
-      return products.map((product) => normalizeProductGallery(product));
+      if (!publicOnly) {
+        const products = await this.prisma.product.findMany({
+          where,
+          select: productListSelect,
+          orderBy: this.buildOrderBy(query.sort)
+        });
+        return products.map((product) => normalizeProductGallery(product));
+      }
+
+      const [products, pricingSettings] = await Promise.all([
+        this.prisma.product.findMany({
+          where,
+          select: publicProductListSelect,
+          orderBy: this.buildOrderBy(query.sort)
+        }),
+        this.pricingService.getPricingSettings()
+      ]);
+      return products.map((product) => this.toPublicProductListItem(product, pricingSettings));
     }
 
     const page = Math.max(Number(query.page) || 1, 1);
     const limit = Math.min(Math.max(Number(query.limit) || 12, 1), 100);
 
-    return this.findPaginated(where, page, limit, query.sort);
+    return this.findPaginated(where, page, limit, query.sort, publicOnly);
   }
 
   private async findPaginated(
     where: Prisma.ProductWhereInput | undefined,
     page: number,
     limit: number,
-    sort: FindProductsQueryDto["sort"]
+    sort: FindProductsQueryDto["sort"],
+    publicOnly: boolean
   ) {
-    const [items, total] = await Promise.all([
+    if (!publicOnly) {
+      const [items, total] = await Promise.all([
+        this.prisma.product.findMany({
+          where,
+          select: productListSelect,
+          orderBy: this.buildOrderBy(sort),
+          skip: (page - 1) * limit,
+          take: limit
+        }),
+        this.prisma.product.count({ where })
+      ]);
+
+      return {
+        items: items.map((product) => normalizeProductGallery(product)),
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.max(1, Math.ceil(total / limit))
+        }
+      };
+    }
+
+    const [items, total, pricingSettings] = await Promise.all([
       this.prisma.product.findMany({
         where,
-        select: productListSelect,
+        select: publicProductListSelect,
         orderBy: this.buildOrderBy(sort),
         skip: (page - 1) * limit,
         take: limit
       }),
-      this.prisma.product.count({ where })
+      this.prisma.product.count({ where }),
+      this.pricingService.getPricingSettings()
     ]);
 
     return {
-      items: items.map((product) => normalizeProductGallery(product)),
+      items: items.map((product) => this.toPublicProductListItem(product, pricingSettings)),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit))
+      }
+    };
+  }
+
+  private toPublicProductListItem(
+    product: PublicProductListRow,
+    pricingSettings: PricingSettings
+  ) {
+    const computed = this.pricingService.computePrice(product, pricingSettings);
+    const mediaCount = product._count.media;
+    const media = product.media[0];
+    const variants = (media?.mediaAsset?.variants ?? {}) as {
+      card?: { url?: string };
+    };
+    const cardImageUrl = mediaCount > 0
+      ? media?.mediaAsset?.processingStatus === "READY"
+        ? variants.card?.url ?? null
+        : null
+      : product.images[0]?.imageUrl ?? null;
+
+    return {
+      id: product.id,
+      name: product.name,
+      slug: product.slug,
+      sku: product.sku,
+      price: computed.finalPrice.toFixed(2),
+      comparePrice: computed.hasActiveDiscount
+        ? computed.displayBasePrice.toFixed(2)
+        : computed.comparePrice?.toFixed(2) ?? null,
+      currency: "LYD",
+      storefrontPrice: {
+        finalPrice: computed.finalPrice.toFixed(2),
+        comparePrice: computed.hasActiveDiscount
+          ? computed.displayBasePrice.toFixed(2)
+          : computed.comparePrice?.toFixed(2) ?? null,
+        hasActiveDiscount: computed.hasActiveDiscount,
+        discountPercent: computed.discountPercent,
+        currency: "LYD"
+      },
+      brand: product.brandRef?.name ?? product.brand ?? null,
+      brandRef: product.brandRef,
+      category: product.category,
+      isFeatured: product.isFeatured,
+      hasVariants: product.hasVariants,
+      ratingAvg: product.ratingAvg,
+      ratingCount: product.ratingCount,
+      createdAt: product.createdAt,
+      inStock: product.stockQty > 0,
+      availability: product.stockQty > 0 ? "IN_STOCK" : "OUT_OF_STOCK",
+      cardImageUrl
+    };
+  }
+
+  private buildPublicProductSqlConditions(
+    query: FindProductsQueryDto,
+    categoryIds: string[] | null
+  ) {
+    const conditions: Prisma.Sql[] = [Prisma.sql`p.status = 'ACTIVE'::"ProductStatus"`];
+    const searchTerm = query.q?.trim() || query.search?.trim();
+    const brandFilter = query.brand?.trim();
+
+    if (categoryIds !== null) {
+      if (!categoryIds.length) return Prisma.sql`FALSE`;
+      conditions.push(
+        Prisma.sql`p.category_id::text IN (${Prisma.join(categoryIds)})`
+      );
+    }
+
+    if (searchTerm) {
+      const pattern = `%${searchTerm}%`;
+      conditions.push(Prisma.sql`(
+        p.name ILIKE ${pattern}
+        OR p.slug ILIKE ${pattern}
+        OR p.description ILIKE ${pattern}
+        OR p.short_description ILIKE ${pattern}
+        OR p.sku ILIKE ${pattern}
+        OR p.brand ILIKE ${pattern}
+        OR b.name ILIKE ${pattern}
+        OR c.name ILIKE ${pattern}
+      )`);
+    }
+
+    if (brandFilter) {
+      const pattern = `%${brandFilter}%`;
+      conditions.push(Prisma.sql`(
+        p.brand ILIKE ${pattern}
+        OR b.name ILIKE ${pattern}
+        OR b.slug ILIKE ${pattern}
+      )`);
+    }
+
+    if (query.brandId) {
+      conditions.push(Prisma.sql`p.brand_id::text = ${query.brandId}`);
+    }
+
+    if (query.brandSlug) {
+      conditions.push(
+        Prisma.sql`(b.slug = ${query.brandSlug} OR LOWER(BTRIM(p.brand)) = LOWER(${query.brandSlug}))`
+      );
+    }
+
+    if (query.featured) conditions.push(Prisma.sql`p.is_featured = TRUE`);
+    if (query.inStock || query.availability === "in-stock") {
+      conditions.push(Prisma.sql`p.stock_qty > 0`);
+    }
+    if (query.availability === "out-of-stock") {
+      conditions.push(Prisma.sql`p.stock_qty <= 0`);
+    }
+
+    return Prisma.sql`${Prisma.join(conditions, " AND ")}`;
+  }
+
+  private buildDisplayPriceSql(settings: PricingSettings) {
+    const exchangeRate = settings.exchangeRate.toNumber();
+    const convertedBase = Prisma.sql`(
+      CASE
+        WHEN p.base_currency::text = 'USD'
+          THEN p.price * COALESCE(NULLIF(p.exchange_rate_override, 0), ${exchangeRate}::numeric)
+        ELSE p.price
+      END
+    )`;
+    const convertedFixedDiscount = Prisma.sql`(
+      CASE
+        WHEN p.base_currency::text = 'USD'
+          THEN p.discount_value * COALESCE(NULLIF(p.exchange_rate_override, 0), ${exchangeRate}::numeric)
+        ELSE p.discount_value
+      END
+    )`;
+    const discounted = Prisma.sql`(
+      CASE
+        WHEN p.discount_type IS NOT NULL
+          AND p.discount_value IS NOT NULL
+          AND p.discount_value > 0
+          AND (p.discount_start_at IS NULL OR p.discount_start_at <= NOW())
+          AND (p.discount_end_at IS NULL OR p.discount_end_at > NOW())
+        THEN CASE
+          WHEN p.discount_type::text = 'PERCENTAGE'
+            THEN ${convertedBase} * (1 - LEAST(GREATEST(p.discount_value, 0), 100) / 100)
+          WHEN p.discount_type::text = 'FIXED'
+            THEN GREATEST(${convertedBase} - ${convertedFixedDiscount}, 0)
+          ELSE ${convertedBase}
+        END
+        ELSE ${convertedBase}
+      END
+    )`;
+
+    return settings.autoRound
+      ? Prisma.sql`ROUND(${discounted}, 0)`
+      : Prisma.sql`ROUND(${discounted}, 2)`;
+  }
+
+  private async findPublicProductsByDisplayPrice(
+    query: FindProductsQueryDto,
+    categoryIds: string[] | null
+  ) {
+    const page = Math.max(Number(query.page) || 1, 1);
+    const limit = Math.min(Math.max(Number(query.limit) || 12, 1), 100);
+    const offset = (page - 1) * limit;
+    const pricingSettings = await this.pricingService.getPricingSettings();
+    const displayPriceSql = this.buildDisplayPriceSql(pricingSettings);
+    const conditions = this.buildPublicProductSqlConditions(query, categoryIds);
+    const priceConditions: Prisma.Sql[] = [];
+
+    if (query.minPrice !== undefined) {
+      priceConditions.push(Prisma.sql`display_price >= ${query.minPrice}`);
+    }
+    if (query.maxPrice !== undefined) {
+      priceConditions.push(Prisma.sql`display_price <= ${query.maxPrice}`);
+    }
+
+    const priceWhere = priceConditions.length
+      ? Prisma.sql`WHERE ${Prisma.join(priceConditions, " AND ")}`
+      : Prisma.empty;
+    const direction = query.sort === "desc" || query.sort === "price-desc"
+      ? Prisma.sql`DESC`
+      : Prisma.sql`ASC`;
+
+    const rankedRows = await this.prisma.$queryRaw<PricedProductIdRow[]>(Prisma.sql`
+      WITH priced AS (
+        SELECT p.id, ${displayPriceSql} AS display_price
+        FROM products p
+        LEFT JOIN brands b ON b.id = p.brand_id
+        INNER JOIN categories c ON c.id = p.category_id
+        WHERE ${conditions}
+      ),
+      filtered AS (
+        SELECT id, display_price
+        FROM priced
+        ${priceWhere}
+      ),
+      ranked AS (
+        SELECT
+          id,
+          display_price,
+          ROW_NUMBER() OVER (ORDER BY display_price ${direction}, id ASC) AS position
+        FROM filtered
+      ),
+      paged AS (
+        SELECT id, display_price, position
+        FROM ranked
+        WHERE position > ${offset} AND position <= ${offset + limit}
+      ),
+      meta AS (
+        SELECT COUNT(*)::int AS total FROM filtered
+      )
+      SELECT id::text, display_price::text, meta.total, position, FALSE AS is_meta
+      FROM paged CROSS JOIN meta
+      UNION ALL
+      SELECT NULL, NULL, total, NULL, TRUE
+      FROM meta
+      ORDER BY is_meta ASC, position ASC NULLS LAST
+    `);
+
+    const total = Number(rankedRows.find((row) => row.is_meta)?.total ?? 0);
+    const itemRows = rankedRows.filter((row) => !row.is_meta && row.id);
+    const ids = itemRows.map((row) => row.id as string);
+    const products = ids.length
+      ? await this.prisma.product.findMany({
+          where: { id: { in: ids }, status: ProductStatus.ACTIVE },
+          select: publicProductListSelect
+        })
+      : [];
+    const byId = new Map(products.map((product) => [product.id, product]));
+    const items = ids
+      .map((id) => byId.get(id))
+      .filter((product): product is PublicProductListRow => Boolean(product))
+      .map((product) => this.toPublicProductListItem(product, pricingSettings));
+
+    return {
+      items,
       pagination: {
         page,
         limit,
@@ -924,6 +1281,10 @@ export class ProductsService {
       return { createdAt: "desc" };
     }
 
+    if (sort === "name-asc") {
+      return { name: "asc" };
+    }
+
     // 'relevance' or default: newest first
     return { createdAt: "desc" };
   }
@@ -938,51 +1299,63 @@ export class ProductsService {
       throw new NotFoundException("Product not found.");
     }
 
-    const same = await this.prisma.product.findMany({
-      where: {
-        id: { not: source.id },
-        status: ProductStatus.ACTIVE,
-        OR: [
-          { categoryId: source.categoryId },
-          source.brandId ? { brandId: source.brandId } : undefined
-        ].filter(Boolean) as Prisma.ProductWhereInput[]
-      },
-      select: productListSelect,
-      orderBy: [{ salesCount: "desc" }, { createdAt: "desc" }],
-      take: limit
-    });
+    const [same, pricingSettings] = await Promise.all([
+      this.prisma.product.findMany({
+        where: {
+          id: { not: source.id },
+          status: ProductStatus.ACTIVE,
+          OR: [
+            { categoryId: source.categoryId },
+            source.brandId ? { brandId: source.brandId } : undefined
+          ].filter(Boolean) as Prisma.ProductWhereInput[]
+        },
+        select: publicProductListSelect,
+        orderBy: [{ createdAt: "desc" }],
+        take: limit
+      }),
+      this.pricingService.getPricingSettings()
+    ]);
 
-    return same.map((product) => normalizeProductGallery(product));
+    return same.map((product) => this.toPublicProductListItem(product, pricingSettings));
   }
 
   async findFeatured(limit = 12) {
-    const products = await this.prisma.product.findMany({
-      where: { status: ProductStatus.ACTIVE, isFeatured: true },
-      select: productListSelect,
-      orderBy: [{ salesCount: "desc" }, { createdAt: "desc" }],
-      take: limit
-    });
-    return products.map((product) => normalizeProductGallery(product));
+    const [products, pricingSettings] = await Promise.all([
+      this.prisma.product.findMany({
+        where: { status: ProductStatus.ACTIVE, isFeatured: true },
+        select: publicProductListSelect,
+        orderBy: { createdAt: "desc" },
+        take: limit
+      }),
+      this.pricingService.getPricingSettings()
+    ]);
+    return products.map((product) => this.toPublicProductListItem(product, pricingSettings));
   }
 
   async findBestSellers(limit = 12) {
-    const products = await this.prisma.product.findMany({
-      where: { status: ProductStatus.ACTIVE },
-      select: productListSelect,
-      orderBy: [{ salesCount: "desc" }, { viewCount: "desc" }],
-      take: limit
-    });
-    return products.map((product) => normalizeProductGallery(product));
+    const [products, pricingSettings] = await Promise.all([
+      this.prisma.product.findMany({
+        where: { status: ProductStatus.ACTIVE },
+        select: publicProductListSelect,
+        orderBy: [{ salesCount: "desc" }, { viewCount: "desc" }],
+        take: limit
+      }),
+      this.pricingService.getPricingSettings()
+    ]);
+    return products.map((product) => this.toPublicProductListItem(product, pricingSettings));
   }
 
   async findNewArrivals(limit = 12) {
-    const products = await this.prisma.product.findMany({
-      where: { status: ProductStatus.ACTIVE },
-      select: productListSelect,
-      orderBy: { createdAt: "desc" },
-      take: limit
-    });
-    return products.map((product) => normalizeProductGallery(product));
+    const [products, pricingSettings] = await Promise.all([
+      this.prisma.product.findMany({
+        where: { status: ProductStatus.ACTIVE },
+        select: publicProductListSelect,
+        orderBy: { createdAt: "desc" },
+        take: limit
+      }),
+      this.pricingService.getPricingSettings()
+    ]);
+    return products.map((product) => this.toPublicProductListItem(product, pricingSettings));
   }
 
   /**
@@ -1030,25 +1403,35 @@ export class ProductsService {
         : null;
     if (!where) return [];
 
-    const rows = await this.prisma.recentlyViewedItem.findMany({
-      where: { ...where, product: { status: ProductStatus.ACTIVE } },
-      orderBy: { viewedAt: "desc" },
-      take: limit,
-      include: { product: { select: productListSelect } }
-    });
+    const [rows, pricingSettings] = await Promise.all([
+      this.prisma.recentlyViewedItem.findMany({
+        where: { ...where, product: { status: ProductStatus.ACTIVE } },
+        orderBy: { viewedAt: "desc" },
+        take: limit,
+        include: { product: { select: publicProductListSelect } }
+      }),
+      this.pricingService.getPricingSettings()
+    ]);
     return rows
-      .map((r: { product: any }) => normalizeProductGallery(r.product))
+      .map((r: { product: PublicProductListRow }) =>
+        this.toPublicProductListItem(r.product, pricingSettings)
+      )
       .filter((p) => Boolean(p));
   }
 
   async findByIds(ids: string[]) {
     if (!ids.length) return [];
-    const rows = await this.prisma.product.findMany({
-      where: { id: { in: ids }, status: ProductStatus.ACTIVE },
-      select: productListSelect
-    });
+    const [rows, pricingSettings] = await Promise.all([
+      this.prisma.product.findMany({
+        where: { id: { in: ids }, status: ProductStatus.ACTIVE },
+        select: publicProductListSelect
+      }),
+      this.pricingService.getPricingSettings()
+    ]);
     // Preserve caller's order
-    const normalizedRows = rows.map((row) => normalizeProductGallery(row));
+    const normalizedRows = rows.map((row) =>
+      this.toPublicProductListItem(row, pricingSettings)
+    );
     const byId = new Map(normalizedRows.map((r: { id: string }) => [r.id, r]));
     return ids.map((id) => byId.get(id)).filter(Boolean);
   }
@@ -1060,41 +1443,19 @@ export class ProductsService {
 
   /** Autocomplete: returns products, brands, categories matching a term. */
   async autocomplete(term: string, limit = 5) {
-    const [products, brands, categories] = await Promise.all([
+    const [products, brands, categories, pricingSettings] = await Promise.all([
       this.prisma.product.findMany({
         where: {
           status: "ACTIVE",
           OR: [
             { name: { contains: term, mode: "insensitive" } },
             { sku: { contains: term, mode: "insensitive" } },
-            { brand: { contains: term, mode: "insensitive" } }
+            { brand: { contains: term, mode: "insensitive" } },
+            { brandRef: { name: { contains: term, mode: "insensitive" } } },
+            { category: { name: { contains: term, mode: "insensitive" } } }
           ]
         },
-        select: {
-          id: true,
-          name: true,
-          slug: true,
-          sku: true,
-          brand: true,
-          images: {
-            select: { id: true, imageUrl: true, sortOrder: true },
-            orderBy: { sortOrder: "asc" },
-            take: 1
-          },
-          media: {
-            select: {
-              id: true,
-              mediaAssetId: true,
-              role: true,
-              sortOrder: true,
-              mediaAsset: { select: { altText: true, variants: true } }
-            },
-            orderBy: { sortOrder: "asc" }
-          },
-          price: true,
-          baseCurrency: true,
-          exchangeRateOverride: true
-        },
+        select: publicProductListSelect,
         take: limit,
         orderBy: { viewCount: "desc" }
       }),
@@ -1115,11 +1476,14 @@ export class ProductsService {
         select: { id: true, name: true, slug: true, icon: true },
         take: Math.ceil(limit / 2),
         orderBy: { sortOrder: "asc" }
-      })
+      }),
+      this.pricingService.getPricingSettings()
     ]);
 
     return {
-      products: products.map((product) => normalizeProductGallery(product)),
+      products: products.map((product) =>
+        this.toPublicProductListItem(product, pricingSettings)
+      ),
       brands,
       categories
     };

@@ -11,7 +11,18 @@ import {
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 
-const PRODUCT_SORT_VALUES = ['relevance', 'date', 'newest', 'asc', 'desc'] as const;
+const PRODUCT_SORT_VALUES = [
+  'relevance',
+  'date',
+  'newest',
+  'asc',
+  'desc',
+  'price-asc',
+  'price-desc',
+  'name-asc',
+] as const;
+
+const PRODUCT_AVAILABILITY_VALUES = ['in-stock', 'out-of-stock'] as const;
 
 export class FindProductsQueryDto {
   @IsOptional()
@@ -68,6 +79,10 @@ export class FindProductsQueryDto {
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === '1' || value === true)
   inStock?: boolean;
+
+  @IsOptional()
+  @IsIn(PRODUCT_AVAILABILITY_VALUES)
+  availability?: (typeof PRODUCT_AVAILABILITY_VALUES)[number];
 
   @IsOptional()
   @Transform(({ value }) => parseInt(value))
