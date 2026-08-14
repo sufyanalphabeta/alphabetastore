@@ -161,8 +161,9 @@ function createCategoryHref(slug) {
 export async function fetchCategories(onlyVisible = false) {
   const url = onlyVisible ? "/categories?visible=true" : "/categories";
   return fetchCatalog(url, "Failed to load categories", [], {
-    cacheMode: "force-cache",
-    revalidate: 120
+    // Category visibility, hierarchy, and ordering are managed from the
+    // admin panel. Do not keep an old browser response after an admin change.
+    cacheMode: "no-store"
   });
 }
 
@@ -204,8 +205,8 @@ export function getProductCardImage(product) {
 export async function fetchCategoriesTree(onlyVisible = true) {
   const url = onlyVisible ? "/categories/tree?visible=true" : "/categories/tree";
   return fetchCatalog(url, "Failed to load category tree", [], {
-    cacheMode: "force-cache",
-    revalidate: 120
+    // The mega menu is a live reflection of the admin category tree.
+    cacheMode: "no-store"
   });
 }
 
@@ -676,54 +677,34 @@ export function buildCategoryMenus(categories) {
 }
 
 export function buildCategoryMenusFromTree(tree) {
-  const visibleNodes = (Array.isArray(tree) ? tree : []).filter(n => n?.isActive !== false && n?.isVisible !== false);
-  return [...visibleNodes]
+  const mapNode = node => {
+    const children = (node.children || [])
+      .filter(child => child?.isActive !== false && child?.isVisible !== false)
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name))
+      .map(mapNode);
+    return {
+      id: node.id,
+      title: node.name,
+      href: createCategoryHref(node.slug),
+      icon: node.icon || undefined,
+      isFeatured: Boolean(node.isFeatured),
+      productCount: Number(node.productCount || 0),
+      directProductCount: Number(node.directProductCount || 0),
+      ...(children.length ? { component: "Grid", children } : {})
+    };
+  };
+
+  return (Array.isArray(tree) ? tree : [])
+    .filter(node => node?.isActive !== false && node?.isVisible !== false)
     .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name))
-    .map(parent => {
-      const childGroups = (parent.children || [])
-        .filter(c => c?.isActive !== false && c?.isVisible !== false)
-        .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name))
-        .map(child => {
-          const grandchildren = (child.children || [])
-            .filter(g => g?.isActive !== false && g?.isVisible !== false)
-            .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name))
-            .map(g => ({ title: g.name, href: createCategoryHref(g.slug) }));
-          return {
-            title: child.name,
-            href: createCategoryHref(child.slug),
-            children: grandchildren
-          };
-        });
-      return {
-        title: parent.name,
-        href: createCategoryHref(parent.slug),
-        icon: parent.icon || undefined,
-        component: childGroups.length ? "Grid" : undefined,
-        children: childGroups.length ? childGroups : undefined
-      };
-    });
+    .map(mapNode);
 }
 
 export function buildMobileCategoryMenusFromTree(tree) {
-  const visibleNodes = (Array.isArray(tree) ? tree : []).filter(n => n?.isActive !== false && n?.isVisible !== false);
-  return [...visibleNodes]
-    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name))
-    .map(parent => ({
-      icon: parent.icon || "CategoryOutline",
-      title: parent.name,
-      href: createCategoryHref(parent.slug),
-      children: (parent.children || [])
-        .filter(c => c?.isActive !== false && c?.isVisible !== false)
-        .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
-        .map(child => ({
-          title: child.name,
-          href: createCategoryHref(child.slug),
-          children: (child.children || [])
-            .filter(g => g?.isActive !== false && g?.isVisible !== false)
-            .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
-            .map(g => ({ title: g.name, href: createCategoryHref(g.slug) }))
-        }))
-    }));
+  return buildCategoryMenusFromTree(tree).map(node => ({
+    ...node,
+    icon: node.icon || "CategoryOutline"
+  }));
 }
 
 export function buildMobileCategoryMenus(categories) {

@@ -1,16 +1,6 @@
 import MobileCategoriesPageView from "./page-view";
-import navbarNavigation from "data/navbarNavigation";
-import { mobileNavigation } from "data/layout-data";
+import api from "utils/__api__/layout";
 export default async function MobileCategories() {
-  const data = {
-    header: {
-      navigation: navbarNavigation
-    },
-    mobileNavigation: {
-      version1: mobileNavigation,
-      logo: "/assets/images/logo.svg"
-    }
-  };
-
+  const data = await api.getLayoutData();
   return <MobileCategoriesPageView data={data} />;
 }

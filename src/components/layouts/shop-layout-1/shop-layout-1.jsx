@@ -41,7 +41,7 @@ export default function ShopLayout1({
   } = data;
   const MOBILE_VERSION_HEADER = <MobileHeader>
       <MobileHeader.Left>
-        <MobileMenu navigation={header.navigation} languages={topbar.languageOptions} />
+        <MobileMenu navigation={header.mobileNavigation || header.navigation} languages={topbar.languageOptions} />
       </MobileHeader.Left>
 
       <MobileHeader.Logo logoUrl={mobileNavigation.logo} siteName={mobileNavigation.siteName} />

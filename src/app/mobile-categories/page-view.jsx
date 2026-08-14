@@ -1,125 +1,135 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import CircularProgress from "@mui/material/CircularProgress";
+import Container from "@mui/material/Container";
+import IconButton from "@mui/material/IconButton";
+import Paper from "@mui/material/Paper";
+import Typography from "@mui/material/Typography";
+import ArrowBack from "@mui/icons-material/ArrowBack";
+import ChevronLeft from "@mui/icons-material/ChevronLeft";
 
-// MUI
-import Tooltip from "@mui/material/Tooltip";
-
-// GLOBAL CUSTOM COMPONENTS
-import SearchInput from "components/SearchInput";
 import IconComponent from "components/IconComponent";
-import OverlayScrollbar from "components/overlay-scrollbar";
 import { MobileNavigationBar } from "components/mobile-navigation";
 import { HeaderCart, HeaderLogin, MobileHeader, HeaderSearch } from "components/header";
 import { MobileMenu } from "components/mobile-navbar/mobile-menu";
-import { buildMobileCategoryMenus, fetchCategoriesTree } from "utils/catalog";
+import SearchInput from "components/SearchInput";
+import useSettings from "hooks/useSettings";
+import { fetchCategoriesTree } from "utils/catalog";
 
-// STYLES
-import { CategoryListItem, StyledRoot } from "./styles";
-
-// TYPES
-
-
-// ==============================================================
-
-
-// ==============================================================
-
-export default function MobileCategoriesPageView({
-  data
-}) {
-  const {
-    header,
-    mobileNavigation
-  } = data;
+export default function MobileCategoriesPageView({ data }) {
+  const { header, mobileNavigation, topbar } = data;
+  const { settings } = useSettings();
+  const isArabic = settings.default_language !== "en";
   const router = useRouter();
-  const [categoryMenus, setCategoryMenus] = useState([]);
-  const [selected, setSelected] = useState(null);
+  const [roots, setRoots] = useState([]);
+  const [path, setPath] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
     let active = true;
-
-    const loadCategories = async () => {
-      try {
-        setLoading(true);
+    fetchCategoriesTree(true)
+      .then(tree => {
+        if (!active) return;
+        setRoots(Array.isArray(tree) ? tree : []);
         setError("");
-        const response = await fetchCategoriesTree(true);
+      })
+      .catch(loadError => active && setError(loadError.message || (isArabic ? "تعذر تحميل الفئات" : "Unable to load categories")))
+      .finally(() => active && setLoading(false));
+    return () => { active = false; };
+  }, [isArabic]);
 
-        if (!active) return;
+  const current = path[path.length - 1] || null;
+  const visibleItems = useMemo(() => current?.children || roots, [current, roots]);
+  const openCategory = category => {
+    if (category.children?.length) setPath(previous => [...previous, category]);
+    else router.push(`/categories/${category.slug}`);
+  };
 
-        const menus = buildMobileCategoryMenus(response);
-        setCategoryMenus(menus);
-        setSelected(menus[0] || null);
-      } catch (loadError) {
-        if (!active) return;
-
-        setCategoryMenus([]);
-        setSelected(null);
-        setError(loadError.message || "Failed to load categories");
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
-      }
-    };
-
-    loadCategories();
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  return <StyledRoot>
-      <div className="header">
+  return <Box sx={{ minHeight: "100dvh", pb: 10, bgcolor: "grey.50" }}>
+      <Paper square elevation={1} sx={{ position: "sticky", top: 0, zIndex: 10, px: 1, py: 0.5 }}>
         <MobileHeader>
           <MobileHeader.Left>
-            <MobileMenu navigation={header.navigation} />
+            <MobileMenu navigation={header.mobileNavigation || header.navigation} languages={topbar?.languageOptions} />
           </MobileHeader.Left>
-
-          <MobileHeader.Logo logoUrl={mobileNavigation.logo} />
-
+          <MobileHeader.Logo logoUrl={mobileNavigation.logo} siteName={mobileNavigation.siteName} />
           <MobileHeader.Right>
-            <HeaderSearch>
-              <SearchInput />
-            </HeaderSearch>
-
+            <HeaderSearch><SearchInput /></HeaderSearch>
             <HeaderLogin />
             <HeaderCart />
           </MobileHeader.Right>
         </MobileHeader>
-      </div>
+      </Paper>
 
-      <OverlayScrollbar className="category-list">
-        {loading ? <div className="p-3">Loading...</div> : null}
+      <Container maxWidth="sm" sx={{ py: 2 }}>
+        <Box display="flex" alignItems="center" gap={1} mb={2}>
+          {current ? <IconButton aria-label={isArabic ? "رجوع" : "Back"} onClick={() => setPath(previous => previous.slice(0, -1))}>
+              <ArrowBack sx={{ transform: isArabic ? "rotate(180deg)" : "none" }} />
+            </IconButton> : null}
+          <Box minWidth={0} flex={1}>
+            <Typography variant="h5" fontWeight={800} noWrap>
+              {current?.name || (isArabic ? "جميع الفئات" : "All categories")}
+            </Typography>
+            {path.length > 1 ? <Typography variant="caption" color="text.secondary" noWrap>
+                {path.slice(0, -1).map(item => item.name).join(" / ")}
+              </Typography> : null}
+          </Box>
+        </Box>
 
-        {!loading && error ? <div className="p-3">{error}</div> : null}
+        {current ? <Button
+            component={Link}
+            href={`/categories/${current.slug}`}
+            fullWidth
+            variant="contained"
+            sx={{ mb: 2, minHeight: 46 }}
+          >
+            {isArabic ? "عرض كل منتجات الفئة" : "View all category products"} ({current.productCount ?? 0})
+          </Button> : null}
 
-        {!loading && !error ? categoryMenus.map((item, i) => <Tooltip key={i} title={item.title} placement="right" arrow>
-            <CategoryListItem isActive={selected?.title === item.title} onClick={() => {
-          if (item.children?.length) setSelected(item);else router.push(item.href);
-        }}>
-              <IconComponent icon={item.icon} className="icon" />
-              <p className="title">{item.title}</p>
-            </CategoryListItem>
-          </Tooltip>) : null}
-      </OverlayScrollbar>
-
-      <div className="container">
-        {loading ? <p>Loading...</p> : null}
-        {!loading && error ? <p>{error}</p> : null}
-        {!loading && !error && selected?.children?.length ? selected.children.map(item => <Link href={item.href} key={item.href} className="link">
-              {item.title}
-            </Link>) : null}
-        {!loading && !error && selected && !selected.children?.length ? <Link href={selected.href} className="link">
-            {selected.title}
-          </Link> : null}
-      </div>
+        {loading ? <Box py={8} textAlign="center"><CircularProgress size={32} /></Box> : null}
+        {!loading && error ? <Paper sx={{ p: 3, textAlign: "center", color: "error.main" }}>{error}</Paper> : null}
+        {!loading && !error ? <Box display="grid" gap={1.25}>
+            {visibleItems.map(category => <Paper
+                component="button"
+                type="button"
+                key={category.id}
+                onClick={() => openCategory(category)}
+                elevation={0}
+                sx={{
+                  width: "100%",
+                  minHeight: 66,
+                  p: 1.5,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1.5,
+                  border: "1px solid",
+                  borderColor: "divider",
+                  borderRadius: 2,
+                  bgcolor: "background.paper",
+                  color: "text.primary",
+                  textAlign: "start",
+                  cursor: "pointer"
+                }}
+              >
+                <Box sx={{ width: 40, height: 40, borderRadius: 1.5, display: "grid", placeItems: "center", bgcolor: "primary.50", color: "primary.main", flexShrink: 0 }}>
+                  <IconComponent icon={category.icon || "CategoryOutline"} fontSize="small" />
+                </Box>
+                <Box flex={1} minWidth={0}>
+                  <Typography fontWeight={700}>{category.name}</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {category.productCount ?? 0} {isArabic ? "منتج" : "products"}
+                  </Typography>
+                </Box>
+                {category.children?.length ? <ChevronLeft sx={{ transform: isArabic ? "none" : "rotate(180deg)", color: "text.secondary" }} /> : null}
+              </Paper>)}
+          </Box> : null}
+      </Container>
 
       <MobileNavigationBar navigation={mobileNavigation.version1} />
-    </StyledRoot>;
+    </Box>;
 }

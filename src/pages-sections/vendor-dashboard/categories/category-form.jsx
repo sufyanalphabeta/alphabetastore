@@ -65,8 +65,40 @@ export default function CategoryForm({
   } = methods;
   const editingCategory = useMemo(() => categories.find(item => item.slug === slug) || null, [categories, slug]);
 
-  // Only top-level categories can be parents (no deep nesting)
-  const parentOptions = useMemo(() => categories.filter(item => !item.parentId && item.id !== editingCategory?.id), [categories, editingCategory?.id]);
+  const parentOptions = useMemo(() => {
+    const excluded = new Set(editingCategory ? [editingCategory.id] : []);
+    if (editingCategory) {
+      const pending = [editingCategory.id];
+      while (pending.length) {
+        const parentId = pending.shift();
+        for (const category of categories) {
+          if (category.parentId === parentId && !excluded.has(category.id)) {
+            excluded.add(category.id);
+            pending.push(category.id);
+          }
+        }
+      }
+    }
+
+    const byId = new Map(categories.map(category => [category.id, category]));
+    const pathFor = category => {
+      const path = [category.name];
+      const visited = new Set([category.id]);
+      let parentId = category.parentId;
+      while (parentId && byId.has(parentId) && !visited.has(parentId)) {
+        const parent = byId.get(parentId);
+        path.unshift(parent.name);
+        visited.add(parentId);
+        parentId = parent.parentId;
+      }
+      return path.join(" / ");
+    };
+
+    return categories
+      .filter(category => !excluded.has(category.id))
+      .map(category => ({ ...category, pathLabel: pathFor(category) }))
+      .sort((left, right) => left.pathLabel.localeCompare(right.pathLabel));
+  }, [categories, editingCategory]);
 
   useEffect(() => {
     let isMounted = true;
@@ -123,7 +155,7 @@ export default function CategoryForm({
     const payload = {
       name: values.name.trim(),
       slug: values.slug.trim(),
-      parentId: values.parentId || undefined,
+      parentId: values.parentId || null,
       isActive: Boolean(values.isActive),
       isVisible: Boolean(values.isVisible),
       sortOrder: Number(values.sortOrder) || 0,
@@ -183,7 +215,7 @@ export default function CategoryForm({
         }}>
             <TextField select fullWidth color="info" size="medium" name="parentId" placeholder="Parent Category" label="Select Parent Category">
               <MenuItem value="">None</MenuItem>
-              {parentOptions.map(option => <MenuItem key={option.id} value={option.id}>{option.name}</MenuItem>)}
+              {parentOptions.map(option => <MenuItem key={option.id} value={option.id}>{option.pathLabel}</MenuItem>)}
             </TextField>
           </Grid>
 

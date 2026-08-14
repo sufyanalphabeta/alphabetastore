@@ -11,9 +11,12 @@ import ChevronRight from "icons/ChevronRight";
 
 // STYLED COMPONENT
 import { CategoryMenuButton } from "./styles";
+import useSettings from "hooks/useSettings";
 export default function CategoryDropdown({
   children
 }) {
+  const { settings } = useSettings();
+  const isArabic = settings.default_language !== "en";
   return <CategoryMenu render={handler => <CategoryMenuButton onClick={handler}>
           <div className="prefix">
             <SvgIcon fontSize="small" className="icon">
@@ -22,7 +25,7 @@ export default function CategoryDropdown({
               </svg>
             </SvgIcon>
 
-            <Typography variant="h6">Categories</Typography>
+            <Typography variant="h6">{isArabic ? "جميع الفئات" : "All categories"}</Typography>
           </div>
 
           <ChevronRight className="dropdown-icon" fontSize="small" />

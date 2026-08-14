@@ -11,15 +11,30 @@ const getLayoutData = cache(async () => {
   const isArabic = defaultLanguage === "ar";
 
   const categoryMenus = buildCategoryMenusFromTree(categoryTree);
-  const toNavigationItem = item => ({
-    title: item.title,
-    url: item.href,
-    child: (item.children || []).map(toNavigationItem)
-  });
+  // Keep leaf categories as links. An empty array is truthy in JavaScript and
+  // made the navbar treat every leaf as an empty nested menu.
+  const toNavigationItem = item => {
+    const children = (item.children || []).map(toNavigationItem);
+    return {
+      title: item.title,
+      url: item.href,
+      ...(children.length ? { child: children } : {})
+    };
+  };
   const navigation = [
     { title: isArabic ? "الرئيسية" : "Home", url: "/" },
     { title: isArabic ? "كل المنتجات" : "All Products", url: "/products/search" },
-    ...categoryMenus.slice(0, 6).map(toNavigationItem),
+    ...categoryMenus.filter(item => item.isFeatured).slice(0, 4).map(toNavigationItem),
+    { title: isArabic ? "الخدمات" : "Services", url: "/services" }
+  ];
+  const mobileHeaderNavigation = [
+    { title: isArabic ? "الرئيسية" : "Home", url: "/" },
+    { title: isArabic ? "كل المنتجات" : "All Products", url: "/products/search" },
+    {
+      title: isArabic ? "جميع الفئات" : "All categories",
+      url: "/mobile-categories",
+      child: categoryMenus.map(toNavigationItem)
+    },
     { title: isArabic ? "الخدمات" : "Services", url: "/services" }
   ];
 
@@ -60,7 +75,8 @@ const getLayoutData = cache(async () => {
     header: {
       logo: logoUrl,
       siteName,
-      navigation
+      navigation,
+      mobileNavigation: mobileHeaderNavigation
     },
     mobileNavigation: {
       logo: logoUrl,
@@ -72,7 +88,7 @@ const getLayoutData = cache(async () => {
       }, {
         icon: "CategoryOutline",
         title: isArabic ? "الفئات" : "Categories",
-        href: "/products/search"
+        href: "/mobile-categories"
       }, {
         icon: "Bag",
         title: isArabic ? "السلة" : "Cart",
