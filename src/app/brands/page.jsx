@@ -43,55 +43,57 @@ export default async function BrandsIndex() {
       ) : null}
 
       <Grid container spacing={3}>
-        {brands.map(brand => (
+        {brands.map((brand) => (
           <Grid size={{ xs: 6, sm: 4, md: 3, lg: 2 }} key={brand.id}>
-            <Card
-              component={Link}
+            <Link
               href={`/brands/${brand.slug}`}
-              sx={{
-                p: 2,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                textDecoration: "none",
-                color: "text.primary",
-                height: "100%",
-                transition: "all 0.2s ease",
-                ":hover": { boxShadow: 4, transform: "translateY(-2px)" }
-              }}
+              style={{ color: "inherit", display: "block", height: "100%", textDecoration: "none" }}
             >
-              <Box
-                position="relative"
+              <Card
                 sx={{
-                  width: "100%",
-                  height: 80,
+                  p: 2,
                   display: "flex",
+                  flexDirection: "column",
                   alignItems: "center",
-                  justifyContent: "center",
-                  mb: 1.5
+                  color: "text.primary",
+                  height: "100%",
+                  transition: "all 0.2s ease",
+                  ":hover": { boxShadow: 4, transform: "translateY(-2px)" }
                 }}
               >
-                {brand.logoUrl ? (
-                  <LazyImage
-                    src={brand.logoUrl}
-                    alt={brand.name}
-                    width={120}
-                    height={80}
-                    style={{ objectFit: "contain", maxWidth: "100%", maxHeight: "100%" }}
-                  />
-                ) : (
-                  <Typography variant="h4" fontWeight={700} color="primary.main">
-                    {brand.name?.charAt(0)?.toUpperCase()}
-                  </Typography>
-                )}
-              </Box>
-              <Typography variant="subtitle1" fontWeight={600} textAlign="center">
-                {brand.name}
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                {brand.productCount ?? 0} منتج
-              </Typography>
-            </Card>
+                <Box
+                  position="relative"
+                  sx={{
+                    width: "100%",
+                    height: 80,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    mb: 1.5
+                  }}
+                >
+                  {brand.logoUrl ? (
+                    <LazyImage
+                      src={brand.logoUrl}
+                      alt={brand.name}
+                      width={120}
+                      height={80}
+                      style={{ objectFit: "contain", maxWidth: "100%", maxHeight: "100%" }}
+                    />
+                  ) : (
+                    <Typography variant="h4" fontWeight={700} color="primary.main">
+                      {brand.name?.charAt(0)?.toUpperCase()}
+                    </Typography>
+                  )}
+                </Box>
+                <Typography variant="subtitle1" fontWeight={600} textAlign="center">
+                  {brand.name}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {brand.productCount ?? 0} منتج
+                </Typography>
+              </Card>
+            </Link>
           </Grid>
         ))}
       </Grid>
