@@ -16,6 +16,7 @@ import { ProductSkuService } from "./product-sku.service";
 import { ProductReadinessService } from "./product-readiness.service";
 import { ProductReviewAuditService } from "./product-review-audit.service";
 import { calculatePurchaseAvailability } from "../inventory/purchase-quantity.policy";
+import { CategoryTreeService } from "../categories/category-tree.service";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -222,7 +223,8 @@ export class ProductsService {
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
     private readonly productSkuService: ProductSkuService,
     private readonly productReadinessService: ProductReadinessService,
-    private readonly productReviewAuditService: ProductReviewAuditService
+    private readonly productReviewAuditService: ProductReviewAuditService,
+    private readonly categoryTreeService: CategoryTreeService
   ) {}
 
   async findAll(query: FindProductsQueryDto = {}) {
@@ -289,36 +291,10 @@ export class ProductsService {
     }
 
     if (categoryFilter) {
-      const categoryIds = await this.resolveCategoryIds(categoryFilter);
-      const categoryConditions: Prisma.ProductWhereInput[] = [
-        {
-          category: {
-            slug: categoryFilter
-          }
-        }
-      ];
-
-      if (categoryIds.length) {
-        categoryConditions.unshift({
-          categoryId: {
-            in: categoryIds
-          }
-        });
-      }
-
-      if (UUID_PATTERN.test(categoryFilter)) {
-        categoryConditions.unshift({
-          categoryId: categoryFilter
-        });
-      }
-
-      whereClauses.push(
-        categoryConditions.length === 1
-          ? categoryConditions[0]
-          : {
-              OR: categoryConditions
-            }
-      );
+      const scope = await this.categoryTreeService.resolveScope(categoryFilter, {
+        publicOnly
+      });
+      whereClauses.push({ categoryId: { in: scope?.categoryIds ?? [] } });
     }
 
     if (searchTerm) {
@@ -464,51 +440,6 @@ export class ProductsService {
         totalPages: Math.max(1, Math.ceil(total / limit))
       }
     };
-  }
-
-  private async resolveCategoryIds(categoryFilter: string) {
-    const rootCategory = await this.prisma.category.findFirst({
-      where: UUID_PATTERN.test(categoryFilter)
-        ? {
-            OR: [{ id: categoryFilter }, { slug: categoryFilter }]
-          }
-        : {
-            slug: categoryFilter
-          },
-      select: {
-        id: true
-      }
-    });
-
-    if (!rootCategory) {
-      return [];
-    }
-
-    const categoryIds = new Set<string>([rootCategory.id]);
-    let parentIds = [rootCategory.id];
-
-    while (parentIds.length) {
-      const children = await this.prisma.category.findMany({
-        where: {
-          parentId: {
-            in: parentIds
-          }
-        },
-        select: {
-          id: true
-        }
-      });
-
-      parentIds = children
-        .map((category: { id: string }) => category.id)
-        .filter((id: string) => !categoryIds.has(id));
-
-      for (const id of parentIds) {
-        categoryIds.add(id);
-      }
-    }
-
-    return [...categoryIds];
   }
 
   async findOneBySlug(slugOrId: string) {
@@ -1124,12 +1055,7 @@ export class ProductsService {
 
   /** Single-query product counts per category (no N+1). */
   async countsByCategory(): Promise<Array<{ categoryId: string; count: number }>> {
-    const rows = await this.prisma.product.groupBy({
-      by: ["categoryId"],
-      _count: { _all: true },
-      where: { status: ProductStatus.ACTIVE }
-    });
-    return rows.map((r) => ({ categoryId: r.categoryId, count: r._count._all }));
+    return this.categoryTreeService.getPublicCounts();
   }
 
   /** Autocomplete: returns products, brands, categories matching a term. */

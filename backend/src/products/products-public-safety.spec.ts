@@ -24,7 +24,11 @@ function serviceWith(prismaOverrides: Record<string, unknown> = {}) {
   const sku = { resolve: jest.fn().mockResolvedValue('AB-000001') };
   const readiness = { evaluate: jest.fn() };
   const reviewAudit = { productUpdateInvalidates: jest.fn().mockReturnValue(false), invalidationData: jest.fn().mockReturnValue({}) };
-  return { service: new ProductsService(prisma as never, {} as never, pricing as never, cache as never, sku as never, readiness as never, reviewAudit as never), prisma, cache, readiness, reviewAudit };
+  const categoryTree = {
+    resolveScope: jest.fn().mockResolvedValue({ categoryIds: ['category-1'] }),
+    getPublicCounts: jest.fn().mockResolvedValue([]),
+  };
+  return { service: new ProductsService(prisma as never, {} as never, pricing as never, cache as never, sku as never, readiness as never, reviewAudit as never, categoryTree as never), prisma, cache, readiness, reviewAudit, categoryTree };
 }
 
 describe('ProductsService public safety', () => {
@@ -47,10 +51,14 @@ describe('ProductsService public safety', () => {
   });
 
   it('keeps public search and category/brand filters under ACTIVE', async () => {
-    const { service, prisma } = serviceWith();
+    const { service, prisma, categoryTree } = serviceWith();
     await service.findAll({ q: 'hp', category: 'laptops', brandId: 'brand-1' });
+    expect(categoryTree.resolveScope).toHaveBeenCalledWith('laptops', { publicOnly: true });
     expect(prisma.product.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ AND: expect.arrayContaining([{ status: ProductStatus.ACTIVE }]) }),
+      where: expect.objectContaining({ AND: expect.arrayContaining([
+        { status: ProductStatus.ACTIVE },
+        { categoryId: { in: ['category-1'] } },
+      ]) }),
     }));
   });
 
@@ -117,11 +125,11 @@ describe('ProductsService public safety', () => {
   });
 
   it('filters public by-ids and category counts to ACTIVE', async () => {
-    const { service, prisma } = serviceWith();
+    const { service, prisma, categoryTree } = serviceWith();
     await service.findByIds(['p1']);
     expect(prisma.product.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { id: { in: ['p1'] }, status: ProductStatus.ACTIVE } }));
     await service.countsByCategory();
-    expect(prisma.product.groupBy).toHaveBeenCalledWith(expect.objectContaining({ where: { status: ProductStatus.ACTIVE } }));
+    expect(categoryTree.getPublicCounts).toHaveBeenCalled();
   });
 
   it('does not record views for inactive products', async () => {

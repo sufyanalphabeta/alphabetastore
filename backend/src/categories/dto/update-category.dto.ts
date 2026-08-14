@@ -13,7 +13,7 @@ export class UpdateCategoryDto {
 
   @IsOptional()
   @IsUUID()
-  parentId?: string;
+  parentId?: string | null;
 
   @IsOptional()
   @IsBoolean()

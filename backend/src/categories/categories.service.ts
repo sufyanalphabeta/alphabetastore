@@ -12,6 +12,7 @@ import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
+import { CategoryTreeService } from './category-tree.service';
 
 const CATEGORIES_CACHE_KEY = 'categories:all';
 const CATEGORIES_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -31,6 +32,7 @@ export class CategoriesService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
+    private readonly categoryTreeService: CategoryTreeService,
   ) {}
 
   async findAll(onlyVisible = false) {
@@ -110,6 +112,13 @@ export class CategoriesService {
       throw new ConflictException('Category cannot be its own parent.');
     }
 
+    if (updateCategoryDto.parentId) {
+      const descendantIds = await this.categoryTreeService.getDescendantIds(id);
+      if (descendantIds.includes(updateCategoryDto.parentId)) {
+        throw new ConflictException('Category cannot be moved under one of its descendants.');
+      }
+    }
+
     await this.ensureParentExists(updateCategoryDto.parentId);
 
     try {
@@ -149,6 +158,10 @@ export class CategoriesService {
           },
           take: 1,
         },
+        children: {
+          select: { id: true },
+          take: 1,
+        },
       },
     });
 
@@ -158,6 +171,10 @@ export class CategoriesService {
 
     if (existingCategory.products.length > 0) {
       throw new ConflictException('Cannot delete category with assigned products.');
+    }
+
+    if (existingCategory.children.length > 0) {
+      throw new ConflictException('Cannot delete category with child categories.');
     }
 
     await this.prisma.category.delete({
@@ -179,6 +196,12 @@ export class CategoriesService {
     const cacheKey = opts.onlyVisible ? 'categories:tree:visible' : 'categories:tree:all';
     const cached = await this.cacheManager.get(cacheKey);
     if (cached) return cached;
+
+    if (opts.onlyVisible) {
+      const publicTree = await this.categoryTreeService.getPublicTree();
+      await this.cacheManager.set(cacheKey, publicTree, CATEGORIES_CACHE_TTL_MS);
+      return publicTree;
+    }
 
     const categories = await this.prisma.category.findMany({
       where: opts.onlyVisible ? { isActive: true, isVisible: true } : undefined,
@@ -235,35 +258,22 @@ export class CategoriesService {
 
   /** Find a single category by its slug along with its parent and children. */
   async findBySlug(slug: string) {
-    const category = await this.prisma.category.findUnique({
-      where: { slug },
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-        parentId: true,
-        isActive: true,
-        isVisible: true,
-        isFeatured: true,
-        icon: true,
-        imageUrl: true,
-        description: true,
-        parent: {
-          select: { id: true, name: true, slug: true },
-        },
-        children: {
-          where: { isActive: true, isVisible: true },
-          orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-          select: { id: true, name: true, slug: true, icon: true, imageUrl: true },
-        },
-      },
-    });
+    const category = await this.categoryTreeService.findPublicCategoryBySlug(slug);
 
     if (!category) {
       throw new NotFoundException('Category not found.');
     }
 
     return category;
+  }
+
+  async countsByCategory() {
+    const tree = await this.categoryTreeService.getPublicTree();
+    return this.categoryTreeService.flattenPublicTree(tree).map((category) => ({
+      categoryId: category.id,
+      directCount: category.directProductCount,
+      count: category.productCount
+    }));
   }
 
   async reorder(items: Array<{ id: string; sortOrder: number }>) {
@@ -280,15 +290,20 @@ export class CategoriesService {
   }
 
   private async invalidateCache() {
+    const productListRegistryKey = 'products:list:keys';
+    const productListKeys =
+      (await this.cacheManager.get<string[]>(productListRegistryKey)) ?? [];
     await Promise.all([
       this.cacheManager.del(CATEGORIES_CACHE_KEY),
       this.cacheManager.del(`${CATEGORIES_CACHE_KEY}:visible`),
       this.cacheManager.del('categories:tree:all'),
       this.cacheManager.del('categories:tree:visible'),
+      ...productListKeys.map((key) => this.cacheManager.del(key)),
+      this.cacheManager.del(productListRegistryKey),
     ]);
   }
 
-  private async ensureParentExists(parentId?: string) {
+  private async ensureParentExists(parentId?: string | null) {
     if (!parentId) {
       return;
     }
