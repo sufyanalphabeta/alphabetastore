@@ -55,7 +55,7 @@ export default function WishlistToggleButton({
       setIsInWishlist(nextValue);
       onChange?.(nextValue);
     } catch (error) {
-      setErrorMsg(error instanceof Error ? error.message : "Failed to update wishlist.");
+      setErrorMsg(error instanceof Error ? error.message : "تعذر تحديث قائمة المفضلة.");
     } finally {
       setIsLoading(false);
     }
@@ -79,7 +79,7 @@ export default function WishlistToggleButton({
       sx={sx}
       fullWidth={fullWidth}
     >
-      {isInWishlist ? "Remove from Wishlist" : "Add to Wishlist"}
+      {isInWishlist ? "إزالة من المفضلة" : "إضافة إلى المفضلة"}
     </Button>
   ) : (
     <IconButton
@@ -87,7 +87,7 @@ export default function WishlistToggleButton({
       onClick={handleToggle}
       disabled={isLoading}
       sx={sx}
-      aria-label={isInWishlist ? "Remove from wishlist" : "Add to wishlist"}
+      aria-label={isInWishlist ? "إزالة من المفضلة" : "إضافة إلى المفضلة"}
     >
       {isLoading ? (
         <CircularProgress size={18} color="inherit" />

@@ -16,9 +16,9 @@ export default function ProductsGridView({
 }) {
   return <Grid container spacing={3}>
       {products.map(product => <Grid size={{
-      lg: 4,
+      lg: 3,
       sm: 6,
-      xs: 12
+      xs: 6
     }} key={product.id}>
           <ProductCard16 product={product} />
         </Grid>)}

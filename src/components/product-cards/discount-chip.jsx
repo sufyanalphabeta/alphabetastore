@@ -42,6 +42,13 @@ export default function DiscountChip({
 }) {
   const { settings } = useSettings();
 
+  if (product?.storefrontPrice) {
+    const percent = Number(product.storefrontPrice.discountPercent || 0);
+    return product.storefrontPrice.hasActiveDiscount && percent > 0
+      ? <StyledChip size="small" shape={shape} label={`خصم ${Math.round(percent)}%`} {...props} />
+      : null;
+  }
+
   // New pricing engine: compute actual discount % from product fields
   if (product && (product.discountType !== undefined || product.baseCurrency !== undefined)) {
     const pricingSettings = buildPricingSettings(settings);

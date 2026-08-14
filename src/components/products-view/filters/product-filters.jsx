@@ -1,276 +1,147 @@
 "use client";
 
-import { Fragment, Suspense, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-
-// MUI
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Collapse from "@mui/material/Collapse";
+import Checkbox from "@mui/material/Checkbox";
+import Chip from "@mui/material/Chip";
 import Divider from "@mui/material/Divider";
 import FormControlLabel from "@mui/material/FormControlLabel";
-import Checkbox from "@mui/material/Checkbox";
-import Slider from "@mui/material/Slider";
+import IconButton from "@mui/material/IconButton";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import Chip from "@mui/material/Chip";
+import ExpandMore from "@mui/icons-material/ExpandMore";
+import ChevronLeft from "@mui/icons-material/ChevronLeft";
 
-// GLOBAL CUSTOM COMPONENTS
-import AccordionHeader from "components/accordion";
+const FILTER_KEYS = ["category", "brand", "brandId", "brandSlug", "availability", "inStock", "minPrice", "maxPrice"];
 
-// CUSTOM LOCAL HOOK
-import useProductFilterCard from "./use-product-filter-card";
+function CategoryRow({ item, depth, selected, expanded, onToggle, onSelect }) {
+  const children = Array.isArray(item?.children) ? item.children : [];
+  const isOpen = expanded.has(item.slug);
+  const isSelected = selected === item.slug;
 
-// TYPES
-
-export default function ProductFilters(props) {
-  return (
-    <Suspense fallback={null}>
-      <ProductFiltersInner {...props} />
-    </Suspense>
-  );
+  return <Box>
+    <Stack direction="row" alignItems="center" sx={{ minHeight: 38, ps: depth * 1.25 }}>
+      <Button variant="text" color={isSelected ? "primary" : "inherit"} onClick={() => onSelect(item.slug)}
+        sx={{ flex: 1, justifyContent: "space-between", px: 0.5, fontWeight: isSelected ? 800 : 500, textAlign: "start" }}>
+        <span>{item?.name || item?.title || ""}</span>
+        {item.productCount != null ? <Chip size="small" label={item.productCount} sx={{ height: 22, ms: 1 }} /> : null}
+      </Button>
+      {children.length ? <IconButton size="small" aria-label="عرض الفئات الفرعية" onClick={() => onToggle(item.slug)}>
+        {isOpen ? <ExpandMore fontSize="small" /> : <ChevronLeft fontSize="small" />}
+      </IconButton> : null}
+    </Stack>
+    {isOpen ? children.map(child => <CategoryRow key={child.id || child.slug} item={child} depth={depth + 1}
+      selected={selected} expanded={expanded} onToggle={onToggle} onSelect={onSelect} />) : null}
+  </Box>;
 }
 
-function ProductFiltersInner({
-  filters
-}) {
-  const {
-    categories: CATEGORIES = [],
-    brands: BRANDS = [],
-    inStock: inStockProp = false,
-  } = filters || {};
+export default function ProductFilters({ filters = {}, onClose }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const selectedCategory = searchParams.get("category") || "";
-  const selectedBrand = searchParams.get("brand") || "";
+  const categories = useMemo(() => filters.categories || [], [filters.categories]);
+  const brands = useMemo(() => filters.brands || [], [filters.brands]);
+  const selectedCategory = searchParams.get("category") || filters.fixedCategory || "";
   const selectedBrandId = searchParams.get("brandId") || "";
-  const initialMinPrice = Number(searchParams.get("minPrice") || 0);
-  const initialMaxPrice = Number(searchParams.get("maxPrice") || 0);
-  const currentInStock = searchParams.get("inStock") === "true";
-  const [priceRange, setPriceRange] = useState([initialMinPrice, initialMaxPrice || 5000]);
-  const [maxPriceInput, setMaxPriceInput] = useState(initialMaxPrice || "");
-  const [minPriceInput, setMinPriceInput] = useState(initialMinPrice || "");
+  const selectedBrand = searchParams.get("brandSlug") || searchParams.get("brand") || "";
+  const availability = searchParams.get("availability") || (searchParams.get("inStock") === "true" ? "in-stock" : "");
   const [brandQuery, setBrandQuery] = useState("");
+  const [minPrice, setMinPrice] = useState(searchParams.get("minPrice") || "");
+  const [maxPrice, setMaxPrice] = useState(searchParams.get("maxPrice") || "");
+  const [expanded, setExpanded] = useState(new Set());
 
-  const {
-    collapsed,
-    setCollapsed,
-    handleChangeSearchParams
-  } = useProductFilterCard();
+  useEffect(() => {
+    setMinPrice(searchParams.get("minPrice") || "");
+    setMaxPrice(searchParams.get("maxPrice") || "");
+  }, [searchParams]);
 
-  const handleSelectCategory = slug => {
-    handleChangeSearchParams("category", selectedCategory === slug ? "" : slug);
-  };
+  useEffect(() => {
+    setExpanded(current => current.size ? current : new Set(categories.slice(0, 2).map(item => item.slug)));
+  }, [categories]);
 
-  const handleSelectBrand = (brand) => {
+  const navigate = changes => {
     const params = new URLSearchParams(searchParams);
-    // Determine if brand is object (from API) or legacy string
-    if (brand && typeof brand === "object") {
-      const isSelected = selectedBrandId === brand.id;
-      if (isSelected) {
-        params.delete("brandId");
-        params.delete("brand");
-      } else {
-        params.set("brandId", brand.id);
-        params.set("brand", brand.slug);
-      }
-    } else {
-      const isSelected = selectedBrand === brand;
-      if (isSelected) {
-        params.delete("brand");
-      } else {
-        params.set("brand", brand);
-      }
+    for (const [key, value] of Object.entries(changes)) {
+      if (value === undefined || value === null || value === "") params.delete(key);
+      else params.set(key, String(value));
     }
     params.delete("page");
-    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    const query = params.toString();
+    router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    onClose?.();
   };
 
-  const handleToggleInStock = () => {
-    const params = new URLSearchParams(searchParams);
-    if (currentInStock) {
-      params.delete("inStock");
-    } else {
-      params.set("inStock", "true");
-    }
-    params.delete("page");
-    router.push(`${pathname}?${params.toString()}`, { scroll: false });
-  };
-
-  const handleApplyPriceFilter = () => {
-    const params = new URLSearchParams(searchParams);
-    const min = Number(minPriceInput);
-    const max = Number(maxPriceInput);
-
-    if (min > 0) {
-      params.set("minPrice", String(min));
-    } else {
-      params.delete("minPrice");
-    }
-
-    if (max > 0) {
-      params.set("maxPrice", String(max));
-    } else {
-      params.delete("maxPrice");
-    }
-
-    params.delete("page");
-    const queryString = params.toString();
-    router.push(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
-  };
-
-  const renderCategoryItem = item => {
-    const title = typeof item === "string" ? item : item?.title;
-    const slug = typeof item === "string" ? item : item?.slug;
-    const isSelected = Boolean(slug) && selectedCategory === slug;
-
-    return <Typography variant="body1" key={slug || title} onClick={slug ? () => handleSelectCategory(slug) : undefined} sx={{
-      py: 0.75,
-      fontSize: 14,
-      cursor: slug ? "pointer" : "default",
-      color: isSelected ? "primary.main" : "grey.600",
-      fontWeight: isSelected ? 600 : 400
-    }}>
-        {title}
-      </Typography>;
-  };
-
-  const handleClearFilters = () => {
-    router.push(pathname);
-    setPriceRange([0, 5000]);
-    setMinPriceInput("");
-    setMaxPriceInput("");
-  };
-
-  const hasActiveFilters = searchParams.size > 0;
-  const activeCount = [selectedCategory, selectedBrandId || selectedBrand, currentInStock, initialMinPrice, initialMaxPrice]
-    .filter(Boolean).length;
   const visibleBrands = useMemo(() => {
-    const term = brandQuery.trim().toLowerCase();
-    return term ? BRANDS.filter(item => String(item?.name || item).toLowerCase().includes(term)) : BRANDS;
-  }, [BRANDS, brandQuery]);
+    const term = brandQuery.trim().toLocaleLowerCase("ar");
+    return brands.filter(brand => brand.productCount == null || Number(brand.productCount) > 0)
+      .filter(brand => !term || brand.name.toLocaleLowerCase("ar").includes(term));
+  }, [brandQuery, brands]);
 
-  return <Box sx={{ p: { xs: 0, md: 1.5 }, borderRadius: 2, bgcolor: { md: "background.paper" } }}>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.5 }}>
-        <Typography variant="h6" fontWeight={700}>تصفية المنتجات</Typography>
-        {activeCount > 0 ? <Chip size="small" color="primary" label={`${activeCount} نشطة`} /> : null}
-      </Stack>
-      {/* CATEGORIES FILTER */}
-      <Typography variant="h6" sx={{ mb: 1.25 }}>
-        الفئات
-      </Typography>
+  const activeCount = [searchParams.get("category"), selectedBrandId || selectedBrand, availability,
+    searchParams.get("minPrice"), searchParams.get("maxPrice")].filter(Boolean).length;
 
-      {CATEGORIES.map(item => item.children ? <Fragment key={item.slug || item.title}>
-            <AccordionHeader open={collapsed} onClick={() => setCollapsed(state => !state)} sx={{
-        padding: ".5rem 0",
-        cursor: "pointer",
-        color: "grey.600"
-      }}>
-              <Typography component="span" onClick={event => {
-          event.stopPropagation();
-          if (item.slug) handleSelectCategory(item.slug);
-        }} sx={{
-          color: selectedCategory === item.slug ? "primary.main" : "inherit",
-          fontWeight: selectedCategory === item.slug ? 600 : 400
-        }}>{item.title}</Typography>
-            </AccordionHeader>
+  const clearFilters = () => {
+    const params = new URLSearchParams(searchParams);
+    FILTER_KEYS.forEach(key => params.delete(key));
+    params.delete("page");
+    const query = params.toString();
+    router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    onClose?.();
+  };
 
-            <Collapse in={collapsed}>
-              {item.children.map(child => <Box key={(typeof child === "string" ? child : child?.slug) || (typeof child === "string" ? child : child?.title)} pl="22px">
-                  {renderCategoryItem(child)}
-                </Box>)}
-            </Collapse>
-          </Fragment> : renderCategoryItem(item))}
+  const toggleCategory = slug => setExpanded(current => {
+    const next = new Set(current);
+    if (next.has(slug)) next.delete(slug); else next.add(slug);
+    return next;
+  });
 
+  return <Box sx={{ p: { xs: 1.5, md: 2 }, bgcolor: "background.paper", borderRadius: 2 }}>
+    <Stack direction="row" alignItems="center" justifyContent="space-between" mb={1.5}>
+      <Typography variant="h6" fontWeight={800}>تصفية المنتجات</Typography>
+      {activeCount ? <Chip size="small" color="primary" label={`${activeCount} نشط`} /> : null}
+    </Stack>
+
+    {categories.length ? <>
+      <Typography fontWeight={800} mb={0.75}>الفئات</Typography>
+      <Box sx={{ maxHeight: 300, overflowY: "auto" }}>
+        {categories.map(item => <CategoryRow key={item.id || item.slug} item={item} depth={0}
+          selected={selectedCategory} expanded={expanded} onToggle={toggleCategory}
+          onSelect={slug => navigate({ category: selectedCategory === slug && !filters.fixedCategory ? "" : slug })} />)}
+      </Box>
       <Divider sx={{ my: 2 }} />
+    </> : null}
 
-      {/* AVAILABILITY FILTER */}
-      <Typography variant="h6" sx={{ mb: 1 }}>
-        التوفر
-      </Typography>
-      <FormControlLabel
-        label="متوفر في المخزون"
-        control={<Checkbox
-          size="small"
-          color="success"
-          checked={currentInStock}
-          onChange={handleToggleInStock}
-        />}
-        sx={{ display: "flex", "& .MuiFormControlLabel-label": { fontSize: 14 } }}
-      />
+    <Typography fontWeight={800} mb={0.5}>التوفر</Typography>
+    <FormControlLabel label={`متوفر${filters.availability?.inStock != null ? ` (${filters.availability.inStock})` : ""}`}
+      control={<Checkbox checked={availability === "in-stock"} onChange={() => navigate({ availability: availability === "in-stock" ? "" : "in-stock", inStock: "" })} />} />
+    <FormControlLabel label={`غير متوفر${filters.availability?.outOfStock != null ? ` (${filters.availability.outOfStock})` : ""}`}
+      control={<Checkbox checked={availability === "out-of-stock"} onChange={() => navigate({ availability: availability === "out-of-stock" ? "" : "out-of-stock", inStock: "" })} />} />
 
+    <Divider sx={{ my: 2 }} />
+    <Typography fontWeight={800} mb={1}>السعر بالدينار الليبي</Typography>
+    <Stack direction="row" spacing={1}>
+      <TextField size="small" type="number" label="من" value={minPrice} onChange={event => setMinPrice(event.target.value)} inputProps={{ min: 0 }} />
+      <TextField size="small" type="number" label="إلى" value={maxPrice} onChange={event => setMaxPrice(event.target.value)} inputProps={{ min: 0 }} />
+    </Stack>
+    <Button fullWidth variant="outlined" sx={{ mt: 1 }} onClick={() => navigate({ minPrice: Number(minPrice) >= 0 && minPrice !== "" ? minPrice : "", maxPrice: Number(maxPrice) > 0 ? maxPrice : "" })}>تطبيق السعر</Button>
+
+    {visibleBrands.length ? <>
       <Divider sx={{ my: 2 }} />
-
-      {/* PRICE RANGE FILTER */}
-      <Typography variant="h6" sx={{ mb: 1.5 }}>
-        نطاق السعر
-      </Typography>
-
-      <Stack direction="row" spacing={1} mb={1.5}>
-        <TextField
-          size="small"
-          type="number"
-          label="من"
-          value={minPriceInput}
-          onChange={e => setMinPriceInput(e.target.value)}
-          inputProps={{ min: 0 }}
-          sx={{ flex: 1 }}
-        />
-        <TextField
-          size="small"
-          type="number"
-          label="إلى"
-          value={maxPriceInput}
-          onChange={e => setMaxPriceInput(e.target.value)}
-          inputProps={{ min: 0 }}
-          sx={{ flex: 1 }}
-        />
-      </Stack>
-
-      <Button size="small" variant="outlined" color="primary" onClick={handleApplyPriceFilter} fullWidth sx={{ mb: 0.5 }}>
-        تطبيق السعر
-      </Button>
-
-      {BRANDS.length > 0 && <>
-        <Divider sx={{ my: 2 }} />
-
-        {/* BRAND FILTER */}
-        <Typography variant="h6" sx={{ mb: 1 }}>
-          الماركة / العلامة التجارية
-        </Typography>
-
-        <TextField
-          size="small"
-          fullWidth
-          value={brandQuery}
-          onChange={event => setBrandQuery(event.target.value)}
-          placeholder="ابحث عن علامة تجارية"
-          sx={{ mb: 1 }}
-        />
-
+      <Typography fontWeight={800} mb={1}>العلامة التجارية</Typography>
+      {brands.length > 6 ? <TextField fullWidth size="small" value={brandQuery} onChange={event => setBrandQuery(event.target.value)} placeholder="ابحث عن علامة تجارية" sx={{ mb: 1 }} /> : null}
+      <Box sx={{ maxHeight: 240, overflowY: "auto" }}>
         {visibleBrands.map(brand => {
-          const isObj = brand && typeof brand === "object";
-          const key = isObj ? brand.id : brand;
-          const label = isObj ? brand.name : brand;
-          const isSelected = isObj ? selectedBrandId === brand.id : selectedBrand === brand;
-          return <FormControlLabel
-            key={key}
-            label={label}
-            control={<Checkbox
-              size="small"
-              color="info"
-              checked={isSelected}
-              onChange={() => handleSelectBrand(brand)}
-            />}
-            sx={{ display: "flex", "& .MuiFormControlLabel-label": { fontSize: 14 } }}
-          />;
+          const checked = selectedBrandId ? selectedBrandId === brand.id : selectedBrand === brand.slug;
+          return <FormControlLabel key={brand.id} label={`${brand.name} (${brand.productCount || 0})`}
+            control={<Checkbox checked={checked} onChange={() => navigate(checked ? { brandId: "", brandSlug: "", brand: "" } : { brandId: brand.id, brandSlug: "", brand: "" })} />}
+            sx={{ display: "flex", m: 0 }} />;
         })}
-      </>}
+      </Box>
+    </> : null}
 
-      {hasActiveFilters && <Button fullWidth disableElevation color="error" variant="contained" onClick={handleClearFilters} sx={{ mt: 3 }}>
-          مسح الفلاتر
-        </Button>}
-    </Box>;
+    {activeCount ? <Button fullWidth color="error" variant="text" onClick={clearFilters} sx={{ mt: 2 }}>مسح كل الفلاتر</Button> : null}
+  </Box>;
 }

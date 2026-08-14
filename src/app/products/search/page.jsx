@@ -1,47 +1,28 @@
-
-// PAGE VIEW COMPONENT
 import { ProductSearchPageView } from "pages-sections/product-details/page-view";
 
 export async function generateMetadata({ searchParams }) {
   const params = await searchParams;
   const q = params?.q || "";
   const category = params?.category || "";
-  const brand = params?.brand || "";
-
-  let title = "Product Search - AlphaBeta Store";
-  let description = "Search and discover electronics, networking, security, and more at AlphaBeta Store.";
+  const brand = params?.brand || params?.brandSlug || "";
+  let title = "كل المنتجات | Alphabeta Store";
+  let description = "تصفح منتجات الإلكترونيات والكمبيوتر والشبكات في متجر ألفابيتا ليبيا.";
 
   if (q) {
-    title = `Search results for "${q}" - AlphaBeta Store`;
-    description = `Showing search results for "${q}" — browse products, compare prices, and find the best electronics deals.`;
+    title = `نتائج البحث عن ${q} | Alphabeta Store`;
+    description = `نتائج البحث عن ${q} في متجر ألفابيتا.`;
   } else if (category) {
-    title = `${category} products - AlphaBeta Store`;
-    description = `Browse ${category} products at AlphaBeta Store. Find the best prices on electronics in Libya.`;
+    title = `${category} | Alphabeta Store`;
+    description = `تصفح منتجات فئة ${category} في متجر ألفابيتا.`;
   } else if (brand) {
-    title = `${brand} products - AlphaBeta Store`;
-    description = `Shop ${brand} products at AlphaBeta Store. Find the latest ${brand} electronics and technology.`;
+    title = `${brand} | Alphabeta Store`;
+    description = `تصفح منتجات ${brand} في متجر ألفابيتا.`;
   }
 
-  return {
-    title,
-    description,
-    openGraph: {
-      title,
-      description,
-    },
-    ...(q ? { robots: { index: false } } : {}),
-  };
+  return { title, description, openGraph: { title, description }, ...(q ? { robots: { index: false } } : {}) };
 }
 
-
-// ==============================================================
-
-
-// ==============================================================
-
-export default async function ProductSearch({
-  searchParams
-}) {
+export default async function ProductSearch({ searchParams }) {
   await searchParams;
   return <ProductSearchPageView />;
 }

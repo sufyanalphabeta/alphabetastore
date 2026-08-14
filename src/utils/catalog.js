@@ -55,6 +55,10 @@ function buildCatalogQueryString(filters = {}) {
     params.set("inStock", "true");
   }
 
+  if (filters.availability) {
+    params.set("availability", filters.availability);
+  }
+
   if (filters.featured === true) {
     params.set("featured", "true");
   }
@@ -191,6 +195,21 @@ export function mapProductGallery(product) {
     }) : [];
 
   if (mediaGallery.length) return mediaGallery;
+
+  if (product?.cardImageUrl) {
+    const cardUrl = normalizeProductImageUrl(product.cardImageUrl);
+    return [{
+      id: `card-${product.id || product.slug || "product"}`,
+      mediaAssetId: null,
+      role: "PRIMARY",
+      sortOrder: 0,
+      thumbnailUrl: cardUrl,
+      cardUrl,
+      productUrl: cardUrl,
+      zoomUrl: cardUrl,
+      altText: product.name || null
+    }];
+  }
   const legacy = Array.isArray(product?.images) ? product.images : [];
   return legacy.map((item, index) => {
     const url = normalizeProductImageUrl(item?.imageUrl);
@@ -223,8 +242,9 @@ export async function fetchBrandsPublic({ onlyVisible = true, onlyFeatured = fal
   if (onlyFeatured) params.set("featured", "true");
   const qs = params.toString();
   return fetchCatalog(`/brands${qs ? `?${qs}` : ""}`, "Failed to load brands", [], {
-    cacheMode: "force-cache",
-    revalidate: 120
+    // Brand visibility and product counts drive discovery facets. Keep them
+    // fresh after catalog/import changes instead of reusing stale browser data.
+    cacheMode: "no-store"
   });
 }
 
@@ -304,7 +324,7 @@ export async function fetchProductCountsByCategory() {
 export function mapCatalogProduct(product) {
   const gallery = mapProductGallery(product);
   const images = gallery.length ? gallery.map(item => item.productUrl) : [FALLBACK_PRODUCT_IMAGE];
-  const price = Number(product?.price ?? 0);
+  const price = Number(product?.storefrontPrice?.finalPrice ?? product?.price ?? 0);
   const categoryName = product?.category?.name || "";
   const categories = Array.isArray(product?.categories) ? product.categories.map(item => item?.name || item).filter(Boolean) : categoryName ? [categoryName] : [];
   const slug = product?.slug || product?.id || "";
@@ -318,7 +338,8 @@ export function mapCatalogProduct(product) {
     images,
     categories,
     price: Number.isFinite(price) ? price : 0,
-    discount: 0,
+    comparePrice: product?.storefrontPrice?.comparePrice ?? product?.comparePrice ?? null,
+    discount: Number(product?.storefrontPrice?.discountPercent || 0),
     rating: Number(product?.ratingAvg ?? 0),
     ratingCount: Number(product?.ratingCount ?? 0),
     reviews: [],

@@ -20,6 +20,26 @@ import { formatStoreCurrency } from "utils/currency";
 export default function ProductPrice({ product, discount, price }) {
   const { settings } = useSettings();
 
+  if (product?.storefrontPrice) {
+    const finalPrice = Number(product.storefrontPrice.finalPrice || 0);
+    const comparePrice = product.storefrontPrice.comparePrice != null
+      ? Number(product.storefrontPrice.comparePrice)
+      : null;
+
+    return (
+      <FlexBox alignItems="center" gap={1} mt={0.5} flexWrap="wrap">
+        <Typography color="primary" fontWeight={800}>
+          {formatStoreCurrency(finalPrice, 2, "LYD")}
+        </Typography>
+        {comparePrice != null && comparePrice > finalPrice ? (
+          <Box component="del" fontSize={12} fontWeight={500} color="grey.500">
+            {formatStoreCurrency(comparePrice, 2, "LYD")}
+          </Box>
+        ) : null}
+      </FlexBox>
+    );
+  }
+
   // New pricing engine: product object with baseCurrency / discountType etc.
   if (product && (product.discountType !== undefined || product.baseCurrency !== undefined)) {
     const computed = computeProductPrice(product, settings);

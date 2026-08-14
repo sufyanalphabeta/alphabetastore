@@ -14,8 +14,8 @@ export const dynamic = "force-dynamic";
 export const revalidate = 60;
 
 export const metadata = {
-  title: "Brands - Alphabeta Store",
-  description: "Browse all product brands on Alphabeta Store."
+  title: "العلامات التجارية | Alphabeta Store",
+  description: "تصفح العلامات التجارية المتوفرة في متجر ألفابيتا."
 };
 
 export default async function BrandsIndex() {
@@ -24,22 +24,22 @@ export default async function BrandsIndex() {
   try {
     brands = await fetchBrandsPublic({ onlyVisible: true });
   } catch (error) {
-    loadError = error instanceof Error ? error.message : "Failed to load brands";
+    loadError = error instanceof Error ? error.message : "تعذر تحميل العلامات التجارية";
   }
 
   return (
     <Container sx={{ py: 6 }}>
       <Stack spacing={1} mb={4}>
         <Typography variant="h2" fontWeight={700} fontSize={{ xs: 28, sm: 36 }}>
-          Brands
+          العلامات التجارية
         </Typography>
         <Typography variant="body1" color="text.secondary">
-          {loadError ? loadError : `Browse ${brands.length} brand${brands.length === 1 ? "" : "s"}.`}
+          {loadError ? loadError : `تصفح ${brands.length} علامة تجارية.`}
         </Typography>
       </Stack>
 
       {brands.length === 0 && !loadError ? (
-        <Typography color="text.secondary">No brands available yet.</Typography>
+        <Typography color="text.secondary">لا توجد علامات تجارية متاحة حاليًا.</Typography>
       ) : null}
 
       <Grid container spacing={3}>
@@ -89,7 +89,7 @@ export default async function BrandsIndex() {
                 {brand.name}
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                {brand.productCount ?? 0} product{brand.productCount === 1 ? "" : "s"}
+                {brand.productCount ?? 0} منتج
               </Typography>
             </Card>
           </Grid>

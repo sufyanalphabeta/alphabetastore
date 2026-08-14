@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Rating from "@mui/material/Rating";
+import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 
 // GLOBAL CUSTOM COMPONENTS
@@ -11,10 +12,10 @@ import AddToCart from "./add-to-cart";
 import DiscountChip from "../discount-chip";
 
 // CUSTOM UTILS LIBRARY FUNCTIONS
-import { calculateDiscount, currency } from "lib";
+import ProductPrice from "../product-price";
 
 // STYLED COMPONENTS
-import { PriceText, StyledRoot } from "./styles";
+import { StyledRoot } from "./styles";
 
 // CUSTOM DATA MODEL
 
@@ -27,14 +28,9 @@ import { PriceText, StyledRoot } from "./styles";
 export default function ProductCard16({
   product
 }) {
-  const {
-    slug,
-    title,
-    thumbnail,
-    price,
-    discount,
-    rating
-  } = product;
+  const { slug, title, thumbnail, discount, rating, ratingCount } = product;
+  const brandName = product.brandRef?.name || product.brand || "";
+  const inStock = product.inStock ?? product.availability !== "OUT_OF_STOCK";
   return <StyledRoot>
       <Link href={`/products/${slug}`}>
         <div className="img-wrapper">
@@ -54,21 +50,23 @@ export default function ProductCard16({
       </Link>
 
       <div className="content">
-        <div>
+        <div className="details">
+          {brandName ? <Typography className="brand" variant="caption">{brandName}</Typography> : null}
           <Link href={`/products/${slug}`}>
-            <Typography variant="h6" sx={{
-            mb: 1
-          }}>
+            <Typography className="title" variant="h6">
               {title}
             </Typography>
           </Link>
 
-          <Rating readOnly value={rating} size="small" precision={0.5} />
+          {ratingCount > 0 ? <Box display="flex" alignItems="center" gap={0.5}>
+              <Rating readOnly value={rating} size="small" precision={0.5} />
+              <Typography variant="caption" color="text.secondary">({ratingCount})</Typography>
+            </Box> : null}
 
-          <PriceText>
-            {calculateDiscount(price, discount)}
-            {discount && <span className="base-price">{currency(price)}</span>}
-          </PriceText>
+          <ProductPrice product={product} price={product.price} discount={discount} />
+          <Typography className={inStock ? "availability in-stock" : "availability out-of-stock"}>
+            {inStock ? "متوفر" : "غير متوفر"}
+          </Typography>
         </div>
 
         {/* ADD TO CART BUTTON */}

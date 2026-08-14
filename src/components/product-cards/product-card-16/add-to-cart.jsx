@@ -28,12 +28,17 @@ export default function AddToCart({
     price,
     id
   } = product;
+  const inStock = product.inStock ?? product.availability !== "OUT_OF_STOCK";
   const {
     dispatch
   } = useCart();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const handleAddToCart = () => {
+    if (!inStock || product.hasVariants) {
+      router.push(`/products/${slug}`);
+      return;
+    }
     setIsLoading(true);
     setTimeout(() => {
       dispatch({
@@ -53,9 +58,17 @@ export default function AddToCart({
       setIsLoading(false);
     }, 1000);
   };
-  return <Button color="primary" variant="outlined" loading={isLoading} onClick={handleAddToCart} sx={{
-    padding: "3px"
-  }}>
-      <Add fontSize="small" />
+  return <Button
+      color="primary"
+      variant={inStock ? "contained" : "outlined"}
+      loading={isLoading}
+      disabled={!inStock}
+      onClick={handleAddToCart}
+      fullWidth
+      size="small"
+      startIcon={inStock && !product.hasVariants ? <Add fontSize="small" /> : undefined}
+      sx={{ minHeight: 36 }}
+    >
+      {!inStock ? "غير متوفر" : product.hasVariants ? "اختر الخيارات" : "أضف للسلة"}
     </Button>;
 }

@@ -24,6 +24,7 @@ import CategoryIcon from "@mui/icons-material/Category";
 
 // UTILS
 import { fetchAutocomplete, fetchPopularSearches, getProductCardImage, trackSearchTerm } from "utils/catalog";
+import { formatStoreCurrency } from "utils/currency";
 
 // STYLED COMPONENT
 import { SearchOutlinedIcon } from "./styles";
@@ -204,7 +205,7 @@ function SearchInput2Inner() {
               <Box px={2} py={1} display="flex" alignItems="center" gap={1}>
                 <AccessTimeIcon fontSize="small" color="disabled" />
                 <Typography variant="caption" color="text.secondary" fontWeight={600} textTransform="uppercase" letterSpacing={0.5}>
-                  Recent Searches
+                  عمليات البحث الأخيرة
                 </Typography>
               </Box>
               <Box px={2} pb={1} display="flex" flexWrap="wrap" gap={0.75}>
@@ -228,7 +229,7 @@ function SearchInput2Inner() {
               <Box px={2} py={1} display="flex" alignItems="center" gap={1}>
                 <TrendingUpIcon fontSize="small" color="primary" />
                 <Typography variant="caption" color="text.secondary" fontWeight={600} textTransform="uppercase" letterSpacing={0.5}>
-                  Popular Searches
+                  الأكثر بحثًا
                 </Typography>
               </Box>
               <Box px={2} pb={1} display="flex" flexWrap="wrap" gap={0.75}>
@@ -254,7 +255,7 @@ function SearchInput2Inner() {
                   <Box px={2} pt={1} pb={0.5} display="flex" alignItems="center" gap={1}>
                     <CategoryIcon fontSize="small" color="disabled" />
                     <Typography variant="caption" color="text.secondary" fontWeight={600} textTransform="uppercase" letterSpacing={0.5}>
-                      Categories
+                      الفئات
                     </Typography>
                   </Box>
                   <List dense disablePadding>
@@ -277,7 +278,7 @@ function SearchInput2Inner() {
                 <>
                   <Box px={2} pt={1} pb={0.5}>
                     <Typography variant="caption" color="text.secondary" fontWeight={600} textTransform="uppercase" letterSpacing={0.5}>
-                      Brands
+                      العلامات التجارية
                     </Typography>
                   </Box>
                   <List dense disablePadding>
@@ -308,12 +309,13 @@ function SearchInput2Inner() {
                 <>
                   <Box px={2} pt={1} pb={0.5}>
                     <Typography variant="caption" color="text.secondary" fontWeight={600} textTransform="uppercase" letterSpacing={0.5}>
-                      Products
+                      المنتجات
                     </Typography>
                   </Box>
                   <List dense disablePadding>
                     {suggestions.products.map((product) => {
                       const img = getProductCardImage(product);
+                      const price = product?.storefrontPrice?.finalPrice ?? product?.price;
                       return (
                         <ListItem key={product.id} disablePadding>
                           <ListItemButton onClick={() => router.push(`/products/${product.slug}`)}>
@@ -327,7 +329,7 @@ function SearchInput2Inner() {
                             </ListItemAvatar>
                             <ListItemText
                               primary={product.name}
-                              secondary={product.brand || product.sku || undefined}
+                              secondary={`${product.category?.name || product.brand || ""}${price != null ? ` • ${formatStoreCurrency(price)}` : ""}`}
                               primaryTypographyProps={{ variant: "body2", noWrap: true }}
                               secondaryTypographyProps={{ variant: "caption" }}
                             />
@@ -343,7 +345,7 @@ function SearchInput2Inner() {
                     sx={{ justifyContent: "center", py: 0.75 }}
                   >
                     <Typography variant="body2" color="primary">
-                      See all results for &ldquo;{search}&rdquo;
+                      عرض كل النتائج عن &ldquo;{search}&rdquo;
                     </Typography>
                   </ListItemButton>
                 </>
@@ -352,7 +354,7 @@ function SearchInput2Inner() {
               {!loading && !hasSuggestions && (
                 <Box px={2} py={2} textAlign="center">
                   <Typography variant="body2" color="text.secondary">
-                    No results found for &ldquo;{search}&rdquo;
+                    لا توجد نتائج عن &ldquo;{search}&rdquo;
                   </Typography>
                 </Box>
               )}
