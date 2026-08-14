@@ -435,7 +435,7 @@ export async function fetchAutocomplete(q, limit = 5) {
 
 export async function fetchPopularSearches(limit = 8) {
   try {
-    const res = await fetch(`${API_BASE_URL}/products/popular-searches?limit=${limit}`, { next: { revalidate: 300 } });
+    const res = await fetch(`${API_BASE_URL}/products/popular-searches?limit=${Math.min(Number(limit) || 8, 10)}`, { cache: "no-store" });
     if (!res.ok) return [];
     const payload = await res.json();
     const data = unwrapEnvelope(payload);
@@ -446,16 +446,20 @@ export async function fetchPopularSearches(limit = 8) {
 }
 
 export async function trackSearchTerm(term) {
-  if (!term || term.trim().length < 2) return;
+  if (!term || term.trim().length < 2) return null;
   try {
-    await fetch(`${API_BASE_URL}/products/track-search`, {
+    const response = await fetch(`${API_BASE_URL}/products/track-search`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ term: term.trim().toLowerCase().slice(0, 255) }),
+      body: JSON.stringify({ term: term.trim().slice(0, 160) }),
       cache: "no-store"
     });
+    if (!response.ok) return null;
+    const payload = await response.json();
+    const data = unwrapEnvelope(payload);
+    return data?.ok && typeof data.term === "string" ? data.term : null;
   } catch {
-    // fire-and-forget
+    return null;
   }
 }
 

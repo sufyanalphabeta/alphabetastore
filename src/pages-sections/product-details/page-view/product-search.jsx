@@ -27,8 +27,7 @@ import {
   fetchBrandsPublic,
   fetchCategoriesTree,
   fetchCategoryBySlug,
-  fetchProductsPage,
-  trackSearchTerm
+  fetchProductsPage
 } from "utils/catalog";
 
 const SORT_OPTIONS = [
@@ -133,7 +132,6 @@ export default function ProductSearchPageView({ fixedCategory = "", categoryData
       if (!active) return;
       setProducts(response.products);
       setPagination(response.pagination);
-      if (query.trim().length >= 2) trackSearchTerm(query.trim()).catch(() => {});
     }).catch(() => {
       if (!active) return;
       setProducts([]);

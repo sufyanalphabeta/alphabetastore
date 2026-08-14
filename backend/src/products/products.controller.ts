@@ -113,16 +113,15 @@ export class ProductsController {
 
   @Get('popular-searches')
   popularSearches(@Query('limit') limit?: string) {
-    return this.productsService.popularSearches(limit ? Math.min(Number(limit) || 8, 20) : 8);
+    return this.productsService.popularSearches(limit ? Math.min(Number(limit) || 8, 10) : 8);
   }
 
   @Post('track-search')
-  trackSearch(@Body() body: { term?: string }) {
-    const term = (body?.term ?? '').trim().toLowerCase().slice(0, 255);
+  async trackSearch(@Body() body: { term?: string }) {
+    const term = (body?.term ?? '').trim().slice(0, 160);
     if (term.length < 2) return { ok: false };
-    // fire-and-forget — don't await
-    this.productsService.trackSearch(term).catch(() => null);
-    return { ok: true };
+    const trackedTerm = await this.productsService.trackSearch(term);
+    return { ok: Boolean(trackedTerm), term: trackedTerm };
   }
 
   @Get(':slugOrId/related')

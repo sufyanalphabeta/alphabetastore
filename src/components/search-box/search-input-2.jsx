@@ -17,10 +17,12 @@ import ListItemAvatar from "@mui/material/ListItemAvatar";
 import Avatar from "@mui/material/Avatar";
 import Divider from "@mui/material/Divider";
 import Chip from "@mui/material/Chip";
+import IconButton from "@mui/material/IconButton";
 import CircularProgress from "@mui/material/CircularProgress";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import CategoryIcon from "@mui/icons-material/Category";
+import CloseIcon from "@mui/icons-material/Close";
 
 // UTILS
 import { fetchAutocomplete, fetchPopularSearches, getProductCardImage, trackSearchTerm } from "utils/catalog";
@@ -30,26 +32,63 @@ import { formatStoreCurrency } from "utils/currency";
 import { SearchOutlinedIcon } from "./styles";
 
 const RECENT_SEARCHES_KEY = "ab_recent_searches";
-const MAX_RECENT = 6;
+const MAX_RECENT = 10;
+
+function normalizeRecentSearch(term) {
+  return String(term || "").normalize("NFKC").replace(/\s+/g, " ").trim().slice(0, 160);
+}
 
 function getRecentSearches() {
   if (typeof window === "undefined") return [];
   try {
-    return JSON.parse(localStorage.getItem(RECENT_SEARCHES_KEY) || "[]");
+    const stored = JSON.parse(localStorage.getItem(RECENT_SEARCHES_KEY) || "[]");
+    const unique = new Map();
+    for (const value of Array.isArray(stored) ? stored : []) {
+      const normalized = normalizeRecentSearch(value);
+      if (!normalized || /^AB-\d{6,}$/i.test(normalized) || /_|^no[-\s]?match/i.test(normalized)) continue;
+      const key = normalized.toLocaleLowerCase();
+      if (!unique.has(key)) unique.set(key, normalized);
+    }
+    const recent = [...unique.values()].slice(0, MAX_RECENT);
+    localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(recent));
+    return recent;
   } catch {
     return [];
   }
 }
 
 function saveRecentSearch(term) {
-  if (!term || term.trim().length < 2) return;
+  const normalized = normalizeRecentSearch(term);
+  if (normalized.length < 2) return getRecentSearches();
   try {
-    const prev = getRecentSearches().filter(t => t !== term.trim());
-    const next = [term.trim(), ...prev].slice(0, MAX_RECENT);
+    const key = normalized.toLocaleLowerCase();
+    const prev = getRecentSearches().filter(t => t.toLocaleLowerCase() !== key);
+    const next = [normalized, ...prev].slice(0, MAX_RECENT);
     localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(next));
+    return next;
   } catch {
-    // ignore
+    return [];
   }
+}
+
+function removeRecentSearch(term) {
+  try {
+    const key = normalizeRecentSearch(term).toLocaleLowerCase();
+    const next = getRecentSearches().filter(t => t.toLocaleLowerCase() !== key);
+    localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(next));
+    return next;
+  } catch {
+    return [];
+  }
+}
+
+function clearRecentSearches() {
+  try {
+    localStorage.removeItem(RECENT_SEARCHES_KEY);
+  } catch {
+    // ignore unavailable browser storage
+  }
+  return [];
 }
 
 function useDebounce(value, delay) {
@@ -81,15 +120,11 @@ function SearchInput2Inner() {
   const containerRef = useRef(null);
   const debouncedSearch = useDebounce(search, 280);
 
-  // Load popular searches once
-  useEffect(() => {
-    fetchPopularSearches(6).then(setPopularSearches).catch(() => {});
-  }, []);
-
-  // Load recent searches when dropdown opens
+  // Keep both sections fresh whenever the shopper opens search.
   useEffect(() => {
     if (open) {
       setRecentSearches(getRecentSearches());
+      fetchPopularSearches(10).then(setPopularSearches).catch(() => {});
     }
   }, [open]);
 
@@ -125,8 +160,9 @@ function SearchInput2Inner() {
   const navigate = useCallback((term) => {
     if (!term || !term.trim()) return;
     const t = term.trim();
-    saveRecentSearch(t);
-    trackSearchTerm(t).catch(() => {});
+    trackSearchTerm(t).then((trackedTerm) => {
+      if (trackedTerm) setRecentSearches(saveRecentSearch(trackedTerm));
+    }).catch(() => {});
     const params = new URLSearchParams(searchParams);
     params.set("q", t);
     params.delete("page");
@@ -134,6 +170,19 @@ function SearchInput2Inner() {
     setSearch("");
     setOpen(false);
   }, [router, searchParams]);
+
+  const openSuggestion = useCallback((label, href) => {
+    const normalizedLabel = normalizeRecentSearch(label);
+    if (normalizedLabel) {
+      setRecentSearches(saveRecentSearch(normalizedLabel));
+      trackSearchTerm(normalizedLabel).then((trackedTerm) => {
+        if (trackedTerm) setRecentSearches(saveRecentSearch(trackedTerm));
+      }).catch(() => {});
+    }
+    router.push(href);
+    setSearch("");
+    setOpen(false);
+  }, [router]);
 
   const handleSearch = useCallback(() => navigate(search), [navigate, search]);
 
@@ -207,18 +256,38 @@ function SearchInput2Inner() {
                 <Typography variant="caption" color="text.secondary" fontWeight={600} textTransform="uppercase" letterSpacing={0.5}>
                   عمليات البحث الأخيرة
                 </Typography>
+                <Button
+                  size="small"
+                  color="inherit"
+                  onClick={() => setRecentSearches(clearRecentSearches())}
+                  sx={{ marginInlineStart: "auto", minWidth: "auto", fontSize: 12 }}
+                >
+                  مسح الكل
+                </Button>
               </Box>
-              <Box px={2} pb={1} display="flex" flexWrap="wrap" gap={0.75}>
+              <List dense disablePadding>
                 {recentSearches.map((t) => (
-                  <Chip
+                  <ListItem
                     key={t}
-                    label={t}
-                    size="small"
-                    onClick={() => navigate(t)}
-                    sx={{ cursor: "pointer" }}
-                  />
+                    disablePadding
+                    secondaryAction={
+                      <IconButton
+                        edge="end"
+                        size="small"
+                        aria-label={`حذف ${t} من عمليات البحث الأخيرة`}
+                        onClick={() => setRecentSearches(removeRecentSearch(t))}
+                      >
+                        <CloseIcon fontSize="small" />
+                      </IconButton>
+                    }
+                  >
+                    <ListItemButton onClick={() => navigate(t)} sx={{ py: 0.75, pr: 6 }}>
+                      <AccessTimeIcon fontSize="small" color="disabled" sx={{ mr: 1.25 }} />
+                      <ListItemText primary={t} primaryTypographyProps={{ variant: "body2", noWrap: true }} />
+                    </ListItemButton>
+                  </ListItem>
                 ))}
-              </Box>
+              </List>
               <Divider />
             </>
           )}
@@ -261,7 +330,7 @@ function SearchInput2Inner() {
                   <List dense disablePadding>
                     {suggestions.categories.map((cat) => (
                       <ListItem key={cat.id} disablePadding>
-                        <ListItemButton onClick={() => router.push(`/categories/${cat.slug}`)}>
+                        <ListItemButton onClick={() => openSuggestion(cat.name, `/categories/${cat.slug}`)}>
                           <ListItemText
                             primary={cat.name}
                             primaryTypographyProps={{ variant: "body2" }}
@@ -284,7 +353,7 @@ function SearchInput2Inner() {
                   <List dense disablePadding>
                     {suggestions.brands.map((brand) => (
                       <ListItem key={brand.id} disablePadding>
-                        <ListItemButton onClick={() => router.push(`/brands/${brand.slug}`)}>
+                        <ListItemButton onClick={() => openSuggestion(brand.name, `/brands/${brand.slug}`)}>
                           <ListItemAvatar sx={{ minWidth: 40 }}>
                             <Avatar
                               src={brand.logoUrl || ""}
@@ -318,7 +387,7 @@ function SearchInput2Inner() {
                       const price = product?.storefrontPrice?.finalPrice ?? product?.price;
                       return (
                         <ListItem key={product.id} disablePadding>
-                          <ListItemButton onClick={() => router.push(`/products/${product.slug}`)}>
+                          <ListItemButton onClick={() => openSuggestion(product.name, `/products/${product.slug}`)}>
                             <ListItemAvatar sx={{ minWidth: 48 }}>
                               <Avatar
                                 src={img}

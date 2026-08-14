@@ -48,7 +48,12 @@ function setup(rows = [product()]) {
     $queryRaw: jest.fn().mockResolvedValue([]),
     recentlyViewedItem: { findMany: jest.fn().mockResolvedValue([]), upsert: jest.fn() },
     category: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
-    brand: { findMany: jest.fn().mockResolvedValue([]) },
+    brand: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) },
+    searchTerm: {
+      findMany: jest.fn().mockResolvedValue([]),
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+      upsert: jest.fn().mockResolvedValue({}),
+    },
     productMedia: { count: jest.fn().mockResolvedValue(0) },
   };
   const cache = { get: jest.fn().mockResolvedValue(undefined), set: jest.fn(), del: jest.fn() };
@@ -180,5 +185,54 @@ describe('ProductsService storefront discovery', () => {
     });
     expect(categoryTree.resolveScope).toHaveBeenCalledWith('computers', { publicOnly: true });
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('stores an Arabic product name as the canonical recent/popular search term', async () => {
+    const { service, prisma } = setup();
+    prisma.product.findFirst.mockResolvedValueOnce({ name: 'نظام الركيزة لكاشف الاسعار' });
+
+    const tracked = await service.trackSearch('نظام الركيزة لكاشف الاسعار');
+
+    expect(tracked).toBe('نظام الركيزة لكاشف الاسعار');
+    expect(prisma.searchTerm.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      where: { term: 'نظام الركيزة لكاشف الاسعار' },
+    }));
+  });
+
+  it('stores the product name instead of an internal SKU or source code', async () => {
+    const { service, prisma } = setup();
+    prisma.product.findFirst.mockResolvedValueOnce({ name: 'Seagate BarraCuda 2 TB HDD' });
+
+    const tracked = await service.trackSearch('AB-000009');
+
+    expect(tracked).toBe('Seagate BarraCuda 2 TB HDD');
+    expect(prisma.searchTerm.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      where: { term: 'Seagate BarraCuda 2 TB HDD' },
+    }));
+  });
+
+  it('rejects unmatched and machine-generated search terms', async () => {
+    const { service, prisma } = setup();
+
+    await expect(service.trackSearch('no_match_123')).resolves.toBeNull();
+    expect(prisma.searchTerm.upsert).not.toHaveBeenCalled();
+  });
+
+  it('caps popular searches at ten and hides stored identifiers', async () => {
+    const { service, prisma } = setup();
+    prisma.searchTerm.findMany.mockResolvedValue([
+      { term: 'AB-000009', hitCount: 99, lastSearchedAt: new Date() },
+      { term: 'no_match_123', hitCount: 80, lastSearchedAt: new Date() },
+      ...Array.from({ length: 12 }, (_, index) => ({
+        term: `منتج ${index + 1}`,
+        hitCount: 20 - index,
+        lastSearchedAt: new Date(),
+      })),
+    ]);
+
+    const popular = await service.popularSearches(20);
+
+    expect(popular).toHaveLength(10);
+    expect(popular.map((item) => item.term)).not.toEqual(expect.arrayContaining(['AB-000009', 'no_match_123']));
   });
 });

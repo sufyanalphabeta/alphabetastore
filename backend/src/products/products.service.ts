@@ -19,6 +19,18 @@ import { calculatePurchaseAvailability } from "../inventory/purchase-quantity.po
 import { CategoryTreeService } from "../categories/category-tree.service";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const INTERNAL_SKU_PATTERN = /^AB-\d{6,}$/i;
+const SOURCE_CODE_PATTERN = /^\*?\d{4,}\*?$/;
+const MACHINE_SEARCH_PATTERN = /_|^no[-\s]?match/i;
+const MAX_POPULAR_SEARCHES = 10;
+
+function normalizeSearchTerm(term: string) {
+  return term.normalize("NFKC").replace(/\s+/g, " ").trim().slice(0, 160);
+}
+
+function isMachineSearchTerm(term: string) {
+  return INTERNAL_SKU_PATTERN.test(term) || SOURCE_CODE_PATTERN.test(term) || MACHINE_SEARCH_PATTERN.test(term);
+}
 
 const productInclude = {
   category: {
@@ -1491,7 +1503,7 @@ export class ProductsService {
 
   /** Top searched terms by time-decayed popularity score. */
   async popularSearches(limit = 8): Promise<Array<{ term: string; hitCount: number }>> {
-    const cappedLimit = Math.max(1, Math.min(limit, 20));
+    const cappedLimit = Math.max(1, Math.min(limit, MAX_POPULAR_SEARCHES));
     const now = new Date();
     const staleBefore = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
 
@@ -1511,7 +1523,8 @@ export class ProductsService {
       take: 200
     });
 
-    return rows
+    const ranked = rows
+      .filter((row) => !isMachineSearchTerm(row.term))
       .map((row) => {
         const ageDays = Math.max(
           0,
@@ -1520,16 +1533,90 @@ export class ProductsService {
         const score = row.hitCount * Math.exp(-ageDays / 30);
         return { term: row.term, hitCount: row.hitCount, score };
       })
-      .filter((row) => row.score >= 0.2)
+      .filter((row) => row.score >= 0.2);
+
+    const deduplicated = new Map<string, (typeof ranked)[number]>();
+    for (const row of ranked) {
+      const key = row.term.toLocaleLowerCase();
+      const existing = deduplicated.get(key);
+      if (!existing) {
+        deduplicated.set(key, row);
+        continue;
+      }
+      existing.hitCount += row.hitCount;
+      existing.score += row.score;
+      if (row.term.length > existing.term.length) existing.term = row.term;
+    }
+
+    return [...deduplicated.values()]
       .sort((a, b) => b.score - a.score)
       .slice(0, cappedLimit)
       .map(({ term, hitCount }) => ({ term, hitCount }));
   }
 
-  /** Upsert a search term to increment hit count and refresh last searched timestamp. */
-  async trackSearch(term: string): Promise<void> {
-    const normalized = term.trim();
-    if (!normalized) return;
+  private async resolveTrackedSearchTerm(term: string): Promise<string | null> {
+    const normalized = normalizeSearchTerm(term);
+    if (normalized.length < 2) return null;
+
+    const [exactProduct, exactBrand, exactCategory] = await Promise.all([
+      this.prisma.product.findFirst({
+        where: {
+          status: ProductStatus.ACTIVE,
+          OR: [
+            { name: { equals: normalized, mode: "insensitive" } },
+            { sku: { equals: normalized, mode: "insensitive" } },
+            { slug: { equals: normalized, mode: "insensitive" } },
+            {
+              sourceIdentities: {
+                some: {
+                  OR: [
+                    { externalId: { equals: normalized, mode: "insensitive" } },
+                    { sourceBarcode: { equals: normalized, mode: "insensitive" } }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        select: { name: true }
+      }),
+      this.prisma.brand.findFirst({
+        where: { isVisible: true, name: { equals: normalized, mode: "insensitive" } },
+        select: { name: true }
+      }),
+      this.prisma.category.findFirst({
+        where: { isVisible: true, isActive: true, name: { equals: normalized, mode: "insensitive" } },
+        select: { name: true }
+      })
+    ]);
+
+    if (exactProduct) return exactProduct.name.trim();
+    if (exactBrand) return exactBrand.name.trim();
+    if (exactCategory) return exactCategory.name.trim();
+    if (normalized.length < 3 || isMachineSearchTerm(normalized)) return null;
+
+    const matchingProduct = await this.prisma.product.findFirst({
+      where: {
+        status: ProductStatus.ACTIVE,
+        OR: [
+          { name: { contains: normalized, mode: "insensitive" } },
+          { description: { contains: normalized, mode: "insensitive" } },
+          { shortDescription: { contains: normalized, mode: "insensitive" } },
+          { brand: { contains: normalized, mode: "insensitive" } },
+          { brandRef: { name: { contains: normalized, mode: "insensitive" } } },
+          { category: { name: { contains: normalized, mode: "insensitive" } } }
+        ]
+      },
+      select: { id: true }
+    });
+
+    return matchingProduct ? normalized.toLocaleLowerCase() : null;
+  }
+
+  /** Store only useful public catalog searches and canonicalize identifiers to product names. */
+  async trackSearch(term: string): Promise<string | null> {
+    const normalized = await this.resolveTrackedSearchTerm(term);
+    if (!normalized) return null;
 
     const now = new Date();
     await this.prisma.searchTerm.upsert({
@@ -1537,5 +1624,6 @@ export class ProductsService {
       update: { hitCount: { increment: 1 }, lastSearchedAt: now },
       create: { term: normalized, hitCount: 1, lastSearchedAt: now }
     });
+    return normalized;
   }
 }
