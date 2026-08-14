@@ -9,7 +9,7 @@ const productId = "9cebbd83-3ac9-49b1-b967-650a8a3d6caf";
 function setup({
   stockQty = 10,
   maxPurchaseQty = null as number | null,
-  existingQuantity = 2,
+  existingQuantity = 2 as number | null,
   otherProductQuantity = 0,
   variantStockQty = null as number | null
 } = {}) {
@@ -45,27 +45,32 @@ function setup({
               attributes: {},
               imageUrl: null,
               price: 10,
+              comparePrice: null,
               stockQty: variantStockQty
             }
       )
     },
     cartItem: {
-      findFirst: jest.fn().mockResolvedValue({
-        id: "item-1",
-        cartId: "cart-1",
-        productId,
-        quantity: existingQuantity,
-        product: { stockQty, maxPurchaseQty, status: "ACTIVE" },
-        variant: variantStockQty == null ? null : { stockQty: variantStockQty }
-      }),
+      findFirst: jest.fn().mockResolvedValue(existingQuantity == null ? null : {
+          id: "item-1",
+          cartId: "cart-1",
+          productId,
+          quantity: existingQuantity,
+          product: { stockQty, maxPurchaseQty, status: "ACTIVE" },
+          variant: variantStockQty == null ? null : { stockQty: variantStockQty }
+        }),
       aggregate: jest.fn().mockResolvedValue({ _sum: { quantity: otherProductQuantity } }),
       update: jest.fn().mockResolvedValue({}),
       create: jest.fn().mockResolvedValue({})
     }
   };
-  const service = new CartService(prisma as never, {} as never);
+  const pricing = {
+    getPricingSettings: jest.fn().mockResolvedValue({}),
+    computePrice: jest.fn().mockReturnValue({ finalPrice: 52 })
+  };
+  const service = new CartService(prisma as never, pricing as never);
   jest.spyOn(service, "getCart").mockResolvedValue({ id: "cart-1" } as never);
-  return { service, prisma };
+  return { service, prisma, pricing };
 }
 
 function responseCode(error: unknown) {
@@ -123,6 +128,24 @@ describe("CartService inventory safety", () => {
       response: expect.objectContaining({
         errorCode: PURCHASE_QUANTITY_ERROR.MAX_PURCHASE_QUANTITY_EXCEEDED
       })
+    });
+  });
+
+  it("uses the authoritative pricing engine for a new variant cart line", async () => {
+    const { service, prisma, pricing } = setup({ existingQuantity: null, variantStockQty: 5 });
+
+    await service.addItem(identity, {
+      productId,
+      variantId: "9cebbd83-3ac9-49b1-b967-650a8a3d6caa",
+      quantity: 1
+    });
+
+    expect(pricing.computePrice).toHaveBeenCalledWith(
+      expect.objectContaining({ price: 10, comparePrice: null }),
+      expect.any(Object)
+    );
+    expect(prisma.cartItem.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ unitPrice: 52 })
     });
   });
 

@@ -1,73 +1,82 @@
 "use client";
 
 import { styled } from "@mui/material/styles";
-export const StyledRoot = styled("div")(({
-  theme
-}) => ({
+
+export const StyledRoot = styled("section")(({ theme }) => ({
   width: "100%",
-  padding: "1.5rem",
-  borderRadius: theme.spacing(1),
-  backgroundColor: theme.palette.grey[50],
-  "& strong": {
-    fontWeight: 600
+  padding: theme.spacing(3),
+  border: `1px solid ${theme.palette.divider}`,
+  borderRadius: theme.spacing(1.5),
+  backgroundColor: theme.palette.background.paper,
+  "& .product-intro-layout": {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1.05fr) minmax(0, 0.95fr)",
+    alignItems: "start",
+    gap: theme.spacing(4)
   },
-  "& .rating": {
-    display: "flex",
-    alignItems: "center",
-    gap: theme.spacing(1),
-    marginBottom: theme.spacing(2)
+  "& h1": {
+    fontSize: "clamp(1.6rem, 3vw, 2.35rem)",
+    lineHeight: 1.3
   },
-  "& .price": {
-    paddingTop: theme.spacing(1),
-    marginBottom: theme.spacing(3)
-  },
-  "& .shop": {
-    display: "flex",
-    alignItems: "center",
-    gap: theme.spacing(1)
+  "& strong": { fontWeight: 700 },
+  "& .purchase-panel": {
+    marginTop: theme.spacing(1),
+    padding: theme.spacing(2),
+    borderRadius: theme.spacing(1),
+    backgroundColor: theme.palette.grey[50],
+    border: `1px solid ${theme.palette.divider}`
   },
   "& .variant-group": {
     gap: "0.5rem",
     display: "flex",
     alignItems: "center",
-    "& .MuiChip-root": {
-      height: 28,
-      cursor: "pointer",
-      borderRadius: "6px"
+    "& .MuiChip-root": { height: 28, cursor: "pointer", borderRadius: "6px" }
+  },
+  [theme.breakpoints.down("sm")]: {
+    padding: theme.spacing(1.5),
+    "& h1": { fontSize: "1.55rem" }
+  },
+  "@media (max-width: 767px)": {
+    "& .product-intro-layout": {
+      gridTemplateColumns: "minmax(0, 1fr)",
+      gap: theme.spacing(2.5)
     }
   }
 }));
-export const ProductImageWrapper = styled("div")(({
-  theme
-}) => ({
-  height: 500,
+
+export const ProductImageWrapper = styled("button")(({ theme }) => ({
+  width: "100%",
+  aspectRatio: "1 / 1",
+  maxHeight: 520,
   display: "flex",
   overflow: "hidden",
   position: "relative",
   justifyContent: "center",
-  marginBottom: theme.spacing(6),
   borderRadius: theme.spacing(1),
   backgroundColor: theme.palette.common.white,
+  border: `1px solid ${theme.palette.divider}`,
   cursor: "zoom-in",
-  "& img": {
-    objectFit: "contain"
-  },
-  [theme.breakpoints.down("sm")]: {
-    height: 300
-  },
-  "& + .preview-images": {
-    overflow: "auto",
-    display: "flex",
-    gap: theme.spacing(1),
-    justifyContent: "center"
-  }
+  padding: 0,
+  "& img": { objectFit: "contain" },
+  [theme.breakpoints.down("sm")]: { maxHeight: 340 },
+  "@media (min-width: 768px) and (max-width: 899px)": { maxHeight: 420 }
 }));
-export const PreviewImage = styled("div", {
+
+export const PreviewList = styled("div")(({ theme }) => ({
+  overflowX: "auto",
+  overflowY: "hidden",
+  display: "flex",
+  gap: theme.spacing(1),
+  justifyContent: "center",
+  padding: theme.spacing(1, 0, 0.5),
+  scrollbarWidth: "thin",
+  [theme.breakpoints.down("sm")]: { justifyContent: "flex-start" }
+}));
+
+export const PreviewImage = styled("button", {
   shouldForwardProp: prop => prop !== "selected"
-})(({
-  theme,
-  selected
-}) => ({
+})(({ theme, selected }) => ({
+  flex: "0 0 auto",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -75,13 +84,13 @@ export const PreviewImage = styled("div", {
   overflow: "hidden",
   width: 64,
   height: 64,
+  padding: 0,
   cursor: "pointer",
   position: "relative",
-  backgroundColor: "white",
-  opacity: selected ? 1 : 0.5,
+  backgroundColor: theme.palette.common.white,
+  opacity: selected ? 1 : 0.62,
   transition: "all 0.2s ease-in-out",
-  border: `1px solid ${selected ? theme.palette.primary.main : theme.palette.divider}`,
-  "& img": {
-    objectFit: "contain"
-  }
+  border: `2px solid ${selected ? theme.palette.primary.main : theme.palette.divider}`,
+  "& img": { objectFit: "contain" },
+  "&:focus-visible": { outline: `3px solid ${theme.palette.primary.light}`, outlineOffset: 2 }
 }));

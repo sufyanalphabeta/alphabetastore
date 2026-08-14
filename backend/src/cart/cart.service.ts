@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
+import type { Decimal } from "@prisma/client/runtime/library";
 
 import { PrismaService } from "../prisma/prisma.service";
 import { PricingService } from "../pricing/pricing.service";
@@ -132,7 +133,8 @@ export class CartService {
       name: string | null;
       attributes: unknown;
       imageUrl: string | null;
-      price: unknown;
+      price: Decimal;
+      comparePrice: Decimal | null;
       stockQty: number;
     } | null = null;
 
@@ -148,6 +150,7 @@ export class CartService {
           attributes: true,
           imageUrl: true,
           price: true,
+          comparePrice: true,
           stockQty: true
         }
       });
@@ -194,17 +197,18 @@ export class CartService {
         }
       });
     } else {
-      // Use variant price when provided, otherwise compute from pricing engine.
-      let unitPrice: number;
-      if (variantSnapshot) {
-        unitPrice = Number(variantSnapshot.price);
-      } else {
-        const computedPrice = await this.pricingService.computePrice(
-          product,
-          await this.pricingService.getPricingSettings()
-        );
-        unitPrice = Number(computedPrice.finalPrice);
-      }
+      const pricingProduct = variantSnapshot
+        ? {
+            ...product,
+            price: variantSnapshot.price,
+            comparePrice: variantSnapshot.comparePrice
+          }
+        : product;
+      const computedPrice = await this.pricingService.computePrice(
+        pricingProduct,
+        await this.pricingService.getPricingSettings()
+      );
+      const unitPrice = Number(computedPrice.finalPrice);
 
       await this.prisma.cartItem.create({
         data: {

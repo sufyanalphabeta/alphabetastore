@@ -62,7 +62,7 @@ function FbtTile({ product, checked, onToggle }) {
           {currency(price)}
         </Typography>
         {!inStock && (
-          <Chip label="Out of Stock" size="small" color="error" sx={{ mt: 0.25, fontSize: 10 }} />
+          <Chip label="غير متوفر" size="small" color="error" sx={{ mt: 0.25, fontSize: 10 }} />
         )}
       </Box>
     </Stack>
@@ -105,7 +105,7 @@ export default function FrequentlyBoughtTogether({ mainProduct, relatedProducts 
   return (
     <Box mt={6}>
       <Typography variant="h4" fontWeight={700} gutterBottom>
-        Frequently Bought Together
+        تُشترى معًا غالبًا
       </Typography>
 
       <Card variant="outlined" sx={{ p: 2 }}>
@@ -135,10 +135,10 @@ export default function FrequentlyBoughtTogether({ mainProduct, relatedProducts 
         <Stack direction={{ xs: "column", sm: "row" }} alignItems={{ sm: "center" }} spacing={2}>
           <Box>
             <Typography variant="body2" color="text.secondary">
-              {selectedItems.length} item{selectedItems.length !== 1 ? "s" : ""} selected
+              تم اختيار {selectedItems.length} منتج
             </Typography>
             <Typography variant="h5" fontWeight={700} color="primary.main">
-              Total: {currency(totalPrice)}
+              الإجمالي: {currency(totalPrice)}
             </Typography>
           </Box>
           <Button
@@ -148,7 +148,7 @@ export default function FrequentlyBoughtTogether({ mainProduct, relatedProducts 
             disabled={selectedItems.length === 0}
             sx={{ ml: { sm: "auto" } }}
           >
-            Add {selectedItems.length > 1 ? "All" : ""} to Cart
+            {selectedItems.length > 1 ? "أضف الكل إلى السلة" : "أضف إلى السلة"}
           </Button>
         </Stack>
       </Card>

@@ -14,12 +14,13 @@ import ZoomIn from "@mui/icons-material/ZoomIn";
 import { FALLBACK_PRODUCT_IMAGE } from "utils/catalog";
 
 // STYLED COMPONENTS
-import { PreviewImage, ProductImageWrapper } from "./styles";
+import { PreviewImage, PreviewList, ProductImageWrapper } from "./styles";
 
-function NavBtn({ onClick, icon, sx = {} }) {
+function NavBtn({ onClick, icon, label, sx = {} }) {
   return (
     <IconButton
       onClick={e => { e.stopPropagation(); onClick(); }}
+      aria-label={label}
       sx={{
         position: "absolute", top: "50%", transform: "translateY(-50%)",
         bgcolor: "rgba(255,255,255,0.85)", "&:hover": { bgcolor: "white" },
@@ -32,7 +33,7 @@ function NavBtn({ onClick, icon, sx = {} }) {
   );
 }
 
-function GalleryImage({ src, alt, sizes, onError }) {
+function GalleryImage({ src, alt, sizes, onError, priority = false }) {
   const imageUrl = src || FALLBACK_PRODUCT_IMAGE;
   if (!imageUrl.startsWith("/uploads/")) {
     return (
@@ -40,12 +41,13 @@ function GalleryImage({ src, alt, sizes, onError }) {
         component="img"
         src={imageUrl}
         alt={alt}
+        loading={priority ? "eager" : "lazy"}
         sx={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain" }}
       />
     );
   }
 
-  return <Image fill alt={alt} src={imageUrl} sizes={sizes} onError={onError} style={{ objectFit: "contain" }} />;
+  return <Image fill alt={alt} src={imageUrl} sizes={sizes} onError={onError} priority={priority} style={{ objectFit: "contain" }} />;
 }
 
 // ── touch / swipe helpers ─────────────────────────────────────────────────────
@@ -110,19 +112,20 @@ export default function ProductGallery({ gallery, productName = "Product" }) {
     <Fragment>
       {/* ── Main image ── */}
       <Box sx={{ position: "relative" }} {...swipeMain}>
-        <ProductImageWrapper onClick={() => setZoomOpen(true)}>
+        <ProductImageWrapper type="button" aria-label="تكبير صورة المنتج" onClick={() => setZoomOpen(true)}>
           <GalleryImage
             alt={resolved[current]?.altText || productName}
             src={resolved[current]?.productUrl || FALLBACK_PRODUCT_IMAGE}
             sizes="(max-width: 768px) 100vw, 50vw"
             onError={() => handleImageError(current)}
+            priority={current === 0}
           />
         </ProductImageWrapper>
 
         {total > 1 && (
           <>
-            <NavBtn onClick={prev} icon={<ArrowBack fontSize="small" />} sx={{ left: 8 }} />
-            <NavBtn onClick={next} icon={<ArrowForward fontSize="small" />} sx={{ right: 8 }} />
+            <NavBtn onClick={prev} icon={<ArrowBack fontSize="small" />} label="الصورة السابقة" sx={{ left: 8 }} />
+            <NavBtn onClick={next} icon={<ArrowForward fontSize="small" />} label="الصورة التالية" sx={{ right: 8 }} />
           </>
         )}
 
@@ -144,15 +147,15 @@ export default function ProductGallery({ gallery, productName = "Product" }) {
           px: 0.75, py: 0.25, borderRadius: 1, display: "flex", alignItems: "center",
           gap: 0.5, fontSize: 11, pointerEvents: "none"
         }}>
-          <ZoomIn sx={{ fontSize: 14 }} /> Zoom
+          <ZoomIn sx={{ fontSize: 14 }} /> تكبير
         </Box>
       </Box>
 
       {/* ── Thumbnails ── */}
       {total > 1 && (
-        <div className="preview-images">
+        <PreviewList aria-label="صور المنتج المصغرة">
           {resolved.map((item, i) => (
-            <PreviewImage key={item.id || i} onClick={() => setCurrent(i)} selected={current === i}>
+            <PreviewImage type="button" aria-label={`عرض صورة المنتج ${i + 1}`} key={item.id || i} onClick={() => setCurrent(i)} selected={current === i}>
               <GalleryImage
                 alt={`${productName} view ${i + 1}`}
                 src={item.thumbnailUrl || item.productUrl || FALLBACK_PRODUCT_IMAGE}
@@ -161,7 +164,7 @@ export default function ProductGallery({ gallery, productName = "Product" }) {
               />
             </PreviewImage>
           ))}
-        </div>
+        </PreviewList>
       )}
 
       {/* ── Fullscreen viewer ── */}
@@ -172,6 +175,7 @@ export default function ProductGallery({ gallery, productName = "Product" }) {
           {/* Close */}
           <IconButton
             onClick={() => setZoomOpen(false)}
+            aria-label="إغلاق عرض الصورة"
             sx={{ position: "absolute", top: 8, right: 8, zIndex: 10, color: "white", bgcolor: "rgba(255,255,255,0.15)" }}
           >
             <Close />
@@ -200,8 +204,8 @@ export default function ProductGallery({ gallery, productName = "Product" }) {
           {/* Nav arrows */}
           {total > 1 && (
             <>
-              <NavBtn onClick={prev} icon={<ArrowBack />} sx={{ left: 12, color: "white", bgcolor: "rgba(255,255,255,0.12)" }} />
-              <NavBtn onClick={next} icon={<ArrowForward />} sx={{ right: 12, color: "white", bgcolor: "rgba(255,255,255,0.12)" }} />
+              <NavBtn onClick={prev} icon={<ArrowBack />} label="الصورة السابقة" sx={{ left: 12, color: "white", bgcolor: "rgba(255,255,255,0.12)" }} />
+              <NavBtn onClick={next} icon={<ArrowForward />} label="الصورة التالية" sx={{ right: 12, color: "white", bgcolor: "rgba(255,255,255,0.12)" }} />
             </>
           )}
 

@@ -8,7 +8,7 @@ export default function RecentlyViewed({ products }) {
   return (
     <div className="mb-4">
       <Typography variant="h3" sx={{ mb: 3 }}>
-        Recently Viewed
+        شوهدت مؤخرًا
       </Typography>
 
       <Grid container spacing={3}>

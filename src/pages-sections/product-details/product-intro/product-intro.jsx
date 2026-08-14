@@ -1,50 +1,35 @@
+"use client";
+
 import Link from "next/link";
 import { useState } from "react";
 
-// MUI
 import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
-import Grid from "@mui/material/Grid";
 import Stack from "@mui/material/Stack";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import Button from "@mui/material/Button";
-import ContentCopy from "@mui/icons-material/ContentCopy";
 import CheckCircle from "@mui/icons-material/CheckCircle";
 import CompareArrows from "@mui/icons-material/CompareArrows";
+import ContentCopy from "@mui/icons-material/ContentCopy";
 
-// LOCAL CUSTOM COMPONENTS
 import AddToCart from "./add-to-cart";
 import ProductGallery from "./product-gallery";
 import WishlistToggleButton from "components/wishlist/wishlist-toggle-button";
 import StarRating from "components/ratings/StarRating";
 import VariantSelector from "components/product-variants/VariantSelector";
-
-// CUSTOM UTILS LIBRARY FUNCTION
-import { computeProductPrice } from "lib";
-import useSettings from "hooks/useSettings";
-
-// COMPARE CONTEXT
+import { formatStoreCurrency } from "utils/currency";
 import { useCompare } from "contexts/CompareContext";
-
-// STYLED COMPONENTS
 import { StyledRoot } from "./styles";
 
-// ── Availability badge ────────────────────────────────────────────────────────
-function AvailabilityBadge({ stockQty }) {
-  if (stockQty <= 0) {
-    return <Chip label="غير متوفر" color="error" size="small" variant="filled" />;
-  }
-  if (stockQty <= 5) {
-    return <Chip label={`متبقي ${stockQty} فقط`} color="warning" size="small" variant="outlined" />;
-  }
-  return <Chip label="متوفر" color="success" size="small" variant="outlined" />;
+function AvailabilityBadge({ available }) {
+  return available
+    ? <Chip label="متوفر" color="success" size="small" variant="outlined" />
+    : <Chip label="غير متوفر" color="error" size="small" variant="filled" />;
 }
 
-// ── SKU copy button ───────────────────────────────────────────────────────────
 function SkuCopy({ sku }) {
   const [copied, setCopied] = useState(false);
-
   if (!sku) return null;
 
   const handleCopy = () => {
@@ -55,83 +40,44 @@ function SkuCopy({ sku }) {
   };
 
   return (
-    <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mt: 0.5 }}>
+    <Stack direction="row" alignItems="center" spacing={0.5}>
       <Typography variant="body2" color="text.secondary">
-        SKU:&nbsp;<strong style={{ color: "inherit", userSelect: "all" }}>{sku}</strong>
+        رمز المنتج: <strong dir="ltr" style={{ color: "inherit", userSelect: "all" }}>{sku}</strong>
       </Typography>
-      <Tooltip title={copied ? "Copied!" : "Copy SKU"}>
+      <Tooltip title={copied ? "تم النسخ" : "نسخ رمز المنتج"}>
         <Box
-          component="span"
+          component="button"
+          type="button"
           onClick={handleCopy}
+          aria-label="نسخ رمز المنتج"
           sx={{
+            border: 0,
+            p: 0,
+            bgcolor: "transparent",
             cursor: "pointer",
             color: copied ? "success.main" : "action.active",
             display: "flex",
             alignItems: "center"
           }}
         >
-          {copied ? (
-            <CheckCircle fontSize="inherit" sx={{ fontSize: 14 }} />
-          ) : (
-            <ContentCopy fontSize="inherit" sx={{ fontSize: 14 }} />
-          )}
+          {copied ? <CheckCircle sx={{ fontSize: 15 }} /> : <ContentCopy sx={{ fontSize: 15 }} />}
         </Box>
       </Tooltip>
     </Stack>
   );
 }
 
-// ── Highlights list ───────────────────────────────────────────────────────────
-function HighlightsList({ highlights }) {
-  if (!Array.isArray(highlights) || !highlights.length) return null;
-
-  return (
-    <Box sx={{ mt: 2 }}>
-      <Typography variant="subtitle2" fontWeight={700} gutterBottom>
-        Key Features
-      </Typography>
-      <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
-        {highlights.map((item, i) => (
-          <Typography
-            key={i}
-            component="li"
-            variant="body2"
-            color="text.secondary"
-            sx={{ mb: 0.5 }}
-          >
-            {item}
-          </Typography>
-        ))}
-      </Box>
-    </Box>
-  );
-}
-
-// ================================================================
 export default function ProductIntro({ product }) {
   const variants = Array.isArray(product?.variants) ? product.variants : [];
-  const defaultVariant = variants.find((v) => v.isDefault) || variants[0] || null;
+  const defaultVariant = variants.find(variant => variant.isDefault) || null;
   const [selectedVariant, setSelectedVariant] = useState(defaultVariant);
-  const { settings } = useSettings();
-
-  // Effective price/stock: use selected variant if present, else product
-  const effectivePrice = selectedVariant ? Number(selectedVariant.price) : (product.price ?? 0);
-  const effectiveCompare = selectedVariant?.comparePrice
-    ? Number(selectedVariant.comparePrice)
-    : product.comparePrice
-      ? Number(product.comparePrice)
-      : null;
-  const effectiveStock = selectedVariant ? selectedVariant.stockQty : (product.stockQty ?? 0);
-  const computedPrice = computeProductPrice(
-    {
-      ...product,
-      price: effectivePrice,
-      comparePrice: effectiveCompare
-    },
-    settings
-  );
-
-  const stockQty = effectiveStock;
+  const commercialPrice = selectedVariant?.storefrontPrice || product.storefrontPrice || {};
+  const finalPrice = Number(commercialPrice.finalPrice ?? selectedVariant?.price ?? product.price ?? 0);
+  const comparePrice = Number(commercialPrice.comparePrice ?? selectedVariant?.comparePrice ?? product.comparePrice);
+  const hasComparePrice = Number.isFinite(comparePrice) && comparePrice > finalPrice;
+  const discountPercent = Number(commercialPrice.discountPercent || 0);
+  const availableStock = Number(selectedVariant?.availableStock ?? product.availableStock ?? product.stockQty ?? 0);
+  const available = availableStock > 0;
   const brandRef = product.brandRef || null;
   const brandName = brandRef?.name || product.brand || null;
   const brandSlug = brandRef?.slug || null;
@@ -140,143 +86,90 @@ export default function ProductIntro({ product }) {
 
   return (
     <StyledRoot>
-      <Grid container spacing={3} justifyContent="space-around">
-        {/* IMAGE GALLERY AREA */}
-        <Grid size={{ lg: 6, md: 7, xs: 12 }}>
+      <Box className="product-intro-layout">
+        <Box>
           <ProductGallery gallery={product.gallery} productName={product.title} />
-        </Grid>
+        </Box>
 
-        <Grid size={{ lg: 5, md: 5, xs: 12 }}>
-          <Typography variant="h1">{product.title}</Typography>
-
-          {/* Rating summary link */}
-          {product.ratingCount > 0 && (
-            <Box display="flex" alignItems="center" gap={1} mt={0.75} mb={0.25}>
-              <StarRating value={product.ratingAvg ?? product.rating ?? 0} size="small" />
-              <Typography
-                component="a"
-                href="#reviews"
-                variant="body2"
-                color="text.secondary"
-                sx={{ textDecoration: "underline", cursor: "pointer" }}
-              >
-                {product.ratingCount} review{product.ratingCount !== 1 ? "s" : ""}
+        <Box>
+          <Stack spacing={1.25}>
+            {brandName ? (
+              <Typography variant="body2" color="text.secondary">
+                العلامة التجارية: {brandSlug ? (
+                  <Link href={`/brands/${brandSlug}`} style={{ color: "inherit", fontWeight: 700 }}>
+                    {brandName}
+                  </Link>
+                ) : <strong>{brandName}</strong>}
               </Typography>
-            </Box>
-          )}
+            ) : null}
 
-          {/* Brand */}
-          {brandName ? (
-            <Typography variant="body2" sx={{ mt: 0.5, color: "text.secondary" }}>
-              Brand:{" "}
-              {brandSlug ? (
-                <Link href={`/brands/${brandSlug}`} style={{ color: "inherit", fontWeight: 600 }}>
-                  {brandName}
-                </Link>
-              ) : (
-                <strong style={{ color: "inherit" }}>{brandName}</strong>
-              )}
-            </Typography>
-          ) : null}
+            <Typography variant="h1">{product.title}</Typography>
 
-          {/* SKU with copy */}
-          <SkuCopy sku={product.sku} />
-
-          {product.warrantyText ? (
-            <Typography variant="body2" sx={{ mt: 0.5, color: "text.secondary" }}>
-              Warranty: <strong>{product.warrantyText}</strong>
-            </Typography>
-          ) : null}
-
-          {product.datasheetUrl ? (
-            <Typography variant="body2" sx={{ mt: 0.5 }}>
-              <Link href={product.datasheetUrl} target="_blank" rel="noreferrer">
-                View datasheet
-              </Link>
-            </Typography>
-          ) : null}
-
-          {/* Category breadcrumb */}
-          {product.categoryName ? (
-            <Typography variant="body2" sx={{ mt: 0.25, color: "text.secondary" }}>
-              Category:{" "}
-              {product.categorySlug ? (
-                <Link
-                  href={`/products/search?category=${product.categorySlug}`}
-                  style={{ color: "inherit", fontWeight: 600 }}
-                >
-                  {product.categoryName}
-                </Link>
-              ) : (
-                <strong style={{ color: "inherit" }}>{product.categoryName}</strong>
-              )}
-            </Typography>
-          ) : null}
-
-          {product.shortDescription ? (
-            <Typography variant="body1" sx={{ mt: 1.5, color: "text.secondary" }}>
-              {product.shortDescription}
-            </Typography>
-          ) : null}
-
-          {/* Key features / highlights */}
-          <HighlightsList highlights={product.highlights} />
-
-          {/* VARIANT SELECTOR */}
-          {variants.length > 0 && (
-            <VariantSelector
-              variants={variants}
-              selectedId={selectedVariant?.id ?? null}
-              onChange={setSelectedVariant}
-            />
-          )}
-
-          {/* PRICE & STOCK */}
-          <Box sx={{ pt: 2, mb: 3 }}>
-            <Stack direction="row" alignItems="baseline" spacing={1.5}>
-              <Typography variant="h2" sx={{ color: "primary.main", lineHeight: 1 }}>
-                {computedPrice.finalFormatted}
-              </Typography>
-              {effectiveCompare && effectiveCompare > effectivePrice && (
-                <Typography
-                  variant="body1"
-                  color="text.disabled"
-                  sx={{ textDecoration: "line-through" }}
-                >
-                  {computedPrice.compareFormatted || computedPrice.baseFormatted}
+            {product.ratingCount > 0 && (
+              <Box display="flex" alignItems="center" gap={1}>
+                <StarRating value={product.ratingAvg ?? product.rating ?? 0} size="small" />
+                <Typography component="a" href="#reviews" variant="body2" color="text.secondary">
+                  {product.ratingCount} تقييم
                 </Typography>
-              )}
-            </Stack>
-            <Box mt={0.75}>
-              <AvailabilityBadge stockQty={stockQty} />
-            </Box>
-          </Box>
+              </Box>
+            )}
 
-          {/* ADD TO CART BUTTON */}
-          <Stack
-            direction={{ sm: "row", xs: "column" }}
-            spacing={2}
-            alignItems={{ sm: "center", xs: "stretch" }}
-          >
+            <SkuCopy sku={product.sku} />
+
+            {product.shortDescription && product.shortDescription.trim() !== "-" ? (
+              <Typography variant="body1" color="text.secondary" sx={{ lineHeight: 1.8 }}>
+                {product.shortDescription}
+              </Typography>
+            ) : null}
+
+            {variants.length > 0 && (
+              <VariantSelector
+                variants={variants}
+                selectedId={selectedVariant?.id ?? null}
+                onChange={setSelectedVariant}
+              />
+            )}
+
+            <Box className="purchase-panel">
+              <Stack direction="row" alignItems="center" flexWrap="wrap" gap={1.25}>
+                <Typography variant="h2" color="primary.main" sx={{ lineHeight: 1 }}>
+                  {formatStoreCurrency(finalPrice, 2, "LYD")}
+                </Typography>
+                {hasComparePrice && (
+                  <Typography variant="body1" color="text.disabled" sx={{ textDecoration: "line-through" }}>
+                    {formatStoreCurrency(comparePrice, 2, "LYD")}
+                  </Typography>
+                )}
+                {hasComparePrice && discountPercent > 0 && (
+                  <Chip label={`خصم ${Math.round(discountPercent)}%`} color="error" size="small" />
+                )}
+              </Stack>
+              <Box mt={1}><AvailabilityBadge available={available} /></Box>
+              {product.warrantyText ? (
+                <Typography variant="body2" color="text.secondary" mt={1}>
+                  الضمان: <strong>{product.warrantyText}</strong>
+                </Typography>
+              ) : null}
+            </Box>
+
             <AddToCart product={product} selectedVariant={selectedVariant} />
-            <WishlistToggleButton
-              productId={product.id}
-              variant="button"
-              sx={{ mb: 4.5, px: "1.75rem", height: 40 }}
-            />
-            <Button
-              variant={inCompare ? "contained" : "outlined"}
-              color={inCompare ? "secondary" : "inherit"}
-              size="small"
-              startIcon={<CompareArrows />}
-              onClick={() => toggle(product)}
-              sx={{ height: 40, px: 2, whiteSpace: "nowrap" }}
-            >
-              {inCompare ? "In Compare" : "Add to Compare"}
-            </Button>
+
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25}>
+              <WishlistToggleButton productId={product.id} variant="button" fullWidth sx={{ minHeight: 44 }} />
+              <Button
+                fullWidth
+                variant={inCompare ? "contained" : "outlined"}
+                color={inCompare ? "secondary" : "inherit"}
+                startIcon={<CompareArrows />}
+                onClick={() => toggle(product)}
+                sx={{ minHeight: 44, whiteSpace: "nowrap" }}
+              >
+                {inCompare ? "تمت الإضافة للمقارنة" : "أضف للمقارنة"}
+              </Button>
+            </Stack>
           </Stack>
-        </Grid>
-      </Grid>
+        </Box>
+      </Box>
     </StyledRoot>
   );
 }

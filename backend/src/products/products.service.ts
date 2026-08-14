@@ -38,6 +38,7 @@ const productInclude = {
       id: true,
       name: true,
       slug: true,
+      parentId: true,
       isActive: true,
       isVisible: true
     }
@@ -59,17 +60,6 @@ const productInclude = {
     orderBy: { sortOrder: "asc" as const },
     include: {
       mediaAsset: { select: { altText: true, variants: true } }
-    }
-  },
-  priceHistory: {
-    orderBy: { createdAt: "desc" as const },
-    take: 5,
-    select: {
-      id: true,
-      oldBasePrice: true,
-      newBasePrice: true,
-      changeReason: true,
-      createdAt: true
     }
   },
   variants: {
@@ -102,6 +92,17 @@ const productInclude = {
 
 const adminProductInclude = {
   ...productInclude,
+  priceHistory: {
+    orderBy: { createdAt: "desc" as const },
+    take: 5,
+    select: {
+      id: true,
+      oldBasePrice: true,
+      newBasePrice: true,
+      changeReason: true,
+      createdAt: true
+    }
+  },
   media: {
     orderBy: { sortOrder: "asc" as const },
     include: {
@@ -279,7 +280,7 @@ type PricedProductIdRow = {
 };
 
 const PRODUCT_LIST_CACHE_PREFIX = "products:list:";
-const PRODUCT_DETAIL_CACHE_PREFIX = "products:detail:";
+const PRODUCT_DETAIL_CACHE_PREFIX = "products:detail:v2:";
 const PRODUCT_LIST_CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
 const PRODUCT_DETAIL_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -836,10 +837,67 @@ export class ProductsService {
       throw new NotFoundException("Product not found.");
     }
 
+    const [pricingSettings, categoryScope] = await Promise.all([
+      this.pricingService.getPricingSettings(),
+      this.categoryTreeService.resolveScope(product.category.slug, { publicOnly: true })
+    ]);
     const normalized = normalizePublicProduct(product);
-    await this.cacheManager.set(cacheKey, normalized, PRODUCT_DETAIL_CACHE_TTL_MS);
+    const computed = this.pricingService.computePrice(product, pricingSettings);
+    const publicComparePrice = computed.hasActiveDiscount
+      ? computed.displayBasePrice
+      : computed.comparePrice;
+    const publicVariants = normalized.variants?.map((variant: (typeof product.variants)[number]) => {
+      const variantComputed = this.pricingService.computePrice(
+        { ...product, price: variant.price, comparePrice: variant.comparePrice },
+        pricingSettings
+      );
+      const variantComparePrice = variantComputed.hasActiveDiscount
+        ? variantComputed.displayBasePrice
+        : variantComputed.comparePrice;
 
-    return normalized;
+      return {
+        ...variant,
+        price: variantComputed.finalPrice.toFixed(2),
+        comparePrice: variantComparePrice?.toFixed(2) ?? null,
+        currency: "LYD",
+        storefrontPrice: {
+          finalPrice: variantComputed.finalPrice.toFixed(2),
+          comparePrice: variantComparePrice?.toFixed(2) ?? null,
+          hasActiveDiscount: variantComputed.hasActiveDiscount,
+          discountPercent: variantComputed.discountPercent,
+          savings: variantComputed.savings.toFixed(2),
+          currency: "LYD"
+        }
+      };
+    });
+    const {
+      baseCurrency: _baseCurrency,
+      exchangeRateOverride: _exchangeRateOverride,
+      discountType: _discountType,
+      discountValue: _discountValue,
+      discountStartAt: _discountStartAt,
+      discountEndAt: _discountEndAt,
+      ...publicDetail
+    } = normalized as typeof normalized & Record<string, unknown>;
+    const result = {
+      ...publicDetail,
+      price: computed.finalPrice.toFixed(2),
+      comparePrice: publicComparePrice?.toFixed(2) ?? null,
+      currency: "LYD",
+      storefrontPrice: {
+        finalPrice: computed.finalPrice.toFixed(2),
+        comparePrice: publicComparePrice?.toFixed(2) ?? null,
+        hasActiveDiscount: computed.hasActiveDiscount,
+        discountPercent: computed.discountPercent,
+        savings: computed.savings.toFixed(2),
+        currency: "LYD"
+      },
+      variants: publicVariants,
+      breadcrumbs: categoryScope?.breadcrumbs ?? []
+    };
+    await this.cacheManager.set(cacheKey, result, PRODUCT_DETAIL_CACHE_TTL_MS);
+
+    return result;
   }
 
   async findOneAdmin(slugOrId: string) {

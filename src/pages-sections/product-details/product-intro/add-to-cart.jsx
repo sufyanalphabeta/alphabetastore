@@ -9,14 +9,8 @@ import Typography from "@mui/material/Typography";
 import AddIcon from "@mui/icons-material/Add";
 import RemoveIcon from "@mui/icons-material/Remove";
 
-// GLOBAL CUSTOM HOOK
 import useCart from "hooks/useCart";
-
-// ================================================================
-// Props:
-//   product       — full product object
-//   selectedVariant — currently selected ProductVariant | null
-// ================================================================
+import { purchaseQuantityErrorMessage } from "utils/purchase-quantity";
 
 export default function AddToCart({ product, selectedVariant }) {
   const { id } = product;
@@ -25,23 +19,23 @@ export default function AddToCart({ product, selectedVariant }) {
   const { addItem, state } = useCart();
   const [quantity, setQuantity] = useState(1);
   const [errorMessage, setErrorMessage] = useState("");
-
-  // Effective price and stock come from the variant when one is selected.
-  const effectiveStock = selectedVariant
-    ? (selectedVariant.stockQty ?? 0)
-    : (product.stockQty ?? 0);
-  const configuredLimit = product.maxPurchaseQty == null ? null : Number(product.maxPurchaseQty);
-  const productCartItems = state.cart.filter((item) => item.productId === id);
+  const effectiveAvailability = selectedVariant || product;
+  const effectiveStock = Number(effectiveAvailability.availableStock ?? effectiveAvailability.stockQty ?? 0);
+  const configuredLimit = effectiveAvailability.maxPurchaseQty == null
+    ? null
+    : Number(effectiveAvailability.maxPurchaseQty);
+  const productCartItems = state.cart.filter(item => item.productId === id);
   const productQuantityInCart = productCartItems.reduce((sum, item) => sum + item.qty, 0);
   const selectedLineQuantity = productCartItems
-    .filter((item) => (item.variantId ?? null) === (selectedVariant?.id ?? null))
+    .filter(item => (item.variantId ?? null) === (selectedVariant?.id ?? null))
     .reduce((sum, item) => sum + item.qty, 0);
-  const remainingStock = Math.max(0, Number(effectiveStock) - selectedLineQuantity);
-  const remainingConfiguredLimit =
-    configuredLimit == null ? remainingStock : Math.max(0, configuredLimit - productQuantityInCart);
+  const remainingStock = Math.max(0, effectiveStock - selectedLineQuantity);
+  const remainingConfiguredLimit = configuredLimit == null
+    ? remainingStock
+    : Math.max(0, configuredLimit - productQuantityInCart);
   const effectiveMaxQuantity = Math.max(0, Math.min(remainingStock, remainingConfiguredLimit));
-
-  const isOutOfStock = Number(effectiveStock) <= 0;
+  const requiresVariantSelection = product.hasVariants && !selectedVariant;
+  const isOutOfStock = effectiveStock <= 0;
   const reachedCartLimit = !isOutOfStock && effectiveMaxQuantity <= 0;
 
   useEffect(() => {
@@ -54,33 +48,31 @@ export default function AddToCart({ product, selectedVariant }) {
     setErrorMessage("");
     try {
       await addItem(id, quantity, selectedVariant?.id ?? null);
-
       router.push("/mini-cart", { scroll: false });
-    } catch {
-      setErrorMessage("تعذر إضافة الكمية المطلوبة. راجع الكمية المتاحة في السلة.");
+    } catch (error) {
+      setErrorMessage(purchaseQuantityErrorMessage(error, "تعذر إضافة المنتج إلى السلة."));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Stack spacing={1.25} sx={{ mb: 4.5 }}>
-      {effectiveMaxQuantity > 0 ? (
+    <Stack spacing={1.25}>
+      {effectiveMaxQuantity > 0 && !requiresVariantSelection ? (
         <Stack direction="row" alignItems="center" spacing={1}>
+          <Typography variant="body2" color="text.secondary">الكمية</Typography>
           <IconButton
             size="small"
-            onClick={() => setQuantity((value) => Math.max(1, value - 1))}
+            onClick={() => setQuantity(value => Math.max(1, value - 1))}
             disabled={quantity <= 1}
             aria-label="تقليل الكمية"
           >
             <RemoveIcon />
           </IconButton>
-          <Typography minWidth={28} textAlign="center" fontWeight={700}>
-            {quantity}
-          </Typography>
+          <Typography minWidth={28} textAlign="center" fontWeight={700}>{quantity}</Typography>
           <IconButton
             size="small"
-            onClick={() => setQuantity((value) => Math.min(effectiveMaxQuantity, value + 1))}
+            onClick={() => setQuantity(value => Math.min(effectiveMaxQuantity, value + 1))}
             disabled={quantity >= effectiveMaxQuantity}
             aria-label="زيادة الكمية"
           >
@@ -88,29 +80,32 @@ export default function AddToCart({ product, selectedVariant }) {
           </IconButton>
         </Stack>
       ) : null}
-      {configuredLimit != null ? (
+
+      {configuredLimit != null && configuredLimit <= effectiveStock ? (
         <Typography variant="body2" color="text.secondary">
           الحد الأقصى للشراء: {configuredLimit}
         </Typography>
       ) : null}
-      {errorMessage ? (
-        <Typography variant="body2" color="error.main">
-          {errorMessage}
-        </Typography>
+      {requiresVariantSelection ? (
+        <Typography variant="body2" color="warning.main">اختر مواصفات المنتج أولًا.</Typography>
       ) : null}
+      {errorMessage ? <Typography variant="body2" color="error.main">{errorMessage}</Typography> : null}
+
       <Button
         color="primary"
         variant="contained"
         loading={isLoading}
         onClick={handleAddToCart}
-        disabled={isOutOfStock || reachedCartLimit}
-        sx={{ px: "1.75rem", height: 40 }}
+        disabled={isOutOfStock || reachedCartLimit || requiresVariantSelection}
+        sx={{ px: "1.75rem", minHeight: 48, width: "100%", fontWeight: 700 }}
       >
         {isOutOfStock
           ? "غير متوفر"
-          : reachedCartLimit
-            ? "بلغت الحد المسموح في السلة"
-            : "أضف إلى السلة"}
+          : requiresVariantSelection
+            ? "اختر المواصفات"
+            : reachedCartLimit
+              ? "بلغت الحد المسموح في السلة"
+              : "أضف إلى السلة"}
       </Button>
     </Stack>
   );

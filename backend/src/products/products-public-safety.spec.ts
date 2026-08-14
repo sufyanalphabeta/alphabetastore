@@ -1,4 +1,5 @@
 import { NotFoundException } from '@nestjs/common';
+import { Decimal } from '@prisma/client/runtime/library';
 
 import { ProductStatus } from '../prisma/prisma-client';
 import { ProductsService } from './products.service';
@@ -20,12 +21,31 @@ function serviceWith(prismaOverrides: Record<string, unknown> = {}) {
     productMedia: { count: jest.fn().mockResolvedValue(0) },
   };
   const cache = { get: jest.fn().mockResolvedValue(undefined), set: jest.fn(), del: jest.fn() };
-  const pricing = { getPricingSettings: jest.fn(), computePrice: jest.fn() };
+  const pricing = {
+    getPricingSettings: jest.fn().mockResolvedValue({
+      exchangeRate: new Decimal(5.2),
+      defaultCurrency: 'LYD',
+      autoRound: false,
+    }),
+    computePrice: jest.fn().mockReturnValue({
+      finalPrice: new Decimal(100),
+      displayBasePrice: new Decimal(120),
+      comparePrice: null,
+      hasActiveDiscount: true,
+      discountPercent: 16.7,
+      savings: new Decimal(20),
+      exchangeRateUsed: new Decimal(1),
+      currency: 'LYD',
+    }),
+  };
   const sku = { resolve: jest.fn().mockResolvedValue('AB-000001') };
   const readiness = { evaluate: jest.fn() };
   const reviewAudit = { productUpdateInvalidates: jest.fn().mockReturnValue(false), invalidationData: jest.fn().mockReturnValue({}) };
   const categoryTree = {
-    resolveScope: jest.fn().mockResolvedValue({ categoryIds: ['category-1'] }),
+    resolveScope: jest.fn().mockResolvedValue({
+      categoryIds: ['category-1'],
+      breadcrumbs: [{ id: 'root-1', name: 'Computers', slug: 'computers' }],
+    }),
     getPublicCounts: jest.fn().mockResolvedValue([]),
   };
   return { service: new ProductsService(prisma as never, {} as never, pricing as never, cache as never, sku as never, readiness as never, reviewAudit as never, categoryTree as never), prisma, cache, readiness, reviewAudit, categoryTree };
@@ -39,7 +59,7 @@ describe('ProductsService public safety', () => {
 
     const detailSetup = serviceWith();
     await expect(detailSetup.service.findOneBySlug('inactive')).rejects.toBeInstanceOf(NotFoundException);
-    expect(detailSetup.cache.get).toHaveBeenCalledWith('products:detail:public:inactive');
+    expect(detailSetup.cache.get).toHaveBeenCalledWith('products:detail:v2:public:inactive');
   });
 
   it('forces ACTIVE for public list and ignores any untyped inactive request', async () => {
@@ -71,12 +91,29 @@ describe('ProductsService public safety', () => {
   });
 
   it('returns ACTIVE detail and returns 404 for an inactive/missing public detail', async () => {
-    const active = { id: 'p1', slug: 'active', status: 'ACTIVE', images: [], media: [], category: {}, sourceRelations: [], catalogReviewedAt: new Date(), catalogReviewedByUserId: 'admin-1' };
+    const active = {
+      id: 'p1', slug: 'active', status: 'ACTIVE', price: new Decimal(120),
+      baseCurrency: 'USD', exchangeRateOverride: new Decimal(5.2), comparePrice: null,
+      discountType: null, discountValue: null, discountStartAt: null, discountEndAt: null,
+      images: [], media: [], variants: [], category: { slug: 'laptops' }, sourceRelations: [],
+      catalogReviewedAt: new Date(), catalogReviewedByUserId: 'admin-1',
+    };
     const activeSetup = serviceWith({ findUnique: jest.fn().mockResolvedValue(active) });
     const publicProduct = await activeSetup.service.findOneBySlug('active');
-    expect(publicProduct).toMatchObject({ id: 'p1' });
+    expect(publicProduct).toMatchObject({
+      id: 'p1',
+      price: '100.00',
+      comparePrice: '120.00',
+      currency: 'LYD',
+      storefrontPrice: { finalPrice: '100.00', hasActiveDiscount: true, currency: 'LYD' },
+      breadcrumbs: [{ id: 'root-1', name: 'Computers', slug: 'computers' }],
+    });
     expect(publicProduct).not.toHaveProperty('catalogReviewedAt');
     expect(publicProduct).not.toHaveProperty('catalogReviewedByUserId');
+    expect(publicProduct).not.toHaveProperty('baseCurrency');
+    expect(publicProduct).not.toHaveProperty('exchangeRateOverride');
+    expect(publicProduct).not.toHaveProperty('discountValue');
+    expect(publicProduct).not.toHaveProperty('priceHistory');
     expect(activeSetup.prisma.product.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { slug: 'active', status: ProductStatus.ACTIVE } }));
 
     const inactiveSetup = serviceWith({ findUnique: jest.fn().mockResolvedValue(null) });
@@ -142,8 +179,8 @@ describe('ProductsService public safety', () => {
     const { service, cache } = serviceWith();
     cache.get.mockResolvedValueOnce(['products:list:{}']);
     await service.invalidatePublicationCaches('p1', 'item');
-    expect(cache.del).toHaveBeenCalledWith('products:detail:public:p1');
-    expect(cache.del).toHaveBeenCalledWith('products:detail:public:item');
+    expect(cache.del).toHaveBeenCalledWith('products:detail:v2:public:p1');
+    expect(cache.del).toHaveBeenCalledWith('products:detail:v2:public:item');
     expect(cache.del).toHaveBeenCalledWith('products:list:{}');
   });
 

@@ -47,11 +47,11 @@ import StarPicker from "components/ratings/StarPicker";
 import RatingSummary from "components/ratings/RatingSummary";
 
 const SORT_OPTIONS = [
-  { value: "newest",   label: "Newest" },
-  { value: "oldest",   label: "Oldest" },
-  { value: "highest",  label: "Highest Rating" },
-  { value: "lowest",   label: "Lowest Rating" },
-  { value: "verified", label: "Verified Purchases First" },
+  { value: "newest",   label: "الأحدث" },
+  { value: "oldest",   label: "الأقدم" },
+  { value: "highest",  label: "الأعلى تقييمًا" },
+  { value: "lowest",   label: "الأقل تقييمًا" },
+  { value: "verified", label: "المشتريات الموثقة أولًا" },
 ];
 
 // ── Review Form ──────────────────────────────────────────────────────────────
@@ -72,7 +72,7 @@ function ReviewForm({ productId, existingReview, onSuccess, onCancel }) {
   };
 
   const handleSubmit = async () => {
-    if (rating < 1) { setError("Please select a star rating."); return; }
+    if (rating < 1) { setError("اختر تقييمًا بالنجوم."); return; }
     setError("");
     setSubmitting(true);
     try {
@@ -84,7 +84,7 @@ function ReviewForm({ productId, existingReview, onSuccess, onCancel }) {
       }
       onSuccess?.();
     } catch (e) {
-      setError(e?.message || "Failed to submit review.");
+      setError(e?.message || "تعذر إرسال التقييم.");
     } finally {
       setSubmitting(false);
     }
@@ -92,12 +92,12 @@ function ReviewForm({ productId, existingReview, onSuccess, onCancel }) {
 
   return (
     <Box>
-      <Typography variant="subtitle2" mb={1}>Your Rating *</Typography>
+      <Typography variant="subtitle2" mb={1}>تقييمك *</Typography>
       <StarPicker value={rating} onChange={setRating} disabled={submitting} />
       {error && <FormHelperText error sx={{ mt: 0.5 }}>{error}</FormHelperText>}
 
       <TextField
-        label="Review Title"
+        label="عنوان التقييم"
         value={title}
         onChange={e => setTitle(e.target.value)}
         fullWidth size="small" sx={{ mt: 2 }}
@@ -105,7 +105,7 @@ function ReviewForm({ productId, existingReview, onSuccess, onCancel }) {
         disabled={submitting}
       />
       <TextField
-        label="Your Review"
+        label="اكتب تقييمك"
         value={comment}
         onChange={e => setComment(e.target.value)}
         fullWidth multiline rows={4} size="small" sx={{ mt: 1.5 }}
@@ -121,7 +121,7 @@ function ReviewForm({ productId, existingReview, onSuccess, onCancel }) {
           size="small"
           disabled={submitting}
         >
-          Add Photos (max 5)
+          إضافة صور (بحد أقصى 5)
           <input type="file" accept="image/*" multiple hidden onChange={handleImageChange} />
         </Button>
         {previews.length > 0 && (
@@ -151,17 +151,17 @@ function ReviewForm({ productId, existingReview, onSuccess, onCancel }) {
           disabled={submitting}
           sx={{ minWidth: 120 }}
         >
-          {submitting ? <CircularProgress size={18} color="inherit" /> : existingReview ? "Update Review" : "Submit Review"}
+          {submitting ? <CircularProgress size={18} color="inherit" /> : existingReview ? "تحديث التقييم" : "إرسال التقييم"}
         </Button>
         {onCancel && (
           <Button variant="outlined" onClick={onCancel} disabled={submitting}>
-            Cancel
+            إلغاء
           </Button>
         )}
       </Stack>
 
       <Typography variant="caption" color="text.secondary" mt={1} display="block">
-        Reviews are subject to moderation and may take up to 24 hours to appear.
+        تخضع التقييمات للمراجعة قبل ظهورها في المتجر.
       </Typography>
     </Box>
   );
@@ -175,7 +175,7 @@ function ReviewCard({ review, currentUserId, productId, onChanged }) {
   const isOwn = currentUserId && review.user?.id === currentUserId;
 
   const handleDelete = async () => {
-    if (!window.confirm("Delete your review?")) return;
+    if (!window.confirm("هل تريد حذف تقييمك؟")) return;
     setDeleting(true);
     try {
       const token = getAccessToken();
@@ -200,11 +200,11 @@ function ReviewCard({ review, currentUserId, productId, onChanged }) {
         </Avatar>
         <Box flex={1}>
           <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap">
-            <Typography variant="subtitle2">{review.user?.name ?? "Anonymous"}</Typography>
+            <Typography variant="subtitle2">{review.user?.name ?? "مستخدم"}</Typography>
             {review.isVerifiedPurchase && (
               <Chip
                 icon={<VerifiedIcon fontSize="small" />}
-                label="Verified Purchase"
+                label="عملية شراء موثقة"
                 size="small"
                 color="success"
                 variant="outlined"
@@ -212,7 +212,7 @@ function ReviewCard({ review, currentUserId, productId, onChanged }) {
               />
             )}
             <Typography variant="caption" color="text.secondary">
-              {new Date(review.createdAt).toLocaleDateString()}
+              {new Date(review.createdAt).toLocaleDateString("ar-LY")}
             </Typography>
           </Stack>
 
@@ -252,10 +252,10 @@ function ReviewCard({ review, currentUserId, productId, onChanged }) {
           {isOwn && !editing && (
             <Stack direction="row" spacing={1} mt={1}>
               <Button size="small" startIcon={<EditIcon />} onClick={() => setEditing(true)}>
-                Edit
+                تعديل
               </Button>
               <Button size="small" color="error" startIcon={<DeleteIcon />} onClick={handleDelete} disabled={deleting}>
-                Delete
+                حذف
               </Button>
             </Stack>
           )}
@@ -324,7 +324,7 @@ export default function ProductReviews({ productId }) {
   return (
     <Box id="reviews">
       <Typography variant="h5" fontWeight={700} mb={3}>
-        Customer Reviews
+        تقييمات العملاء
       </Typography>
 
       {/* Rating Summary */}
@@ -341,9 +341,9 @@ export default function ProductReviews({ productId }) {
         {user ? (
           myReview === undefined ? null : myReview ? (
             <Alert severity="info" variant="outlined" sx={{ mb: 2 }}>
-              You have already reviewed this product.{" "}
-              {myReview.status === "PENDING" && "Your review is awaiting moderation."}
-              {myReview.status === "REJECTED" && `Your review was rejected. ${myReview.moderatorNote ? `Reason: ${myReview.moderatorNote}` : ""}`}
+              سبق أن قيّمت هذا المنتج. {" "}
+              {myReview.status === "PENDING" && "تقييمك قيد المراجعة."}
+              {myReview.status === "REJECTED" && `لم يتم قبول تقييمك. ${myReview.moderatorNote ? `السبب: ${myReview.moderatorNote}` : ""}`}
             </Alert>
           ) : (
             <>
@@ -352,11 +352,11 @@ export default function ProductReviews({ productId }) {
                 onClick={() => setShowWriteForm(v => !v)}
                 sx={{ mb: 2 }}
               >
-                {showWriteForm ? "Close" : "Write a Review"}
+                {showWriteForm ? "إغلاق" : "اكتب تقييمًا"}
               </Button>
               <Collapse in={showWriteForm}>
                 <Box p={3} bgcolor="grey.50" borderRadius={2} mb={3}>
-                  <Typography variant="h6" mb={2}>Write Your Review</Typography>
+                  <Typography variant="h6" mb={2}>اكتب تقييمك</Typography>
                   <ReviewForm
                     productId={productId}
                     onSuccess={handleReviewSuccess}
@@ -368,7 +368,7 @@ export default function ProductReviews({ productId }) {
           )
         ) : (
           <Alert severity="info" variant="outlined" sx={{ mb: 2 }}>
-            <a href="/login" style={{ color: "inherit", fontWeight: 600 }}>Sign in</a> to write a review.
+            <a href="/login" style={{ color: "inherit", fontWeight: 600 }}>سجّل الدخول</a> لكتابة تقييم.
           </Alert>
         )}
       </Box>
@@ -377,13 +377,13 @@ export default function ProductReviews({ productId }) {
       {(summary?.total ?? 0) > 0 && (
         <Stack direction="row" alignItems="center" spacing={2} mb={2} flexWrap="wrap">
           <Typography variant="body2" color="text.secondary">
-            {summary?.total} review{summary?.total !== 1 ? "s" : ""}
+            {summary?.total} تقييم
           </Typography>
           <TextField
             select size="small" value={sort}
             onChange={e => { setSort(e.target.value); setPage(1); }}
             sx={{ minWidth: 200 }}
-            label="Sort by"
+            label="ترتيب حسب"
           >
             {SORT_OPTIONS.map(o => (
               <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
@@ -397,7 +397,7 @@ export default function ProductReviews({ productId }) {
         <Box textAlign="center" py={4}><CircularProgress /></Box>
       ) : reviews.length === 0 ? (
         <Typography color="text.secondary" py={4} textAlign="center">
-          No reviews yet. Be the first to review this product!
+          لا توجد تقييمات بعد. كن أول من يقيّم هذا المنتج.
         </Typography>
       ) : (
         <Stack divider={<Divider />} spacing={3}>

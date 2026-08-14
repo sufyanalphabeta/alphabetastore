@@ -29,6 +29,25 @@ describe('normalizeProductGallery', () => {
     expect(result.gallery[0].id).toBe('relation');
   });
 
+  it('places the PRIMARY media first even when its sort order is higher', () => {
+    const secondary = {
+      ...modern,
+      id: 'secondary',
+      role: 'GALLERY' as const,
+      sortOrder: 0,
+    };
+    const primary = {
+      ...modern,
+      id: 'primary',
+      role: 'PRIMARY' as const,
+      sortOrder: 3,
+    };
+
+    const result = normalizeProductGallery({ images: [], media: [secondary, primary] });
+
+    expect(result.gallery.map((item) => item.id)).toEqual(['primary', 'secondary']);
+  });
+
   it('keeps the legacy images compatibility property authoritative', () => {
     const result = normalizeProductGallery({ images: [legacy], media: [modern] });
     expect(result.images).toEqual([{ id: 'relation', imageUrl: '/product.webp', sortOrder: 0 }]);

@@ -45,7 +45,7 @@ function QnaItem({ item, currentUserId, onDelete }) {
         </Avatar>
         <Box flex={1}>
           <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap">
-            <Typography variant="body2" fontWeight={600}>{item.user?.name ?? "Customer"}</Typography>
+            <Typography variant="body2" fontWeight={600}>{item.user?.name ?? "عميل"}</Typography>
             <Typography variant="caption" color="text.secondary">
               {new Date(item.createdAt).toLocaleDateString()}
             </Typography>
@@ -56,7 +56,7 @@ function QnaItem({ item, currentUserId, onDelete }) {
             )}
           </Stack>
           <Typography variant="body2" mt={0.5}>
-            <strong>Q:</strong> {item.question}
+            <strong>س:</strong> {item.question}
           </Typography>
 
           {/* Answer */}
@@ -70,7 +70,7 @@ function QnaItem({ item, currentUserId, onDelete }) {
               <Stack direction="row" alignItems="center" spacing={0.5} mb={0.25}>
                 <CheckCircleIcon fontSize="small" color="primary" />
                 <Typography variant="caption" fontWeight={600} color="primary.main">
-                  Store Answer
+                  إجابة المتجر
                 </Typography>
               </Stack>
               <Typography variant="body2" color="text.secondary">
@@ -118,7 +118,7 @@ export default function ProductQnA({ productId }) {
 
   const handleAsk = async () => {
     if (!question.trim() || question.trim().length < 10) {
-      setError("Please enter at least 10 characters.");
+      setError("يرجى كتابة سؤال من 10 أحرف على الأقل.");
       return;
     }
     setError("");
@@ -131,7 +131,7 @@ export default function ProductQnA({ productId }) {
       setSuccess(true);
       setTimeout(() => setSuccess(false), 5000);
     } catch (e) {
-      setError(e?.message || "Failed to submit question.");
+      setError(e?.message || "تعذر إرسال السؤال. حاول مرة أخرى.");
     } finally {
       setSubmitting(false);
     }
@@ -147,7 +147,7 @@ export default function ProductQnA({ productId }) {
       setDeleteTargetId(null);
       load();
     } catch (e) {
-      setDeleteError(e?.message || "Failed to delete question.");
+      setDeleteError(e?.message || "تعذر حذف السؤال. حاول مرة أخرى.");
     } finally {
       setDeleting(false);
     }
@@ -158,13 +158,13 @@ export default function ProductQnA({ productId }) {
       <Stack direction="row" alignItems="center" spacing={1} mb={3}>
         <QuestionAnswerIcon color="primary" />
         <Typography variant="h5" fontWeight={700}>
-          Customer Q&amp;A
+          أسئلة العملاء وإجاباتها
         </Typography>
       </Stack>
 
       {success && (
         <Alert severity="success" sx={{ mb: 2 }}>
-          Your question has been submitted and will be answered soon.
+          تم إرسال سؤالك وسيتم الرد عليه قريبًا.
         </Alert>
       )}
 
@@ -176,32 +176,32 @@ export default function ProductQnA({ productId }) {
             onClick={() => setShowAskForm(v => !v)}
             sx={{ mb: 2 }}
           >
-            {showAskForm ? "Close" : "Ask a Question"}
+            {showAskForm ? "إغلاق" : "اطرح سؤالًا"}
           </Button>
           <Collapse in={showAskForm}>
             <Box p={2} bgcolor="grey.50" borderRadius={2} mb={3}>
               <TextField
-                label="Your question"
+                label="سؤالك"
                 value={question}
                 onChange={e => setQuestion(e.target.value)}
                 fullWidth multiline rows={3} size="small"
                 inputProps={{ maxLength: 500, minLength: 10 }}
-                helperText={error || `${question.length}/500 — minimum 10 characters`}
+                helperText={error || `${question.length}/500 — الحد الأدنى 10 أحرف`}
                 error={Boolean(error)}
                 disabled={submitting}
               />
               <Stack direction="row" spacing={1} mt={2}>
                 <Button variant="contained" onClick={handleAsk} disabled={submitting || question.trim().length < 10}>
-                  {submitting ? <CircularProgress size={18} color="inherit" /> : "Submit Question"}
+                  {submitting ? <CircularProgress size={18} color="inherit" /> : "إرسال السؤال"}
                 </Button>
-                <Button variant="text" onClick={() => setShowAskForm(false)}>Cancel</Button>
+                <Button variant="text" onClick={() => setShowAskForm(false)}>إلغاء</Button>
               </Stack>
             </Box>
           </Collapse>
         </>
       ) : (
         <Alert severity="info" variant="outlined" sx={{ mb: 2 }}>
-          <a href="/login" style={{ color: "inherit", fontWeight: 600 }}>Sign in</a> to ask a question.
+          <a href="/login" style={{ color: "inherit", fontWeight: 600 }}>سجّل الدخول</a> لطرح سؤال.
         </Alert>
       )}
 
@@ -210,7 +210,7 @@ export default function ProductQnA({ productId }) {
         <Box textAlign="center" py={4}><CircularProgress /></Box>
       ) : items.length === 0 ? (
         <Typography color="text.secondary" py={2} textAlign="center">
-          No questions yet. Be the first to ask!
+          لا توجد أسئلة حتى الآن. كن أول من يسأل.
         </Typography>
       ) : (
         <Stack divider={<Divider />} spacing={3}>
@@ -239,17 +239,17 @@ export default function ProductQnA({ productId }) {
 
       {/* Delete confirmation dialog */}
       <Dialog open={Boolean(deleteTargetId)} onClose={() => !deleting && setDeleteTargetId(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>Delete Question</DialogTitle>
+        <DialogTitle>حذف السؤال</DialogTitle>
         <DialogContent>
           {deleteError && <Alert severity="error" sx={{ mb: 1 }}>{deleteError}</Alert>}
           <Typography variant="body2">
-            Are you sure you want to delete this question? This action cannot be undone.
+            هل أنت متأكد من حذف هذا السؤال؟ لا يمكن التراجع عن هذا الإجراء.
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteTargetId(null)} disabled={deleting}>Cancel</Button>
+          <Button onClick={() => setDeleteTargetId(null)} disabled={deleting}>إلغاء</Button>
           <Button variant="contained" color="error" onClick={handleDeleteConfirm} disabled={deleting}>
-            {deleting ? <CircularProgress size={16} color="inherit" /> : "Delete"}
+            {deleting ? <CircularProgress size={16} color="inherit" /> : "حذف"}
           </Button>
         </DialogActions>
       </Dialog>

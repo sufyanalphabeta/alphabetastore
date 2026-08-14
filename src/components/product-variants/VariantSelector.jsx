@@ -89,7 +89,7 @@ export default function VariantSelector({ variants = [], selectedId, onChange })
               return (
                 <Tooltip
                   key={value}
-                  title={!available ? "Out of stock" : ""}
+                  title={!available ? "غير متوفر" : ""}
                   placement="top"
                   arrow
                 >

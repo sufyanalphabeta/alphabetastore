@@ -37,7 +37,10 @@ export function normalizeProductGallery<T extends { images?: LegacyImage[]; medi
   const imageMedia = media.filter((item) => item.role !== 'VIDEO');
   const gallery: ProductGalleryImage[] = imageMedia.length
     ? imageMedia
-        .sort((left, right) => left.sortOrder - right.sortOrder)
+        .sort((left, right) => {
+          const roleOrder = Number(right.role === 'PRIMARY') - Number(left.role === 'PRIMARY');
+          return roleOrder || left.sortOrder - right.sortOrder || left.id.localeCompare(right.id);
+        })
         .map((item) => ({
           id: item.id,
           mediaAssetId: item.mediaAssetId,

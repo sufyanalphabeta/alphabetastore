@@ -52,7 +52,7 @@ function AccessoryCard({ product }) {
           {currency(price)}
         </Typography>
         {!inStock && (
-          <Chip label="Out of Stock" size="small" color="error" sx={{ mt: 0.5, alignSelf: "flex-start" }} />
+          <Chip label="غير متوفر" size="small" color="error" sx={{ mt: 0.5, alignSelf: "flex-start" }} />
         )}
         <Box mt="auto" pt={1}>
           <Button
@@ -63,7 +63,7 @@ function AccessoryCard({ product }) {
             disabled={!inStock}
             onClick={() => addItem?.(product.id, 1)}
           >
-            Add to Cart
+            أضف إلى السلة
           </Button>
         </Box>
       </CardContent>
@@ -73,7 +73,7 @@ function AccessoryCard({ product }) {
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
-export default function ProductAccessories({ accessories = [], title = "Compatible Accessories" }) {
+export default function ProductAccessories({ accessories = [], title = "ملحقات متوافقة" }) {
   if (!accessories.length) return null;
 
   return (

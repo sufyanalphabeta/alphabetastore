@@ -2,15 +2,8 @@ import Typography from "@mui/material/Typography";
 export default function ProductDescription({
   description
 }) {
-  return <div>
-      <Typography variant="h3" sx={{
-      mb: 2
-    }}>
-        Description
-      </Typography>
-
-      <Typography variant="body1" color="text.secondary">
-        {description || "No description available."}
-      </Typography>
-    </div>;
+  if (!description || !description.trim() || description.trim() === "-") return null;
+  return <Typography variant="body1" color="text.secondary" sx={{ whiteSpace: "pre-line", lineHeight: 1.9 }}>
+      {description}
+    </Typography>;
 }

@@ -41,7 +41,7 @@ export default function RatingSummary({ average = 0, total = 0, distribution = {
         </Typography>
         <StarRating value={average} size="medium" sx={{ mt: 0.5 }} />
         <Typography variant="body2" color="text.secondary" mt={0.5}>
-          {total} review{total !== 1 ? "s" : ""}
+          {total} تقييم
         </Typography>
       </Box>
 

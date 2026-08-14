@@ -35,7 +35,7 @@ function BundleCard({ bundle }) {
           <Typography variant="h6" fontWeight={700}>{bundle.name}</Typography>
           {savings && (
             <Chip
-              label={`Save ${currency(savings)}`}
+              label={`وفر ${currency(savings)}`}
               color="success"
               size="small"
               sx={{ ml: "auto", fontWeight: 700 }}
@@ -103,7 +103,7 @@ function BundleCard({ bundle }) {
             component="a"
             href={`/bundles/${bundle.slug}`}
           >
-            View Bundle
+            عرض الباقة
           </Button>
         </Stack>
       </CardContent>
@@ -119,7 +119,7 @@ export default function ProductBundles({ bundles = [] }) {
   return (
     <Box mt={6}>
       <Typography variant="h4" fontWeight={700} gutterBottom>
-        Available Bundles
+        الباقات المتاحة
       </Typography>
       <Stack spacing={2}>
         {bundles.map(bundle => (
