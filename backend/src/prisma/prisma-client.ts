@@ -1,6 +1,7 @@
 export {
   PrismaClient,
   BaseCurrency,
+  AttributeDataType,
   MediaProcessingStatus,
   MediaType,
   ProductMediaRole,

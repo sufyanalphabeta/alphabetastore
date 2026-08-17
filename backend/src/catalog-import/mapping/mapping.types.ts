@@ -21,6 +21,7 @@ export type CatalogMappingProfile = {
   storeCurrency: string;
   importMode?: string;
   columnMapping: ColumnMapping;
+  attributeMapping?: Record<string, string>;
   categoryMapping?: Record<string, string>;
   brandMapping?: Record<string, string>;
   options?: {
@@ -54,6 +55,7 @@ export type MappedCatalogRow = {
   sourceBrand: string | null;
   mappedBrandId: string | null;
   sourceDescription: string | null;
+  attributes: Record<string, string>;
   mappingWarnings: MappingIssue[];
   mappingErrors: MappingIssue[];
   parserErrors: string[];

@@ -7,6 +7,7 @@ export const PRODUCT_BLOCKERS = [
   'INVALID_PRICE',
   'INVALID_CATEGORY',
   'MISSING_IMAGE',
+  'MISSING_REQUIRED_ATTRIBUTES',
 ] as const;
 
 export const PRODUCT_WARNINGS = [
@@ -50,6 +51,7 @@ type ReadinessProduct = {
     lastImportedName?: string | null;
   }>;
   _count?: { media?: number; images?: number };
+  missingRequiredAttributes?: string[];
 };
 
 export type ProductReadiness = {
@@ -77,6 +79,7 @@ export class ProductReadinessService {
     const hasReadyPrimary = primary?.mediaAsset?.processingStatus === 'READY';
     const hasUsableImage = mediaCount > 0 ? hasReadyPrimary : legacyImageCount > 0;
     if (!hasUsableImage) blockers.push('MISSING_IMAGE');
+    if (product.missingRequiredAttributes?.length) blockers.push('MISSING_REQUIRED_ATTRIBUTES');
 
     if (!product.shortDescription?.trim()) warnings.push('MISSING_SHORT_DESCRIPTION');
     if (!product.description?.trim()) warnings.push('MISSING_DESCRIPTION');

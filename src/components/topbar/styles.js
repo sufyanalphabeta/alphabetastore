@@ -12,7 +12,7 @@ export const StyledRoot = styled("div", {
   fontSize: 12,
   paddingBlock: 10,
   color: theme.palette.secondary.contrastText,
-  background: bgColor || "#16233c"
+  background: bgColor || theme.palette.secondary.main
 }));
 export const StyledContainer = styled(Container)(() => ({
   height: "100%",

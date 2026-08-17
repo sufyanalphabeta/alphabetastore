@@ -12,10 +12,13 @@ import {
   IsUUID,
   MaxLength,
   Min,
-  MinLength
+  MinLength,
+  ValidateNested
 } from "class-validator";
+import { Type } from "class-transformer";
 
 import { BaseCurrency, DiscountType } from "../../prisma/prisma-client";
+import { ProductAttributeValueDto } from "../../attributes/dto/attribute.dto";
 
 export class CreateProductDto {
   @IsUUID()
@@ -114,6 +117,12 @@ export class CreateProductDto {
   @IsOptional()
   @IsObject()
   specs?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ProductAttributeValueDto)
+  attributeValues?: ProductAttributeValueDto[];
 
   @IsOptional()
   @IsArray()

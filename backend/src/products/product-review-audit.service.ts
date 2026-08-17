@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { ProductReadinessService } from './product-readiness.service';
+import { AttributesService } from '../attributes/attributes.service';
 
 const PRODUCT_REVIEW_FIELDS = [
   'name', 'slug', 'price', 'baseCurrency', 'exchangeRateOverride', 'comparePrice',
@@ -41,6 +42,7 @@ export class ProductReviewAuditService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly readinessService: ProductReadinessService,
+    private readonly attributesService: AttributesService,
   ) {}
 
   productUpdateInvalidates(existing: object, update: object) {
@@ -68,7 +70,8 @@ export class ProductReviewAuditService {
     const product = await this.prisma.product.findUnique({ where: { id: productId }, select: readinessSelect });
     if (!product) throw new NotFoundException('Product not found.');
 
-    const readiness = this.readinessService.evaluate(product);
+    const missingRequiredAttributes = await this.attributesService.missingRequiredForProduct(product.id);
+    const readiness = this.readinessService.evaluate({ ...product, missingRequiredAttributes });
     if (!readiness.readyToPublish) {
       throw new ConflictException({
         message: 'Complete publication blockers before approving the human review.',

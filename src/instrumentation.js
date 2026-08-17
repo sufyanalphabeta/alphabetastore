@@ -18,7 +18,8 @@ export async function register() {
 
   let Sentry;
   try {
-    Sentry = await import('@sentry/nextjs');
+    // Use an indirect dynamic import so Sentry remains an optional dependency.
+    Sentry = await importOptional('@sentry/nextjs');
   } catch {
     // Package not installed — silently skip.
     return;
@@ -38,7 +39,8 @@ export async function onRequestError(err, request, errorContext) {
   const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
   if (!dsn) return;
   try {
-    const Sentry = await import('@sentry/nextjs');
+    const Sentry = await importOptional('@sentry/nextjs');
+    if (!Sentry) return;
     if (typeof Sentry.captureRequestError === 'function') {
       Sentry.captureRequestError(err, request, errorContext);
     } else {
@@ -46,5 +48,13 @@ export async function onRequestError(err, request, errorContext) {
     }
   } catch {
     // ignore
+  }
+}
+
+async function importOptional(moduleName) {
+  try {
+    return await new Function('name', 'return import(name)')(moduleName);
+  } catch {
+    return null;
   }
 }

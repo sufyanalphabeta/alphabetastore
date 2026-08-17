@@ -71,6 +71,10 @@ function buildCatalogQueryString(filters = {}) {
     params.set("maxPrice", String(Number(filters.maxPrice)));
   }
 
+  if (filters.attributeFilters && Object.keys(filters.attributeFilters).length) {
+    params.set("attributeFilters", JSON.stringify(filters.attributeFilters));
+  }
+
   if (filters.status) {
     params.set("status", filters.status);
   }
@@ -258,6 +262,10 @@ export async function fetchCategoryBySlug(slug) {
   return fetchCatalog(`/categories/slug/${encodeURIComponent(slug)}`, "Failed to load category", null, {
     cacheMode: "no-store"
   });
+}
+
+export async function fetchCategoryAttributeFilters(slug) {
+  return fetchCatalog(`/attributes/category/${encodeURIComponent(slug)}/filters`, "Failed to load attribute filters", { profile: null, filters: [] }, { cacheMode: "no-store" });
 }
 
 export async function fetchHomepageLayout() {

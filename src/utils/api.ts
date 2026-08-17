@@ -222,6 +222,10 @@ export function apiPatch(path: string, body: unknown) {
   return apiRequest(path, { method: "PATCH", body });
 }
 
+export function apiPut(path: string, body: unknown) {
+  return apiRequest(path, { method: "PUT", body });
+}
+
 export function apiDelete(path: string) {
   return apiRequest(path, { method: "DELETE" });
 }

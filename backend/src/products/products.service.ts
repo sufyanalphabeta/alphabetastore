@@ -17,6 +17,7 @@ import { ProductReadinessService } from "./product-readiness.service";
 import { ProductReviewAuditService } from "./product-review-audit.service";
 import { calculatePurchaseAvailability } from "../inventory/purchase-quantity.policy";
 import { CategoryTreeService } from "../categories/category-tree.service";
+import { AttributesService } from "../attributes/attributes.service";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const INTERNAL_SKU_PATTERN = /^AB-\d{6,}$/i;
@@ -92,6 +93,10 @@ const productInclude = {
 
 const adminProductInclude = {
   ...productInclude,
+  attributeValues: {
+    include: { attributeDefinition: true },
+    orderBy: { attributeDefinition: { code: "asc" as const } }
+  },
   priceHistory: {
     orderBy: { createdAt: "desc" as const },
     take: 5,
@@ -294,7 +299,8 @@ export class ProductsService {
     private readonly productSkuService: ProductSkuService,
     private readonly productReadinessService: ProductReadinessService,
     private readonly productReviewAuditService: ProductReviewAuditService,
-    private readonly categoryTreeService: CategoryTreeService
+    private readonly categoryTreeService: CategoryTreeService,
+    private readonly attributesService: AttributesService
   ) {}
 
   async findAll(query: FindProductsQueryDto = {}) {
@@ -377,6 +383,14 @@ export class ProductsService {
       whereClauses.push({ categoryId: { in: categoryScope?.categoryIds ?? [] } });
     }
 
+    if ("attributeFilters" in query && query.attributeFilters && Object.keys(query.attributeFilters).length) {
+      if (!categoryScope) throw new ConflictException("Dynamic attribute filters require a valid category.");
+      whereClauses.push(...await this.attributesService.buildProductWhere(
+        categoryScope.selectedCategory.id,
+        query.attributeFilters
+      ));
+    }
+
     if (searchTerm) {
       whereClauses.push({
         OR: [
@@ -443,11 +457,37 @@ export class ProductsService {
       query.sort ?? ""
     );
 
-    if (publicOnly && (hasStorefrontPriceFilter || hasStorefrontPriceSort)) {
+    const hasAttributeFilters = "attributeFilters" in query && Boolean(query.attributeFilters && Object.keys(query.attributeFilters).length);
+    if (publicOnly && (hasStorefrontPriceFilter || hasStorefrontPriceSort) && !hasAttributeFilters) {
       return this.findPublicProductsByDisplayPrice(
         query as FindProductsQueryDto,
         categoryScope?.categoryIds ?? null
       );
+    }
+
+    if (publicOnly && hasAttributeFilters && (hasStorefrontPriceFilter || hasStorefrontPriceSort)) {
+      const [candidates, pricingSettings] = await Promise.all([
+        this.prisma.product.findMany({ where, select: publicProductListSelect, orderBy: this.buildOrderBy(query.sort) }),
+        this.pricingService.getPricingSettings()
+      ]);
+      const priced = candidates.map((product) => ({
+        product,
+        displayPrice: this.pricingService.computePrice(product, pricingSettings).finalPrice.toNumber()
+      })).filter(({ displayPrice }) =>
+        (query.minPrice === undefined || displayPrice >= query.minPrice) &&
+        (query.maxPrice === undefined || displayPrice <= query.maxPrice)
+      );
+      if (["asc", "price-asc"].includes(query.sort ?? "")) priced.sort((a, b) => a.displayPrice - b.displayPrice);
+      if (["desc", "price-desc"].includes(query.sort ?? "")) priced.sort((a, b) => b.displayPrice - a.displayPrice);
+      const page = Math.max(Number(query.page) || 1, 1);
+      const limit = Math.min(Math.max(Number(query.limit) || 12, 1), 100);
+      const selected = hasPagination ? priced.slice((page - 1) * limit, page * limit) : priced;
+      const items = selected.map(({ product }) => this.toPublicProductListItem(product, pricingSettings));
+      if (!hasPagination) return items;
+      return {
+        items,
+        pagination: { page, limit, total: priced.length, totalPages: Math.max(1, Math.ceil(priced.length / limit)) }
+      };
     }
 
     if (!publicOnly && hasStorefrontPriceFilter) {
@@ -837,9 +877,10 @@ export class ProductsService {
       throw new NotFoundException("Product not found.");
     }
 
-    const [pricingSettings, categoryScope] = await Promise.all([
+    const [pricingSettings, categoryScope, publicAttributes] = await Promise.all([
       this.pricingService.getPricingSettings(),
-      this.categoryTreeService.resolveScope(product.category.slug, { publicOnly: true })
+      this.categoryTreeService.resolveScope(product.category.slug, { publicOnly: true }),
+      this.attributesService.publicProductAttributes(product.id, product.categoryId, product.specs)
     ]);
     const normalized = normalizePublicProduct(product);
     const computed = this.pricingService.computePrice(product, pricingSettings);
@@ -893,7 +934,10 @@ export class ProductsService {
         currency: "LYD"
       },
       variants: publicVariants,
-      breadcrumbs: categoryScope?.breadcrumbs ?? []
+      breadcrumbs: categoryScope?.breadcrumbs ?? [],
+      dynamicAttributes: publicAttributes.attributes,
+      comparisonAttributes: publicAttributes.comparisonAttributes,
+      specs: Object.fromEntries(publicAttributes.specs.map((item) => [item.label, item.displayValue]))
     };
     await this.cacheManager.set(cacheKey, result, PRODUCT_DETAIL_CACHE_TTL_MS);
 
@@ -912,7 +956,8 @@ export class ProductsService {
         });
 
     if (!product) throw new NotFoundException("Product not found.");
-    const readiness = this.productReadinessService.evaluate(product);
+    const missingRequiredAttributes = await this.attributesService.missingRequiredForProduct(product.id);
+    const readiness = this.productReadinessService.evaluate({ ...product, missingRequiredAttributes });
     const {
       sourceIdentities: _sourceIdentities,
       catalogReviewedAt,
@@ -924,6 +969,7 @@ export class ProductsService {
     return {
       ...normalized,
       readiness,
+      missingRequiredAttributes,
       origin: sources.length ? "IMPORTED" : "MANUAL",
       sourceSystems: [...new Set(sources.map((source) => source.sourceSystem))],
       source: sources[0] ?? null,
@@ -938,6 +984,10 @@ export class ProductsService {
 
   async create(createProductDto: CreateProductDto) {
     await this.ensureCategoryExists(createProductDto.categoryId);
+    const preparedAttributes = await this.attributesService.prepareValues(
+      createProductDto.categoryId,
+      createProductDto.attributeValues ?? []
+    );
 
     const slug = this.createSlug(createProductDto.slug ?? createProductDto.name);
     const sku = await this.productSkuService.resolve(createProductDto.sku);
@@ -973,6 +1023,9 @@ export class ProductsService {
           specs: createProductDto.specs as any,
           highlights: createProductDto.highlights as any,
           isFeatured: createProductDto.isFeatured ?? false,
+          attributeValues: preparedAttributes.length
+            ? { create: preparedAttributes }
+            : undefined,
           images: createProductDto.imageUrls?.length
             ? {
                 create: createProductDto.imageUrls.map((imageUrl, index) => ({
@@ -1019,6 +1072,15 @@ export class ProductsService {
       await this.ensureCategoryExists(updateProductDto.categoryId);
     }
 
+    const nextCategoryId = updateProductDto.categoryId ?? existing.categoryId;
+    let nextAttributes;
+    if (updateProductDto.attributeValues) {
+      nextAttributes = await this.attributesService.prepareValues(nextCategoryId, updateProductDto.attributeValues);
+    } else if (updateProductDto.categoryId && updateProductDto.categoryId !== existing.categoryId) {
+      const currentAttributes = await this.attributesService.getAdminProductAttributes(id);
+      nextAttributes = await this.attributesService.prepareValues(nextCategoryId, currentAttributes.values);
+    }
+
     try {
       const product = await this.prisma.product.update({
         where: { id },
@@ -1050,6 +1112,12 @@ export class ProductsService {
           specs: updateProductDto.specs as any,
           highlights: updateProductDto.highlights as any,
           isFeatured: updateProductDto.isFeatured,
+          attributeValues: nextAttributes
+            ? {
+                deleteMany: {},
+                create: nextAttributes
+              }
+            : undefined,
           ...this.productReviewAuditService.invalidationData(invalidateReview),
           images: updateProductDto.imageUrls
             ? {

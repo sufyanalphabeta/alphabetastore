@@ -80,6 +80,7 @@ function setup(rows = [product()]) {
     { evaluate: jest.fn() } as never,
     { productUpdateInvalidates: jest.fn(), invalidationData: jest.fn() } as never,
     categoryTree as never,
+    { buildProductWhere: jest.fn(), publicProductAttributes: jest.fn(), prepareValues: jest.fn(), missingRequiredForProduct: jest.fn() } as never,
   );
   return { service, prisma, categoryTree };
 }

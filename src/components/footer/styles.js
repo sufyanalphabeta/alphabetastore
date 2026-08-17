@@ -68,7 +68,7 @@ export const StyledIconButton = styled(IconButton, {
     }
   })
 }));
-export const AppItem = styled("div")({
+export const AppItem = styled("div")(({ theme }) => ({
   gap: 8,
   margin: 8,
   color: "white",
@@ -76,7 +76,7 @@ export const AppItem = styled("div")({
   borderRadius: 8,
   padding: "12px 16px",
   alignItems: "center",
-  backgroundColor: "#0C2A4D",
+  backgroundColor: theme.palette.primary.dark,
   "& .title": {
     fontSize: "14px",
     fontWeight: 500,
@@ -86,4 +86,4 @@ export const AppItem = styled("div")({
     lineHeight: 1,
     fontSize: "8px"
   }
-});
+}));

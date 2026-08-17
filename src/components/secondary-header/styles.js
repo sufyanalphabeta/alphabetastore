@@ -75,7 +75,7 @@ export const StyledRoot = styled(Card, {
   display: "block",
   overflow: "unset",
   borderRadius: "0px",
-  background: "#263d66",
+  background: theme.palette.primary.dark,
   color: theme.palette.common.white,
   position: "relative",
   ...(border && {

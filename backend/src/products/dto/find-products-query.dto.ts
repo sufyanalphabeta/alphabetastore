@@ -4,6 +4,7 @@ import {
   IsInt,
   IsNumber,
   IsOptional,
+  IsObject,
   IsString,
   Max,
   Min,
@@ -83,6 +84,14 @@ export class FindProductsQueryDto {
   @IsOptional()
   @IsIn(PRODUCT_AVAILABILITY_VALUES)
   availability?: (typeof PRODUCT_AVAILABILITY_VALUES)[number];
+
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value && typeof value === 'object') return value;
+    try { return JSON.parse(String(value)); } catch { return value; }
+  })
+  @IsObject()
+  attributeFilters?: Record<string, unknown>;
 
   @IsOptional()
   @Transform(({ value }) => parseInt(value))

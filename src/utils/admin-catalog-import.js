@@ -17,7 +17,8 @@ export const ROW_STATUS_LABELS = {
   CATEGORY_CHANGED: "تغير التصنيف",
   CONFLICT: "تعارض",
   INVALID: "يحتاج مراجعة",
-  APPLIED: "تم التطبيق"
+  APPLIED: "تم التطبيق",
+  SKIPPED: "تم التجاوز"
 };
 
 export const SESSION_STATUS_LABELS = {
@@ -100,4 +101,3 @@ export async function uploadCatalogImport(file) {
 export async function getAdminCategoryTree() {
   return apiGet("/categories/tree");
 }
-

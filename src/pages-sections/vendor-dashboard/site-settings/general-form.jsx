@@ -42,7 +42,7 @@ const validationSchema = yup.object().shape({
   default_currency: yup.string().oneOf(["LYD", "USD"]).required("default currency is required"),
   exchange_rate_usd_to_lyd: yup.number().moreThan(0).required("exchange rate is required"),
   auto_round_prices: yup.string().oneOf(["true", "false"]).required("Auto round prices setting is required"),
-  primary_color: yup.string().matches(/^#[\dA-Fa-f]{6}$/, "Primary color must be a valid hex color"),
+  primary_color: yup.string().test("hex-or-empty", "Primary color must be a valid hex color", value => !value || /^#[\dA-Fa-f]{6}$/.test(value)),
   enable_whatsapp: yup.string().oneOf(["true", "false"]).required("WhatsApp setting is required")
 });
 
@@ -153,6 +153,9 @@ export default function GeneralForm() {
     auto_round_prices: "false",
     primary_color: "#1976d2",
     enable_whatsapp: "true"
+    ,shop_phone: ""
+    ,shop_address: ""
+    ,support_email: ""
   };
 
   const methods = useForm({
@@ -180,7 +183,10 @@ export default function GeneralForm() {
           exchange_rate_usd_to_lyd: Number(response?.exchange_rate_usd_to_lyd || 5.2),
           auto_round_prices: String(response?.auto_round_prices ?? "false"),
           primary_color: String(response?.primary_color || "#1976d2"),
-          enable_whatsapp: String(response?.enable_whatsapp ?? "true")
+          enable_whatsapp: String(response?.enable_whatsapp ?? "true"),
+          shop_phone: String(response?.shop_phone || ""),
+          shop_address: String(response?.shop_address || ""),
+          support_email: String(response?.support_email || "")
         });
       } catch {
         // Keep defaults when settings cannot be fetched.
@@ -221,6 +227,15 @@ export default function GeneralForm() {
     }, {
       key: "enable_whatsapp",
       value: values.enable_whatsapp
+    }, {
+      key: "shop_phone",
+      value: values.shop_phone
+    }, {
+      key: "shop_address",
+      value: values.shop_address
+    }, {
+      key: "support_email",
+      value: values.support_email
     }];
 
     try {
@@ -235,7 +250,10 @@ export default function GeneralForm() {
         exchange_rate_usd_to_lyd: String(values.exchange_rate_usd_to_lyd),
         auto_round_prices: values.auto_round_prices,
         primary_color: values.primary_color,
-        enable_whatsapp: values.enable_whatsapp
+        enable_whatsapp: values.enable_whatsapp,
+        shop_phone: values.shop_phone,
+        shop_address: values.shop_address,
+        support_email: values.support_email
       });
 
       await refreshSettings();
@@ -285,7 +303,12 @@ export default function GeneralForm() {
         </Grid>
 
         <Grid size={12}>
-          <TextField select fullWidth color="info" size="medium" name="theme" label="Store Theme">
+          <TextField select fullWidth color="info" size="medium" name="theme" label="Store Theme" onChange={event => {
+            methods.setValue("theme", event.target.value, { shouldDirty: true, shouldValidate: true });
+            // A preset must be visible immediately; custom colors are an
+            // explicit override and are reset when another preset is chosen.
+            methods.setValue("primary_color", "", { shouldDirty: true, shouldValidate: true });
+          }}>
             {AVAILABLE_THEME_KEYS.map(themeKey => <MenuItem key={themeKey} value={themeKey}>
                 {THEME_LABELS[themeKey] || themeKey}
               </MenuItem>)}
@@ -319,6 +342,24 @@ export default function GeneralForm() {
 
         <Grid size={12}>
           <TextField fullWidth color="info" size="medium" name="primary_color" label="Primary Color" placeholder="#1976d2" />
+          <Button type="button" size="small" sx={{ mt: 1 }} onClick={() => methods.setValue("primary_color", "", { shouldValidate: true })}>
+            Use selected theme colors
+          </Button>
+        </Grid>
+
+        {/* Store contact section */}
+        <Grid size={12}>
+          <Divider textAlign="left"><Typography variant="overline" color="text.secondary">Store Contact</Typography></Divider>
+        </Grid>
+
+        <Grid size={{ md: 4, xs: 12 }}>
+          <TextField fullWidth color="info" size="medium" name="shop_phone" label="Phone" />
+        </Grid>
+        <Grid size={{ md: 4, xs: 12 }}>
+          <TextField fullWidth color="info" size="medium" name="support_email" label="Support Email" type="email" />
+        </Grid>
+        <Grid size={{ md: 4, xs: 12 }}>
+          <TextField fullWidth color="info" size="medium" name="shop_address" label="Store Address" />
         </Grid>
 
         <Grid size={12}>

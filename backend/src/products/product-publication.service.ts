@@ -4,6 +4,7 @@ import { Prisma, ProductStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProductReadinessService } from './product-readiness.service';
 import { ProductsService } from './products.service';
+import { AttributesService } from '../attributes/attributes.service';
 
 const publicationSelect = {
   id: true,
@@ -39,6 +40,7 @@ export class ProductPublicationService {
     private readonly prisma: PrismaService,
     private readonly readinessService: ProductReadinessService,
     private readonly productsService: ProductsService,
+    private readonly attributesService: AttributesService,
   ) {}
 
   async publish(productId: string) {
@@ -46,7 +48,8 @@ export class ProductPublicationService {
       const product = await tx.product.findUnique({ where: { id: productId }, select: publicationSelect });
       if (!product) throw new NotFoundException('Product not found.');
 
-      const readiness = this.readinessService.evaluate(product);
+      const missingRequiredAttributes = await this.attributesService.missingRequiredForProduct(product.id);
+      const readiness = this.readinessService.evaluate({ ...product, missingRequiredAttributes });
       const reasons: string[] = [];
       if (!readiness.readyToPublish) reasons.push(...readiness.blockers);
       if (!product.catalogReviewedAt || !product.catalogReviewedByUserId) reasons.push('HUMAN_REVIEW_REQUIRED');

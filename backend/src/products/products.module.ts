@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 
 import { CategoriesModule } from "../categories/categories.module";
+import { AttributesModule } from "../attributes/attributes.module";
 import { RolesGuard } from "../common/guards/roles.guard";
 import { PricingModule } from "../pricing/pricing.module";
 import { StorageModule } from "../storage/storage.module";
@@ -14,7 +15,7 @@ import { ProductSkuService } from "./product-sku.service";
 import { ProductsService } from "./products.service";
 
 @Module({
-  imports: [CategoriesModule, PricingModule, StorageModule],
+  imports: [CategoriesModule, PricingModule, StorageModule, AttributesModule],
   controllers: [ProductsController, AdminProductsController],
   providers: [
     ProductsService,

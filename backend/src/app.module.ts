@@ -34,6 +34,7 @@ import { BundlesModule } from './bundles/bundles.module';
 import { ProductRelationsModule } from './product-relations/product-relations.module';
 import { CatalogImportModule } from './catalog-import/catalog-import.module';
 import { MediaModule } from './media/media.module';
+import { AttributesModule } from './attributes/attributes.module';
 
 @Module({
   imports: [
@@ -131,6 +132,7 @@ import { MediaModule } from './media/media.module';
     ProductRelationsModule,
     CatalogImportModule,
     MediaModule,
+    AttributesModule,
     QueueModule,
     HealthModule,
   ],

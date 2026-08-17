@@ -173,7 +173,7 @@ function HeroBannerBlock({ block }) {
         textDecoration: "none",
         overflow: "hidden",
         bgcolor: config.imageUrl ? "transparent" : "primary.light",
-        background: config.imageUrl ? undefined : "#16233c"
+        background: config.imageUrl ? undefined : undefined
       }}
     >
       {config.imageUrl ? (

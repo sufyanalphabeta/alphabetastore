@@ -17,6 +17,7 @@ import { CategoriesService } from '../categories/categories.service';
 import { ParsedCsvRow } from './parsing/csv.types';
 import { ProductSkuService } from '../products/product-sku.service';
 import { ProductReviewAuditService } from '../products/product-review-audit.service';
+import { AttributesService } from '../attributes/attributes.service';
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
 const SAFE_RAKIZA_CATEGORY_MAP: Record<string, string> = {
@@ -57,6 +58,7 @@ export class CatalogImportService {
     private readonly categoriesService: CategoriesService,
     private readonly productSkuService: ProductSkuService,
     private readonly productReviewAuditService: ProductReviewAuditService,
+    private readonly attributesService: AttributesService,
   ) {}
 
   async createPreview(file: Express.Multer.File, userId: string) {
@@ -167,6 +169,10 @@ export class CatalogImportService {
     const name = row.name;
     const price = row.price;
     const categoryId = row.mappedCategoryId;
+    const preparedAttributes = await this.attributesService.prepareValues(
+      categoryId,
+      Object.entries(row.attributes ?? {}).map(([code, value]) => ({ code, value })),
+    );
     const appliedAt = new Date();
     const result = await this.prisma.$transaction(async (tx) => {
       if (rowStatus === CatalogImportRowStatus.NEW) {
@@ -181,7 +187,7 @@ export class CatalogImportService {
         const descriptionOrigin = row.sourceDescription?.trim() ? 'SOURCE_DESCRIPTION' : 'SOURCE_NAME_FALLBACK';
         const description = (row.sourceDescription?.trim() || name).slice(0, 10000);
         const sku = await this.productSkuService.resolve(undefined, tx);
-        const product = await tx.product.create({ data: { categoryId: category.id, name: name.slice(0, 160), slug, description, shortDescription: description.slice(0, 255), price: new Decimal(price), baseCurrency: 'LYD', stockQty: 0, status: 'INACTIVE', brandId: brand?.id ?? null, sku } });
+        const product = await tx.product.create({ data: { categoryId: category.id, name: name.slice(0, 160), slug, description, shortDescription: description.slice(0, 255), price: new Decimal(price), baseCurrency: 'LYD', stockQty: 0, status: 'INACTIVE', brandId: brand?.id ?? null, sku, attributeValues: preparedAttributes.length ? { create: preparedAttributes } : undefined } });
         await tx.productSourceIdentity.create({ data: { productId: product.id, sourceSystem: profile.sourceSystem, externalId: externalId.slice(0, 160), sourceBarcode: row.sourceBarcode?.slice(0, 120) ?? null, lastImportedPrice: new Decimal(price), lastImportedName: name.slice(0, 160), lastImportedSourceCategory: row.sourceCategory?.slice(0, 160) ?? null, lastImportedCategoryId: categoryId, lastImportedAt: appliedAt } });
         await tx.catalogImportRow.update({ where: { id: rowId }, data: { matchedProductId: product.id, status: CatalogImportRowStatus.APPLIED, appliedAt, applyResult: json({ action: 'PRODUCT_CREATED', productId: product.id, stockQty: 0, descriptionOrigin }) } });
         return { status: 'APPLIED' as const };
@@ -210,6 +216,13 @@ export class CatalogImportService {
       if (row.sourceBarcode !== identity.sourceBarcode) updates.sourceBarcode = row.sourceBarcode;
       const reviewInvalidated = this.productReviewAuditService.productUpdateInvalidates(product, productUpdates);
       if (Object.keys(productUpdates).length) await tx.product.update({ where: { id: product.id }, data: productUpdates });
+      for (const attribute of preparedAttributes) {
+        await tx.productAttributeValue.upsert({
+          where: { productId_attributeDefinitionId: { productId: product.id, attributeDefinitionId: attribute.attributeDefinitionId } },
+          create: { productId: product.id, ...attribute },
+          update: { textValue: null, numberValue: null, booleanValue: null, jsonValue: Prisma.DbNull, ...attribute },
+        });
+      }
       if (productUpdates.price) await tx.priceHistory.create({ data: { productId: product.id, oldBasePrice: product.price, newBasePrice: incomingPrice, oldComparePrice: product.comparePrice, newComparePrice: product.comparePrice, oldCurrency: product.baseCurrency, newCurrency: product.baseCurrency, exchangeRateUsed: new Decimal(1), changeReason: `catalog_import:${profile.sourceSystem}`, changedByUserId: adminUserId } });
       await tx.productSourceIdentity.update({ where: { id: identity.id }, data: { sourceBarcode: row.sourceBarcode, lastImportedPrice: incomingPrice, lastImportedName: name.slice(0, 160), lastImportedSourceCategory: row.sourceCategory?.slice(0, 160) ?? null, lastImportedCategoryId: categoryId, lastImportedAt: appliedAt } });
       if (reviewInvalidated) await this.productReviewAuditService.invalidate(tx, product.id);

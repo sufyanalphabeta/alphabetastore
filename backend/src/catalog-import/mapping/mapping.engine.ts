@@ -72,6 +72,15 @@ export function validateMappingProfile(
     }
   }
 
+  for (const [code, sourceHeader] of Object.entries(profile.attributeMapping ?? {})) {
+    if (!/^[a-z][a-z0-9_]*$/.test(code)) {
+      errors.push(issue('INVALID_ATTRIBUTE_CODE', `Invalid attribute code "${code}".`));
+    }
+    if (!headerSet.has(sourceHeader)) {
+      errors.push(issue('MAPPED_SOURCE_HEADER_NOT_FOUND', `Mapped source header "${sourceHeader}" was not found.`));
+    }
+  }
+
   if (profile.sourceSystem === 'RAKIZA' && profile.sourceCurrency !== 'LYD') {
     errors.push(issue('RAKIZA_CURRENCY_MUST_BE_LYD', 'Rakiza profiles must use LYD source currency.'));
   }
@@ -138,6 +147,11 @@ export function mapCatalogRow(
     sourceBrand,
     mappedBrandId,
     sourceDescription: getMappedValue(row, profile.columnMapping, 'sourceDescription'),
+    attributes: Object.fromEntries(
+      Object.entries(profile.attributeMapping ?? {})
+        .map(([code, header]) => [code, row.normalized[header]])
+        .filter((entry): entry is [string, string] => Boolean(entry[1])),
+    ),
     mappingWarnings: [...mappingWarnings],
     mappingErrors: [...mappingErrors],
     parserErrors: [...row.parseErrors],

@@ -45,6 +45,7 @@ export function CompareProvider({ children }) {
         brand: product.brand || null,
         sku: product.sku || null,
         specs: product.specs || null,
+        comparisonAttributes: product.comparisonAttributes || [],
         stockQty: product.stockQty ?? 0,
         categoryName: product.categoryName || null
       };
@@ -80,6 +81,7 @@ export function CompareProvider({ children }) {
         brand: product.brand || null,
         sku: product.sku || null,
         specs: product.specs || null,
+        comparisonAttributes: product.comparisonAttributes || [],
         stockQty: product.stockQty ?? 0,
         categoryName: product.categoryName || null
       };

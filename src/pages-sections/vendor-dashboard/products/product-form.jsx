@@ -24,6 +24,7 @@ import Add from "@mui/icons-material/Add";
 import Delete from "@mui/icons-material/Delete";
 
 import ProductMediaSection from "components/admin/media/ProductMediaSection";
+import ProductDynamicAttributes from "components/admin/attributes/ProductDynamicAttributes";
 import { ProductSourceReview, ReviewReadinessPanel, ReviewSectionHeading } from "./product-review-mode";
 import { FormProvider, TextField } from "components/form-hook";
 import useSettings from "hooks/useSettings";
@@ -52,9 +53,9 @@ const validationSchema = yup.object({
   price: yup.number().transform((value, originalValue) => originalValue === "" ? NaN : value).typeError("Price must be a number").min(0, "Price cannot be negative").required("Price is required"),
   baseCurrency: yup.string().oneOf(["LYD", "USD"]).required("Base currency is required"),
   exchangeRateOverride: yup.number().transform((value, originalValue) => originalValue === "" ? null : value).typeError("Exchange rate must be a number").moreThan(0, "Exchange rate must be greater than 0").nullable().optional(),
-  comparePrice: yup.number().transform((value, originalValue) => originalValue === "" ? NaN : value).typeError("Compare price must be a number").min(0, "Compare price cannot be negative").nullable().optional(),
+  comparePrice: yup.number().transform((value, originalValue) => originalValue === "" ? null : value).typeError("Compare price must be a number").min(0, "Compare price cannot be negative").nullable().optional(),
   discountType: yup.string().oneOf(["NONE", "PERCENTAGE", "FIXED"]).optional(),
-  discountValue: yup.number().transform((value, originalValue) => originalValue === "" ? NaN : value).typeError("Discount value must be a number").min(0, "Discount value cannot be negative").nullable().optional(),
+  discountValue: yup.number().transform((value, originalValue) => originalValue === "" ? null : value).typeError("Discount value must be a number").min(0, "Discount value cannot be negative").nullable().optional(),
   discountStartAt: yup.string().optional().nullable(),
   discountEndAt: yup.string().optional().nullable(),
   sku: yup.string().trim().optional(),
@@ -94,6 +95,7 @@ export default function ProductForm(props) {
   const [productMedia, setProductMedia] = useState([]);
   const [saveIntent, setSaveIntent] = useState("save");
   const [reviewMessage, setReviewMessage] = useState("");
+  const [attributeValues, setAttributeValues] = useState([]);
 
   const reviewFilters = useMemo(() => {
     const result = {};
@@ -185,6 +187,7 @@ export default function ProductForm(props) {
   const watchedBaseCurrency = useWatch({ control, name: "baseCurrency" });
   const watchedDiscountType = useWatch({ control, name: "discountType" });
   const watchedDiscountValue = useWatch({ control, name: "discountValue" });
+  const watchedCategoryId = useWatch({ control, name: "categoryId" });
 
   // Compute live price preview
   const pricePreview = useMemo(() => {
@@ -329,7 +332,8 @@ export default function ProductForm(props) {
       ...(values.brand?.trim() ? { brand: values.brand.trim() } : {}),
       ...(values.brandId ? { brandId: values.brandId } : { brandId: null }),
       highlights: highlights.length ? highlights : null,
-      specs: specs.length ? Object.fromEntries(specs.map(r => [r.key, r.value])) : null
+      specs: specs.length ? Object.fromEntries(specs.map(r => [r.key, r.value])) : null,
+      attributeValues
     };
 
     setPageError("");
@@ -637,9 +641,21 @@ export default function ProductForm(props) {
 
           {isReviewMode ? <ReviewSectionHeading id="review-specs" title="المواصفات الفنية" description="أضف الخصائص التي تساعد العميل على المقارنة واتخاذ القرار." /> : null}
 
+          <Grid size={12}>
+            <ProductDynamicAttributes
+              categoryId={watchedCategoryId}
+              productId={product?.id || null}
+              value={attributeValues}
+              onChange={setAttributeValues}
+            />
+          </Grid>
+
           {/* ── Specifications ── */}
           <Grid size={12}>
-            <Typography variant="h6" sx={{ mb: 1 }}>Specifications</Typography>
+            <Typography variant="h6" sx={{ mb: 1 }}>Legacy specifications</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+              حقول حرة قديمة للتوافق فقط. استخدم الخصائص المنظمة أعلاه كلما كانت متاحة.
+            </Typography>
             {specs.length > 0 && (
               <Box sx={{ mb: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 1, overflow: "hidden" }}>
                 {specs.map((row, i) => (

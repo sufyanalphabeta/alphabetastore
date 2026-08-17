@@ -48,6 +48,13 @@ function SpecRow({ label, values }) {
   );
 }
 
+function comparisonSpecs(product) {
+  if (Array.isArray(product.comparisonAttributes) && product.comparisonAttributes.length) {
+    return Object.fromEntries(product.comparisonAttributes.map(item => [item.label, item.displayValue ?? item.value]));
+  }
+  return product.specs && typeof product.specs === "object" ? product.specs : {};
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function ComparePage() {
@@ -80,7 +87,7 @@ export default function ComparePage() {
   const allSpecKeys = Array.from(
     new Set(
       items.flatMap(p =>
-        p.specs && typeof p.specs === "object" ? Object.keys(p.specs) : []
+        Object.keys(comparisonSpecs(p))
       )
     )
   );
@@ -203,8 +210,8 @@ export default function ComparePage() {
                 key={key}
                 label={key}
                 values={items.map(p =>
-                  p.specs && typeof p.specs === "object" && p.specs[key] != null
-                    ? String(p.specs[key])
+                  comparisonSpecs(p)[key] != null
+                    ? String(comparisonSpecs(p)[key])
                     : null
                 )}
               />

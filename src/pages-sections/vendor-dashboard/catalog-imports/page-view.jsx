@@ -70,8 +70,12 @@ function flattenCategories(nodes, parent = []) {
 
 function valueFromRow(row, names) {
   const values = { ...(row?.rawValues || {}), ...(row?.normalizedValues || {}) };
-  const key = Object.keys(values).find(item => names.some(name => item.toLowerCase().includes(name)));
-  return key ? values[key] : "—";
+  for (const name of names) {
+    const needle = name.toLowerCase();
+    const key = Object.keys(values).find(item => item.toLowerCase() === needle || item.toLowerCase().includes(needle));
+    if (key && values[key] !== null && values[key] !== undefined && String(values[key]).trim() !== "") return values[key];
+  }
+  return "—";
 }
 
 function SummaryCards({ session }) {
@@ -217,9 +221,10 @@ function ReviewStep({ session, onApplyReady }) {
   }, [session.id, page, status]);
   const summary = summarizeSession(session);
   return <Stack spacing={2}>
-    <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" gap={1}><Select size="small" value={status} onChange={event => { setStatus(event.target.value); setPage(0); }} sx={{ minWidth: 200 }}><MenuItem value="ALL">كل الحالات</MenuItem>{Object.keys({ NEW: 1, UNCHANGED: 1, PRICE_CHANGED: 1, CATEGORY_CHANGED: 1, CONFLICT: 1, INVALID: 1 }).map(item => <MenuItem key={item} value={item}>{translateStatus(item)}</MenuItem>)}</Select><Typography variant="body2" color="text.secondary" sx={{ alignSelf: "center" }}>{summary.invalid} صف يحتاج مراجعة قبل الاعتماد</Typography></Stack>
-    <TableContainer component={Card} variant="outlined"><Table size="small"><TableHead><TableRow><TableCell>#</TableCell><TableCell>اسم المنتج</TableCell><TableCell>رقم المصدر</TableCell><TableCell>الباركود</TableCell><TableCell>التصنيف</TableCell><TableCell>السعر</TableCell><TableCell>الحالة</TableCell></TableRow></TableHead><TableBody>{data.items.map(row => <TableRow hover key={row.id} onClick={() => setSelected(row)} sx={{ cursor: "pointer" }}><TableCell>{row.rowNumber}</TableCell><TableCell>{valueFromRow(row, ["name", "product", "description"])}</TableCell><TableCell>{valueFromRow(row, ["item", "number", "code", "id"])}</TableCell><TableCell>{valueFromRow(row, ["barcode", "bar"] )}</TableCell><TableCell>{valueFromRow(row, ["category", "type"])}</TableCell><TableCell>{valueFromRow(row, ["price", "cost"])} د.ل</TableCell><TableCell><Chip size="small" color={row.status === "INVALID" || row.status === "CONFLICT" ? "error" : row.status === "NEW" ? "success" : "default"} label={translateStatus(row.status)} /></TableCell></TableRow>)}</TableBody></Table><TablePagination component="div" count={data.total} page={page} onPageChange={(_, next) => setPage(next)} rowsPerPage={25} rowsPerPageOptions={[25]} labelDisplayedRows={({ from, to, count }) => `${from}–${to} من ${count}`} /></TableContainer>
-    <Button variant="contained" disabled={summary.invalid > 0 || summary.conflicts > 0} onClick={onApplyReady}>الانتقال إلى اعتماد الاستيراد</Button>
+    <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" gap={1}><Select size="small" value={status} onChange={event => { setStatus(event.target.value); setPage(0); }} sx={{ minWidth: 200 }}><MenuItem value="ALL">كل الحالات</MenuItem>{Object.keys({ NEW: 1, UNCHANGED: 1, PRICE_CHANGED: 1, CATEGORY_CHANGED: 1, CONFLICT: 1, INVALID: 1, APPLIED: 1, SKIPPED: 1 }).map(item => <MenuItem key={item} value={item}>{translateStatus(item)}</MenuItem>)}</Select><Typography variant="body2" color="text.secondary" sx={{ alignSelf: "center" }}>{summary.needsReview} صف سيبقى غير مطبق حتى تُصحح بياناته في ملف لاحق</Typography></Stack>
+    <TableContainer component={Card} variant="outlined"><Table size="small"><TableHead><TableRow><TableCell>#</TableCell><TableCell>اسم المنتج</TableCell><TableCell>رقم المصدر</TableCell><TableCell>الباركود</TableCell><TableCell>التصنيف</TableCell><TableCell>السعر</TableCell><TableCell>الحالة</TableCell></TableRow></TableHead><TableBody>{data.items.map(row => <TableRow hover key={row.id} onClick={() => setSelected(row)} sx={{ cursor: "pointer" }}><TableCell>{row.rowNumber}</TableCell><TableCell>{valueFromRow(row, ["tbitemname", "name", "product", "description"])}</TableCell><TableCell>{valueFromRow(row, ["tbitemno", "externalid", "item", "number", "code", "id"])}</TableCell><TableCell>{valueFromRow(row, ["tbitemcode", "barcode", "bar"] )}</TableCell><TableCell>{valueFromRow(row, ["tbcategoryname", "category", "type"])}</TableCell><TableCell>{valueFromRow(row, ["price", "cost", "tbsmallunitquantity", "smallunitquantity"])} د.ل</TableCell><TableCell><Chip size="small" color={row.status === "INVALID" || row.status === "CONFLICT" ? "error" : row.status === "NEW" || row.status === "APPLIED" ? "success" : row.status === "SKIPPED" ? "warning" : "default"} label={translateStatus(row.status)} /></TableCell></TableRow>)}</TableBody></Table><TablePagination component="div" count={data.total} page={page} onPageChange={(_, next) => setPage(next)} rowsPerPage={25} rowsPerPageOptions={[25]} labelDisplayedRows={({ from, to, count }) => `${from}–${to} من ${count}`} /></TableContainer>
+    {summary.needsReview > 0 && <Alert severity="warning">سيتم تطبيق الصفوف الصالحة فقط. الصفوف غير الصالحة أو المتعارضة ستظهر كتجاوز ولن تنشئ منتجات.</Alert>}
+    <Button variant="contained" disabled={session.status !== IMPORT_STATUS.READY_FOR_REVIEW} onClick={onApplyReady}>الانتقال إلى اعتماد الاستيراد</Button>
     {selected && <RowDetails row={selected} onClose={() => setSelected(null)} />}
   </Stack>;
 }
@@ -227,10 +232,10 @@ function ReviewStep({ session, onApplyReady }) {
 function ConfirmationStep({ session, onApplied, busy, error }) {
   const summary = summarizeSession(session);
   const confirm = async () => { await onApplied(); };
-  return <Stack spacing={2}><Alert severity="warning">سيتم إنشاء {summary.newCount} منتج جديد بحالة غير نشطة حتى تتم مراجعته.</Alert><Alert severity="info">لن يتم تحديث كميات المخزون من ملف الركيزة.</Alert>{error && <Alert severity="error">{error}</Alert>}<Button variant="contained" color="success" disabled={busy || summary.invalid > 0 || summary.conflicts > 0} onClick={confirm}>{busy ? "جارٍ تنفيذ الاستيراد..." : "اعتماد وتنفيذ الاستيراد"}</Button></Stack>;
+  return <Stack spacing={2}><Alert severity="warning">سيتم إنشاء {summary.newCount} منتج جديد بحالة غير نشطة حتى تتم مراجعته.</Alert><Alert severity="info">لن يتم تحديث كميات المخزون من ملف الركيزة.</Alert>{summary.needsReview > 0 && <Alert severity="warning">سيتم تجاوز {summary.needsReview} صف غير صالح أو متعارض، ولن يتم تطبيقه في هذا الاستيراد.</Alert>}{error && <Alert severity="error">{error}</Alert>}<Button variant="contained" color="success" disabled={busy || session.status !== IMPORT_STATUS.READY_FOR_REVIEW} onClick={confirm}>{busy ? "جارٍ تنفيذ الاستيراد..." : "اعتماد وتنفيذ الاستيراد"}</Button></Stack>;
 }
 
-function CompletionStep({ session, result, onNew }) {
+function CompletionStep({ session, result, onNew, onReview }) {
   const applied = result?.appliedCount ?? session.appliedCount ?? 0;
   const skipped = result?.skippedCount ?? session.skippedCount ?? 0;
   const cards = [
@@ -240,7 +245,7 @@ function CompletionStep({ session, result, onNew }) {
     ["تعارضات", session.conflictCount || 0, "error"]
   ];
   const reviewHref = `/admin/products?workspace=NEEDS_REVIEW&origin=IMPORTED&sourceSystem=RAKIZA&importSessionId=${encodeURIComponent(session.id)}`;
-  return <Stack spacing={2}><Alert severity="success" icon={<CheckCircleOutlineIcon />}><Typography fontWeight={700}>تم الاستيراد بنجاح</Typography></Alert><Grid container spacing={1.5}>{cards.map(([label, value, color]) => <Grid size={{ xs: 6, sm: 3 }} key={label}><Card variant="outlined"><CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}><Typography variant="caption" color="text.secondary">{label}</Typography><Typography variant="h5" fontWeight={700} color={`${color}.main`}>{value}</Typography></CardContent></Card></Grid>)}</Grid><Typography>تم تطبيق {applied} صف، وتجاوز {skipped} صف للمراجعة أو لعدم وجود تغيير.</Typography><Stack direction={{ xs: "column", sm: "row" }} spacing={1}><Button component={Link} href={reviewHref} variant="contained">مراجعة منتجات هذا الاستيراد</Button><Button variant="outlined" onClick={onNew}>بدء استيراد جديد</Button><Button variant="text" onClick={() => window.location.reload()}>عرض تفاصيل العملية</Button></Stack></Stack>;
+  return <Stack spacing={2}><Alert severity="success" icon={<CheckCircleOutlineIcon />}><Typography fontWeight={700}>تم الاستيراد بنجاح</Typography></Alert><Grid container spacing={1.5}>{cards.map(([label, value, color]) => <Grid size={{ xs: 6, sm: 3 }} key={label}><Card variant="outlined"><CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}><Typography variant="caption" color="text.secondary">{label}</Typography><Typography variant="h5" fontWeight={700} color={`${color}.main`}>{value}</Typography></CardContent></Card></Grid>)}</Grid><Typography>تم تطبيق {applied} صف، وتجاوز {skipped} صف للمراجعة أو لعدم وجود تغيير.</Typography><Stack direction={{ xs: "column", sm: "row" }} spacing={1}><Button component={Link} href={reviewHref} variant="contained">مراجعة منتجات هذا الاستيراد</Button><Button variant="outlined" onClick={onNew}>بدء استيراد جديد</Button><Button variant="text" onClick={onReview}>عرض تفاصيل العملية</Button></Stack></Stack>;
 }
 
 export default function CatalogImportsView() {
@@ -272,7 +277,7 @@ export default function CatalogImportsView() {
         {step === 2 && sessionIsReadOnly && <Alert severity={session.status === "COMPLETED" ? "success" : "error"}>هذه الجلسة للقراءة فقط.</Alert>}
         {step === 3 && <ReviewStep session={session} onApplyReady={() => setStep(4)} />}
         {step === 4 && !sessionIsReadOnly && <ConfirmationStep session={session} onApplied={apply} busy={busy} error={error} />}
-        {step === 5 && <CompletionStep session={session} result={result} onNew={startNew} />}
+        {step === 5 && <CompletionStep session={session} result={result} onNew={startNew} onReview={() => setStep(3)} />}
         <Stack direction="row" justifyContent="space-between"><Button onClick={() => { setSession(null); refreshHistory(); }}>العودة للسجل</Button>{step === 2 && !sessionIsReadOnly && <Button variant="outlined" onClick={() => setStep(3)}>مراجعة المنتجات</Button>}{step === 3 && <Button onClick={() => setStep(2)}>مراجعة التصنيفات</Button>}</Stack>
       </>}
     </Stack>

@@ -27,6 +27,7 @@ import {
   fetchBrandsPublic,
   fetchCategoriesTree,
   fetchCategoryBySlug,
+  fetchCategoryAttributeFilters,
   fetchProductsPage
 } from "utils/catalog";
 
@@ -80,6 +81,7 @@ export default function ProductSearchPageView({ fixedCategory = "", categoryData
   const [categoryTree, setCategoryTree] = useState([]);
   const [categoryDetails, setCategoryDetails] = useState(categoryData);
   const [brands, setBrands] = useState([]);
+  const [dynamicFilters, setDynamicFilters] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, limit: PAGE_SIZE, total: 0, totalPages: 1 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -114,6 +116,30 @@ export default function ProductSearchPageView({ fixedCategory = "", categoryData
 
   useEffect(() => {
     let active = true;
+    if (!category) { setDynamicFilters([]); return () => { active = false; }; }
+    fetchCategoryAttributeFilters(category)
+      .then(result => { if (active) setDynamicFilters(Array.isArray(result?.filters) ? result.filters : []); })
+      .catch(() => { if (active) setDynamicFilters([]); });
+    return () => { active = false; };
+  }, [category]);
+
+  const selectedAttributeFilters = useMemo(() => {
+    const result = {};
+    for (const filter of dynamicFilters) {
+      if (filter.dataType === "NUMBER") {
+        const min = searchParams.get(`attr_${filter.code}_min`);
+        const max = searchParams.get(`attr_${filter.code}_max`);
+        if (min !== null || max !== null) result[filter.code] = { ...(min !== null ? { min: Number(min) } : {}), ...(max !== null ? { max: Number(max) } : {}) };
+      } else {
+        const value = searchParams.get(`attr_${filter.code}`);
+        if (value) result[filter.code] = { values: value.split(",").filter(Boolean) };
+      }
+    }
+    return result;
+  }, [dynamicFilters, searchParams]);
+
+  useEffect(() => {
+    let active = true;
     setLoading(true);
     setError("");
     fetchProductsPage({
@@ -125,6 +151,7 @@ export default function ProductSearchPageView({ fixedCategory = "", categoryData
       availability: availability || undefined,
       minPrice: minPrice === "" ? undefined : Number(minPrice),
       maxPrice: maxPrice === "" ? undefined : Number(maxPrice),
+      attributeFilters: Object.keys(selectedAttributeFilters).length ? selectedAttributeFilters : undefined,
       sort,
       page,
       limit: PAGE_SIZE
@@ -139,7 +166,7 @@ export default function ProductSearchPageView({ fixedCategory = "", categoryData
       setError("تعذر تحميل المنتجات. تحقق من الاتصال ثم حاول مرة أخرى.");
     }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [availability, brand, brandId, brandSlug, category, maxPrice, minPrice, page, query, reloadKey, sort]);
+  }, [availability, brand, brandId, brandSlug, category, maxPrice, minPrice, page, query, reloadKey, selectedAttributeFilters, sort]);
 
   const activeCategory = categoryDetails || findCategory(categoryTree, category);
   const activeBrand = brandData || brands.find(item => item.id === brandId || item.slug === brandSlug || item.slug === brand);
@@ -179,7 +206,7 @@ export default function ProductSearchPageView({ fixedCategory = "", categoryData
     return values;
   }, [activeBrand, activeCategory, availability, maxPrice, minPrice, query, searchParams]);
 
-  const filterProps = { categories: filterCategories, brands, fixedCategory };
+  const filterProps = { categories: filterCategories, brands, fixedCategory, dynamicFilters };
 
   return <Box className="bg-white" sx={{ py: embedded ? 0 : { xs: 2, md: 4 } }}>
     <Container disableGutters={embedded}>

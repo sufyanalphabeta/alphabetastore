@@ -5,6 +5,7 @@ import type { MediaVariants } from '../media/media.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { AdminProductReviewQueryDto } from './dto/admin-product-review-query.dto';
 import { ProductReadinessService } from './product-readiness.service';
+import { AttributesService } from '../attributes/attributes.service';
 
 const PLACEHOLDER_URL = '/assets/images/products/alphabeta-product-placeholder.svg';
 
@@ -59,6 +60,7 @@ export class AdminProductReviewService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly readinessService: ProductReadinessService,
+    private readonly attributesService: AttributesService,
   ) {}
 
   async list(query: AdminProductReviewQueryDto) {
@@ -67,8 +69,8 @@ export class AdminProductReviewService {
     const where = this.buildWhere(query);
     const orderBy = this.buildOrderBy(query.sort);
     const products = await this.prisma.product.findMany({ where, select: reviewSelect, orderBy });
-    const matchingItems = products
-      .map((product) => this.toListItem(product))
+    const matchingItems = (await Promise.all(products
+      .map((product) => this.toListItem(product))))
       .filter((product) => this.matchesFilters(product, query));
     const total = matchingItems.length;
     const items = matchingItems.slice((page - 1) * limit, page * limit);
@@ -80,7 +82,7 @@ export class AdminProductReviewService {
   }
 
   async summary() {
-    const products = (await this.prisma.product.findMany({ select: reviewSelect })).map((product) => this.toListItem(product));
+    const products = await Promise.all((await this.prisma.product.findMany({ select: reviewSelect })).map((product) => this.toListItem(product)));
     const hasIssue = (product: (typeof products)[number], issue: string) =>
       product.readiness.blockers.includes(issue as never) || product.readiness.warnings.includes(issue as never);
     const total = products.length;
@@ -113,8 +115,8 @@ export class AdminProductReviewService {
       select: reviewSelect,
       orderBy: [this.buildOrderBy(query.sort), { id: 'asc' }],
     });
-    const item = products
-      .map((product) => this.toListItem(product))
+    const item = (await Promise.all(products
+      .map((product) => this.toListItem(product))))
       .filter((product) => this.matchesFilters(product, query))
       .find((product) => product.id !== currentProductId);
     return { item: item ? { id: item.id, slug: item.slug } : null };
@@ -154,7 +156,7 @@ export class AdminProductReviewService {
     return true;
   }
 
-  private matchesFilters(product: ReturnType<AdminProductReviewService['toListItem']>, query: AdminProductReviewQueryDto) {
+  private matchesFilters(product: Awaited<ReturnType<AdminProductReviewService['toListItem']>>, query: AdminProductReviewQueryDto) {
     if (!this.matchesReadinessFilters(product.readiness, query)) return false;
     if (query.workspace === 'NEEDS_REVIEW' && product.readiness.readyToPublish && product.reviewed) return false;
     if (query.workspace === 'READY_TO_PUBLISH' && (!product.readiness.readyToPublish || !product.reviewed || product.status !== 'INACTIVE')) return false;
@@ -170,8 +172,9 @@ export class AdminProductReviewService {
     return { updatedAt: 'desc' };
   }
 
-  private toListItem(product: Prisma.ProductGetPayload<{ select: typeof reviewSelect }>) {
-    const readiness = this.readinessService.evaluate(product);
+  private async toListItem(product: Prisma.ProductGetPayload<{ select: typeof reviewSelect }>) {
+    const missingRequiredAttributes = await this.attributesService.missingRequiredForProduct(product.id);
+    const readiness = this.readinessService.evaluate({ ...product, missingRequiredAttributes });
     const primary = product.media.find((item) => item.role === ProductMediaRole.PRIMARY);
     const variants = (primary?.mediaAsset.variants ?? {}) as Partial<MediaVariants>;
     const thumbnailUrl = primary?.mediaAsset.processingStatus === MediaProcessingStatus.READY

@@ -44,6 +44,7 @@ export default function ProductFilters({ filters = {}, onClose }) {
   const searchParams = useSearchParams();
   const categories = useMemo(() => filters.categories || [], [filters.categories]);
   const brands = useMemo(() => filters.brands || [], [filters.brands]);
+  const dynamicFilters = useMemo(() => filters.dynamicFilters || [], [filters.dynamicFilters]);
   const selectedCategory = searchParams.get("category") || filters.fixedCategory || "";
   const selectedBrandId = searchParams.get("brandId") || "";
   const selectedBrand = searchParams.get("brandSlug") || searchParams.get("brand") || "";
@@ -80,12 +81,14 @@ export default function ProductFilters({ filters = {}, onClose }) {
       .filter(brand => !term || brand.name.toLocaleLowerCase("ar").includes(term));
   }, [brandQuery, brands]);
 
+  const dynamicActiveCount = [...searchParams.keys()].filter(key => key.startsWith("attr_")).length;
   const activeCount = [searchParams.get("category"), selectedBrandId || selectedBrand, availability,
-    searchParams.get("minPrice"), searchParams.get("maxPrice")].filter(Boolean).length;
+    searchParams.get("minPrice"), searchParams.get("maxPrice")].filter(Boolean).length + dynamicActiveCount;
 
   const clearFilters = () => {
     const params = new URLSearchParams(searchParams);
     FILTER_KEYS.forEach(key => params.delete(key));
+    [...params.keys()].filter(key => key.startsWith("attr_")).forEach(key => params.delete(key));
     params.delete("page");
     const query = params.toString();
     router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
@@ -127,6 +130,25 @@ export default function ProductFilters({ filters = {}, onClose }) {
       <TextField size="small" type="number" label="إلى" value={maxPrice} onChange={event => setMaxPrice(event.target.value)} inputProps={{ min: 0 }} />
     </Stack>
     <Button fullWidth variant="outlined" sx={{ mt: 1 }} onClick={() => navigate({ minPrice: Number(minPrice) >= 0 && minPrice !== "" ? minPrice : "", maxPrice: Number(maxPrice) > 0 ? maxPrice : "" })}>تطبيق السعر</Button>
+
+    {dynamicFilters.map(filter => <Box key={filter.code}>
+      <Divider sx={{ my: 2 }} />
+      <Typography fontWeight={800} mb={1}>{filter.nameAr}{filter.unit ? ` (${filter.unit})` : ""}</Typography>
+      {filter.dataType === "NUMBER" ? <Stack direction="row" spacing={1}>
+        <TextField size="small" type="number" label="من" value={searchParams.get(`attr_${filter.code}_min`) || ""} onChange={event => navigate({ [`attr_${filter.code}_min`]: event.target.value })} inputProps={{ min: filter.min ?? undefined, max: filter.max ?? undefined }} />
+        <TextField size="small" type="number" label="إلى" value={searchParams.get(`attr_${filter.code}_max`) || ""} onChange={event => navigate({ [`attr_${filter.code}_max`]: event.target.value })} inputProps={{ min: filter.min ?? undefined, max: filter.max ?? undefined }} />
+      </Stack> : <Stack>
+        {(filter.values || filter.allowedValues || []).map(option => {
+          const key = `attr_${filter.code}`;
+          const selected = (searchParams.get(key) || "").split(",").filter(Boolean);
+          const checked = selected.includes(String(option));
+          return <FormControlLabel key={option} label={String(option)} control={<Checkbox checked={checked} onChange={() => {
+            const next = checked ? selected.filter(value => value !== String(option)) : [...selected, String(option)];
+            navigate({ [key]: next.join(",") });
+          }} />} />;
+        })}
+      </Stack>}
+    </Box>)}
 
     {visibleBrands.length ? <>
       <Divider sx={{ my: 2 }} />

@@ -40,6 +40,10 @@ export const navigation = [{
     path: "/admin/brands/create"
   }]
 }, {
+  name: "الخصائص وملفات الفئات",
+  icon: duotone.Products,
+  path: "/admin/attributes"
+}, {
   name: "Homepage",
   icon: duotone.Dashboard,
   path: "/admin/homepage"
