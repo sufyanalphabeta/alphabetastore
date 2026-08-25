@@ -20,6 +20,7 @@ const publicationSelect = {
   brand: true,
   brandId: true,
   specs: true,
+  attributeValues: { select: { id: true } },
   warrantyText: true,
   sku: true,
   category: { select: { isActive: true, isVisible: true } },

@@ -27,6 +27,7 @@ import {
   fetchAttributeDefinitions,
   fetchAttributeProfiles,
   updateAttributeDefinition,
+  updateAttributeProfile,
 } from "utils/admin-attributes";
 
 const TYPES = ["TEXT", "NUMBER", "BOOLEAN", "SELECT", "MULTI_SELECT"];
@@ -38,8 +39,10 @@ export default function AttributesPageView() {
   const [profiles, setProfiles] = useState([]);
   const [categories, setCategories] = useState([]);
   const [definition, setDefinition] = useState(emptyDefinition);
+  const [editingDefinitionId, setEditingDefinitionId] = useState(null);
   const [profileName, setProfileName] = useState("");
   const [profileItems, setProfileItems] = useState([]);
+  const [editingProfileId, setEditingProfileId] = useState(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -60,20 +63,23 @@ export default function AttributesPageView() {
 
   useEffect(() => { load(); }, [load]);
 
-  const createDefinition = async event => {
+  const saveDefinition = async event => {
     event.preventDefault(); setBusy(true); setError(""); setMessage("");
     try {
       const usesOptions = ["SELECT", "MULTI_SELECT"].includes(definition.dataType);
-      await createAttributeDefinition({
+      const payload = {
         ...definition,
         nameEn: definition.nameEn || undefined,
         unit: definition.unit || undefined,
         allowedValues: usesOptions
           ? definition.allowedValues.split(/[,\n]/).map(item => item.trim()).filter(Boolean)
           : undefined
-      });
-      setDefinition(emptyDefinition); setMessage("تم إنشاء تعريف الخاصية."); await load();
-    } catch (err) { setError(err instanceof Error ? err.message : "تعذر إنشاء الخاصية."); }
+      };
+      if (editingDefinitionId) await updateAttributeDefinition(editingDefinitionId, payload);
+      else await createAttributeDefinition(payload);
+      setDefinition(emptyDefinition); setEditingDefinitionId(null);
+      setMessage(editingDefinitionId ? "تم تحديث الخاصية." : "تم إنشاء تعريف الخاصية."); await load();
+    } catch (err) { setError(err instanceof Error ? err.message : "تعذر حفظ الخاصية."); }
     finally { setBusy(false); }
   };
 
@@ -87,8 +93,11 @@ export default function AttributesPageView() {
   const saveProfile = async event => {
     event.preventDefault(); setBusy(true); setError(""); setMessage("");
     try {
-      await createAttributeProfile({ name: profileName, items: profileItems.map((item, index) => ({ ...item, sortOrder: index })) });
-      setProfileName(""); setProfileItems([]); setMessage("تم إنشاء ملف الخصائص."); await load();
+      const payload = { name: profileName, items: profileItems.map((item, index) => ({ ...item, sortOrder: index })) };
+      if (editingProfileId) await updateAttributeProfile(editingProfileId, payload);
+      else await createAttributeProfile(payload);
+      setProfileName(""); setProfileItems([]); setEditingProfileId(null);
+      setMessage(editingProfileId ? "تم تحديث ملف الخصائص." : "تم إنشاء ملف الخصائص."); await load();
     } catch (err) { setError(err instanceof Error ? err.message : "تعذر إنشاء الملف."); }
     finally { setBusy(false); }
   };
@@ -106,22 +115,23 @@ export default function AttributesPageView() {
         <Box sx={{ p: 3 }}>
           {tab === 0 ? <Grid container spacing={3}>
             <Grid size={{ xs: 12, lg: 4 }}>
-              <Stack component="form" spacing={2} onSubmit={createDefinition}>
-                <Typography variant="h6">خاصية جديدة</Typography>
+              <Stack component="form" spacing={2} onSubmit={saveDefinition}>
+                <Typography variant="h6">{editingDefinitionId ? "تعديل الخاصية" : "خاصية جديدة"}</Typography>
                 <TextField required label="الكود الداخلي" placeholder="capacity" value={definition.code} onChange={e => setDefinition({ ...definition, code: e.target.value.toLowerCase() })} helperText="أحرف إنجليزية صغيرة وأرقام وشرطة سفلية" />
                 <TextField required label="الاسم بالعربية" value={definition.nameAr} onChange={e => setDefinition({ ...definition, nameAr: e.target.value })} />
                 <TextField label="الاسم بالإنجليزية" value={definition.nameEn} onChange={e => setDefinition({ ...definition, nameEn: e.target.value })} />
                 <TextField select label="نوع القيمة" value={definition.dataType} onChange={e => setDefinition({ ...definition, dataType: e.target.value })}>{TYPES.map(type => <MenuItem key={type} value={type}>{type}</MenuItem>)}</TextField>
                 <TextField label="الوحدة" placeholder="GB / rpm" value={definition.unit} onChange={e => setDefinition({ ...definition, unit: e.target.value })} />
                 {["SELECT", "MULTI_SELECT"].includes(definition.dataType) ? <TextField multiline minRows={3} label="القيم المسموحة" helperText="افصل القيم بفاصلة أو سطر" value={definition.allowedValues} onChange={e => setDefinition({ ...definition, allowedValues: e.target.value })} /> : null}
-                <Button type="submit" variant="contained" disabled={busy}>إنشاء الخاصية</Button>
+                <Button type="submit" variant="contained" disabled={busy}>{editingDefinitionId ? "حفظ التعديل" : "إنشاء الخاصية"}</Button>
+                {editingDefinitionId ? <Button type="button" onClick={() => { setDefinition(emptyDefinition); setEditingDefinitionId(null); }}>إلغاء التعديل</Button> : null}
               </Stack>
             </Grid>
             <Grid size={{ xs: 12, lg: 8 }}>
               <Stack spacing={1.25}>{definitions.map(item => <Card key={item.id} variant="outlined" sx={{ p: 2 }}>
                 <Stack direction="row" justifyContent="space-between" alignItems="center" gap={2}>
                   <Box><Typography fontWeight={800}>{item.nameAr} <Chip size="small" label={item.code} /></Typography><Typography variant="body2" color="text.secondary">{item.dataType}{item.unit ? ` · ${item.unit}` : ""}</Typography></Box>
-                  <FormControlLabel label={item.isActive ? "نشطة" : "متوقفة"} control={<Switch checked={item.isActive} onChange={async e => { await updateAttributeDefinition(item.id, { isActive: e.target.checked }); load(); }} />} />
+                  <Stack direction="row" alignItems="center"><Button size="small" onClick={() => { setDefinition({ ...item, allowedValues: Array.isArray(item.allowedValues) ? item.allowedValues.join(", ") : "" }); setEditingDefinitionId(item.id); }}>تعديل</Button><FormControlLabel label={item.isActive ? "نشطة" : "متوقفة"} control={<Switch checked={item.isActive} onChange={async e => { await updateAttributeDefinition(item.id, { isActive: e.target.checked }); load(); }} />} /></Stack>
                 </Stack>
               </Card>)}</Stack>
             </Grid>
@@ -130,7 +140,7 @@ export default function AttributesPageView() {
           {tab === 1 ? <Grid container spacing={3}>
             <Grid size={{ xs: 12, lg: 7 }}>
               <Stack component="form" spacing={2} onSubmit={saveProfile}>
-                <Typography variant="h6">ملف خصائص جديد</Typography>
+                <Typography variant="h6">{editingProfileId ? "تعديل ملف الخصائص" : "ملف خصائص جديد"}</Typography>
                 <TextField required label="اسم الملف" placeholder="Hard Drives" value={profileName} onChange={e => setProfileName(e.target.value)} />
                 {definitions.filter(item => item.isActive).map(item => {
                   const selected = profileItems.find(row => row.attributeDefinitionId === item.id);
@@ -142,9 +152,10 @@ export default function AttributesPageView() {
                   </Card>;
                 })}
                 <Button type="submit" variant="contained" disabled={busy || !profileItems.length}>حفظ الملف</Button>
+                {editingProfileId ? <Button type="button" onClick={() => { setProfileName(""); setProfileItems([]); setEditingProfileId(null); }}>إلغاء التعديل</Button> : null}
               </Stack>
             </Grid>
-            <Grid size={{ xs: 12, lg: 5 }}><Stack spacing={1}>{profiles.map(profile => <Card key={profile.id} variant="outlined" sx={{ p: 2 }}><Typography fontWeight={800}>{profile.name}</Typography><Typography color="text.secondary">{profile.items?.length || 0} خصائص · {profile.categories?.length || 0} فئات</Typography></Card>)}</Stack></Grid>
+            <Grid size={{ xs: 12, lg: 5 }}><Stack spacing={1}>{profiles.map(profile => <Card key={profile.id} variant="outlined" sx={{ p: 2 }}><Stack direction="row" justifyContent="space-between" alignItems="center"><Box><Typography fontWeight={800}>{profile.name}</Typography><Typography color="text.secondary">{profile.items?.length || 0} خصائص · {profile.categories?.length || 0} فئات</Typography></Box><Button size="small" onClick={() => { setProfileName(profile.name); setProfileItems((profile.items || []).map(item => ({ attributeDefinitionId: item.attributeDefinitionId, required: item.required, filterable: item.filterable, comparable: item.comparable, visibleOnProduct: item.visibleOnProduct, visibleInSummary: item.visibleInSummary }))); setEditingProfileId(profile.id); }}>تعديل</Button></Stack></Card>)}</Stack></Grid>
           </Grid> : null}
 
           {tab === 2 ? <Stack spacing={1.5}>{categories.map(category => <Card key={category.id} variant="outlined" sx={{ p: 2 }}>

@@ -18,7 +18,7 @@ function readyProduct(overrides: Record<string, unknown> = {}) {
 
 describe('ProductReviewAuditService', () => {
   const prisma: any = { product: { findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn(), findUniqueOrThrow: jest.fn() } };
-  const service = new ProductReviewAuditService(prisma, new ProductReadinessService());
+  const service = new ProductReviewAuditService(prisma, new ProductReadinessService(), { missingRequiredForProduct: jest.fn().mockResolvedValue([]) } as never);
 
   beforeEach(() => jest.clearAllMocks());
 

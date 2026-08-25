@@ -19,6 +19,7 @@ import {
 } from './dto/attribute.dto';
 
 type AttributeValueInput = { code: string; value: unknown };
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 type StoredValue = {
   attributeDefinitionId: string;
   textValue?: string;
@@ -303,7 +304,10 @@ export class AttributesService {
 
   async publicFilterProfile(categorySlug: string) {
     const category = await this.prisma.category.findFirst({
-      where: { OR: [{ slug: categorySlug }, { id: categorySlug }] }, select: { id: true },
+      where: UUID_PATTERN.test(categorySlug)
+        ? { OR: [{ slug: categorySlug }, { id: categorySlug }] }
+        : { slug: categorySlug },
+      select: { id: true },
     });
     if (!category) throw new NotFoundException('Category not found.');
     const effective = await this.resolveEffectiveProfile(category.id);
@@ -358,7 +362,16 @@ export class AttributesService {
         const values = Array.isArray(filter.values) ? filter.values.map(String) : [String(filter.values ?? '')].filter(Boolean);
         if (!values.length) continue;
         if (item.attributeDefinition.dataType === AttributeDataType.MULTI_SELECT) {
-          clauses.push({ attributeValues: { some: { attributeDefinitionId: item.attributeDefinitionId, jsonValue: { array_contains: values } } } });
+          clauses.push({
+            OR: values.map((value) => ({
+              attributeValues: {
+                some: {
+                  attributeDefinitionId: item.attributeDefinitionId,
+                  jsonValue: { array_contains: [value] },
+                },
+              },
+            })),
+          });
         } else if (item.attributeDefinition.dataType === AttributeDataType.BOOLEAN) {
           clauses.push({ attributeValues: { some: { attributeDefinitionId: item.attributeDefinitionId, booleanValue: values[0] === 'true' } } });
         } else {

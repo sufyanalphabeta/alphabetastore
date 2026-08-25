@@ -28,7 +28,8 @@ function setup(options: { generated?: string; createError?: unknown } = {}) {
   };
   const sku = { resolve: jest.fn().mockResolvedValue(options.generated ?? 'AB-000001') };
   const cache = { del: jest.fn(), get: jest.fn(), set: jest.fn() };
-  const service = new ProductsService(prisma as never, {} as never, {} as never, cache as never, sku as never, {} as never, { productUpdateInvalidates: () => false, invalidationData: () => ({}) } as never, {} as never, {} as never);
+  const attributes = { prepareValues: jest.fn().mockResolvedValue([]), missingRequiredForProduct: jest.fn().mockResolvedValue([]) };
+  const service = new ProductsService(prisma as never, {} as never, {} as never, cache as never, sku as never, {} as never, { productUpdateInvalidates: () => false, invalidationData: () => ({}) } as never, {} as never, attributes as never);
   return { service, prisma, sku };
 }
 

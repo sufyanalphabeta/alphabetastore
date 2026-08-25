@@ -55,6 +55,17 @@ describe('ProductReadinessService', () => {
     expect(result.warnings).not.toContain('MISSING_SKU');
   });
 
+  it('treats structured dynamic attribute values as populated specifications', () => {
+    const result = service.evaluate({ ...readyProduct(), specs: {}, attributeValues: [{ id: 'attribute-value-1' }] });
+    expect(result.warnings).not.toContain('MISSING_SPECS');
+  });
+
+  it('blocks publication when a required dynamic attribute is missing', () => {
+    const result = service.evaluate({ ...readyProduct(), missingRequiredAttributes: ['capacity'] });
+    expect(result.blockers).toContain('MISSING_REQUIRED_ATTRIBUTES');
+    expect(result.readyToPublish).toBe(false);
+  });
+
   it('emits supported quality warnings without blocking publication', () => {
     const result = service.evaluate({
       ...readyProduct(),

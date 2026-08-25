@@ -26,7 +26,7 @@ function setup() {
     productUpdateInvalidates: jest.fn((_product, updates) => Object.keys(updates).length > 0),
     invalidate: jest.fn(),
   };
-  return { service: new CatalogImportService(prisma, {} as never, {} as never, sku as never, reviewAudit as never), tx, sku, reviewAudit };
+  return { service: new CatalogImportService(prisma, {} as never, {} as never, sku as never, reviewAudit as never, { prepareValues: jest.fn().mockResolvedValue([]) } as never), tx, sku, reviewAudit };
 }
 
 describe('CatalogImportService Product SKU integration', () => {

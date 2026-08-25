@@ -21,6 +21,7 @@ const reviewSelect = {
   brand: true,
   brandId: true,
   specs: true,
+  attributeValues: { select: { id: true } },
   warrantyText: true,
   sku: true,
   updatedAt: true,

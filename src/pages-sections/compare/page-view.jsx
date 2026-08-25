@@ -23,6 +23,13 @@ import { useCompare } from "contexts/CompareContext";
 import { currency } from "lib";
 import { FALLBACK_PRODUCT_IMAGE } from "utils/catalog";
 
+function comparisonSpecs(product) {
+  if (Array.isArray(product.comparisonAttributes) && product.comparisonAttributes.length) {
+    return Object.fromEntries(product.comparisonAttributes.map(item => [item.label, item.displayValue ?? item.value]));
+  }
+  return product.specs && typeof product.specs === "object" ? product.specs : {};
+}
+
 function AvailChip({ stockQty }) {
   if (stockQty <= 0) return <Chip label="Out of Stock" color="error" size="small" />;
   if (stockQty <= 5) return <Chip label="Low Stock" color="warning" size="small" />;
@@ -36,9 +43,7 @@ export default function ComparePageView() {
   const allSpecKeys = useMemo(() => {
     const keys = new Set();
     items.forEach(p => {
-      if (p.specs && typeof p.specs === "object") {
-        Object.keys(p.specs).forEach(k => keys.add(k));
-      }
+      Object.keys(comparisonSpecs(p)).forEach(k => keys.add(k));
     });
     return [...keys];
   }, [items]);
@@ -163,7 +168,7 @@ export default function ComparePageView() {
               <TableRow key={key} hover>
                 <TableCell sx={{ fontWeight: 600, color: "text.secondary" }}>{key}</TableCell>
                 {items.map(p => {
-                  const val = p.specs?.[key];
+                  const val = comparisonSpecs(p)[key];
                   return (
                     <TableCell key={p.id} align="center">
                       <Typography variant="body2">{val !== undefined && val !== null ? String(val) : "—"}</Typography>

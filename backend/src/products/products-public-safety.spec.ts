@@ -48,7 +48,11 @@ function serviceWith(prismaOverrides: Record<string, unknown> = {}) {
     }),
     getPublicCounts: jest.fn().mockResolvedValue([]),
   };
-  return { service: new ProductsService(prisma as never, {} as never, pricing as never, cache as never, sku as never, readiness as never, reviewAudit as never, categoryTree as never, {} as never), prisma, cache, readiness, reviewAudit, categoryTree };
+  const attributes = {
+    publicProductAttributes: jest.fn().mockResolvedValue({ attributes: [], specs: [], comparisonAttributes: [] }),
+    missingRequiredForProduct: jest.fn().mockResolvedValue([]),
+  };
+  return { service: new ProductsService(prisma as never, {} as never, pricing as never, cache as never, sku as never, readiness as never, reviewAudit as never, categoryTree as never, attributes as never), prisma, cache, readiness, reviewAudit, categoryTree, attributes };
 }
 
 describe('ProductsService public safety', () => {

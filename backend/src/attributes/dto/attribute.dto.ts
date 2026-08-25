@@ -1,9 +1,12 @@
+import 'reflect-metadata';
+
 import { Type } from 'class-transformer';
 import {
   ArrayUnique,
   IsArray,
   IsBoolean,
   IsEnum,
+  IsDefined,
   IsInt,
   IsObject,
   IsOptional,
@@ -74,6 +77,7 @@ export class AssignCategoryProfileDto {
 
 export class ProductAttributeValueDto {
   @IsString() @Matches(/^[a-z][a-z0-9_]*$/) code!: string;
+  @IsDefined()
   value!: unknown;
 }
 

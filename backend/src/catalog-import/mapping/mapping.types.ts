@@ -55,7 +55,7 @@ export type MappedCatalogRow = {
   sourceBrand: string | null;
   mappedBrandId: string | null;
   sourceDescription: string | null;
-  attributes: Record<string, string>;
+  attributes?: Record<string, string>;
   mappingWarnings: MappingIssue[];
   mappingErrors: MappingIssue[];
   parserErrors: string[];

@@ -34,6 +34,7 @@ type ReadinessProduct = {
   brand?: string | null;
   brandId?: string | null;
   specs?: unknown;
+  attributeValues?: Array<unknown>;
   warrantyText?: string | null;
   sku?: string | null;
   category?: { isActive?: boolean; isVisible?: boolean } | null;
@@ -84,7 +85,7 @@ export class ProductReadinessService {
     if (!product.shortDescription?.trim()) warnings.push('MISSING_SHORT_DESCRIPTION');
     if (!product.description?.trim()) warnings.push('MISSING_DESCRIPTION');
     if (!product.brandId && !product.brand?.trim()) warnings.push('MISSING_BRAND');
-    if (!this.hasSpecs(product.specs)) warnings.push('MISSING_SPECS');
+    if (!this.hasSpecs(product.specs) && !product.attributeValues?.length) warnings.push('MISSING_SPECS');
     if ((mediaCount > 0 ? mediaCount : legacyImageCount) === 1) warnings.push('ONLY_ONE_IMAGE');
 
     const width = primary?.mediaAsset?.originalWidth;

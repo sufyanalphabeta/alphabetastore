@@ -1,3 +1,5 @@
+import "reflect-metadata";
+
 import { validate } from "class-validator";
 
 import { AddCartItemDto } from "../cart/dto/add-cart-item.dto";

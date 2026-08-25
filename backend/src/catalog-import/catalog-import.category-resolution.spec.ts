@@ -43,7 +43,7 @@ function buildService(options: { category?: unknown; createCategory?: unknown; m
     ], counts: { NEW: 2, UNCHANGED: 0, PRICE_CHANGED: 0, CATEGORY_CHANGED: 0, CONFLICT: 0, INVALID: 0 },
   }) };
   const categories = { createFromImport: jest.fn().mockResolvedValue(options.createCategory ?? category) };
-  return { service: new CatalogImportService(prisma, matching as any, categories as any, {} as never, {} as never), prisma, matching, categories };
+  return { service: new CatalogImportService(prisma, matching as any, categories as any, {} as never, {} as never, {} as never), prisma, matching, categories };
 }
 
 describe('CatalogImportService category resolution', () => {

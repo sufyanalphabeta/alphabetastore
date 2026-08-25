@@ -21,7 +21,7 @@ describe('AdminProductReviewService', () => {
     const prisma = {
       product: { findMany: jest.fn().mockResolvedValue([product()]), count: jest.fn().mockResolvedValue(1) },
     };
-    const service = new AdminProductReviewService(prisma as never, new ProductReadinessService());
+    const service = new AdminProductReviewService(prisma as never, new ProductReadinessService(), { missingRequiredForProduct: jest.fn().mockResolvedValue([]) } as never);
     const result = await service.list({ page: 1, limit: 10 });
     expect(result.items[0]).toMatchObject({
       origin: 'IMPORTED', sourceSystems: ['RAKIZA'], source: { sourceSystem: 'RAKIZA', externalId: '10', sourceBarcode: '123' },
@@ -39,7 +39,7 @@ describe('AdminProductReviewService', () => {
       catalogReviewedAt: reviewedAt,
       catalogReviewedBy: { id: 'admin-1', name: 'Admin', email: 'private@example.com', passwordHash: 'secret' },
     })]) } };
-    const service = new AdminProductReviewService(prisma as never, new ProductReadinessService());
+    const service = new AdminProductReviewService(prisma as never, new ProductReadinessService(), { missingRequiredForProduct: jest.fn().mockResolvedValue([]) } as never);
 
     const result = await service.list({ page: 1, limit: 10 });
 
@@ -51,7 +51,7 @@ describe('AdminProductReviewService', () => {
   it('derives MANUAL origin and uses server pagination', async () => {
     const products = Array.from({ length: 21 }, (_, index) => product({ id: `p${index + 1}`, slug: `manual-${index + 1}`, sourceIdentities: [] }));
     const prisma = { product: { findMany: jest.fn().mockResolvedValue(products) } };
-    const service = new AdminProductReviewService(prisma as never, new ProductReadinessService());
+    const service = new AdminProductReviewService(prisma as never, new ProductReadinessService(), { missingRequiredForProduct: jest.fn().mockResolvedValue([]) } as never);
     const result = await service.list({ origin: 'MANUAL', page: 2, limit: 10 });
     expect(result.items[0].origin).toBe('MANUAL');
     expect(result.items).toHaveLength(10);
@@ -62,7 +62,7 @@ describe('AdminProductReviewService', () => {
     const ready = product({ id: 'ready', slug: 'ready', media: [], images: [{ imageUrl: '/real.jpg' }], _count: { media: 0, images: 1 } });
     const blocked = product({ id: 'blocked', slug: 'blocked' });
     const prisma = { product: { findMany: jest.fn().mockResolvedValue([ready, blocked]) } };
-    const service = new AdminProductReviewService(prisma as never, new ProductReadinessService());
+    const service = new AdminProductReviewService(prisma as never, new ProductReadinessService(), { missingRequiredForProduct: jest.fn().mockResolvedValue([]) } as never);
     const result = await service.list({ issue: 'MISSING_IMAGE', readiness: 'BLOCKED' });
     expect(result.items.map((item) => item.id)).toEqual(['blocked']);
   });
@@ -75,7 +75,7 @@ describe('AdminProductReviewService', () => {
       product({ id: 'price', slug: 'price', status: 'INACTIVE', price: new Decimal(0), media: [], images: [{ imageUrl: '/legacy.jpg' }], _count: { media: 0, images: 1 }, sourceIdentities: [] }),
     ];
     const prisma = { product: { findMany: jest.fn().mockResolvedValue(products) } };
-    const service = new AdminProductReviewService(prisma as never, new ProductReadinessService());
+    const service = new AdminProductReviewService(prisma as never, new ProductReadinessService(), { missingRequiredForProduct: jest.fn().mockResolvedValue([]) } as never);
     await expect(service.summary()).resolves.toEqual({
       total: 4, active: 1, inactive: 3, imported: 3, manual: 1,
       blocked: 3, ready: 1, missingImage: 1, missingBrand: 4,
@@ -89,7 +89,7 @@ describe('AdminProductReviewService', () => {
       product({ id: 'p1', slug: 'current-product' }),
       product({ id: 'p2', slug: 'next-product' }),
     ]) } };
-    const service = new AdminProductReviewService(prisma as never, new ProductReadinessService());
+    const service = new AdminProductReviewService(prisma as never, new ProductReadinessService(), { missingRequiredForProduct: jest.fn().mockResolvedValue([]) } as never);
     await expect(service.next('p1', { origin: 'IMPORTED', issue: 'MISSING_IMAGE', sort: 'name' })).resolves.toEqual({
       item: { id: 'p2', slug: 'next-product' },
     });
@@ -101,13 +101,13 @@ describe('AdminProductReviewService', () => {
 
   it('returns null when no other product matches the preserved review context', async () => {
     const prisma = { product: { findMany: jest.fn().mockResolvedValue([product({ id: 'p1', slug: 'current-product' })]) } };
-    const service = new AdminProductReviewService(prisma as never, new ProductReadinessService());
+    const service = new AdminProductReviewService(prisma as never, new ProductReadinessService(), { missingRequiredForProduct: jest.fn().mockResolvedValue([]) } as never);
     await expect(service.next('p1', { readiness: 'READY' })).resolves.toEqual({ item: null });
   });
 
   it.each([[true, { catalogReviewedAt: { not: null } }], [false, { catalogReviewedAt: null }]])('filters reviewed=%s on the server', async (reviewed, predicate) => {
     const prisma = { product: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) } };
-    const service = new AdminProductReviewService(prisma as never, new ProductReadinessService());
+    const service = new AdminProductReviewService(prisma as never, new ProductReadinessService(), { missingRequiredForProduct: jest.fn().mockResolvedValue([]) } as never);
     await service.list({ reviewed });
     expect(prisma.product.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { AND: expect.arrayContaining([predicate]) } }));
   });
@@ -124,14 +124,14 @@ describe('AdminProductReviewService', () => {
       product({ id: 'published', slug: 'published', status: 'ACTIVE', images: [{ imageUrl: '/image.jpg' }], _count: { media: 0, images: 1 }, catalogReviewedAt: new Date(), catalogReviewedBy: { id: 'u1', name: 'Admin' } }),
     ];
     const prisma = { product: { findMany: jest.fn().mockResolvedValue(products) } };
-    const service = new AdminProductReviewService(prisma as never, new ProductReadinessService());
+    const service = new AdminProductReviewService(prisma as never, new ProductReadinessService(), { missingRequiredForProduct: jest.fn().mockResolvedValue([]) } as never);
     const result = await service.list({ workspace: workspace as never, page: 1, limit: 20 });
     expect(result.items.map((item) => item.id)).toEqual(expectedIds);
   });
 
   it('filters products by their exact Catalog Import session relation', async () => {
     const prisma = { product: { findMany: jest.fn().mockResolvedValue([]) } };
-    const service = new AdminProductReviewService(prisma as never, new ProductReadinessService());
+    const service = new AdminProductReviewService(prisma as never, new ProductReadinessService(), { missingRequiredForProduct: jest.fn().mockResolvedValue([]) } as never);
     await service.list({ importSessionId: '11111111-1111-4111-8111-111111111111' });
     expect(prisma.product.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: { AND: expect.arrayContaining([{ catalogImportRows: { some: { sessionId: '11111111-1111-4111-8111-111111111111' } } }]) },

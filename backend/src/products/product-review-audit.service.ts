@@ -10,6 +10,7 @@ const PRODUCT_REVIEW_FIELDS = [
   'discountType', 'discountValue', 'discountStartAt', 'discountEndAt',
   'categoryId', 'shortDescription', 'description', 'brand', 'brandId',
   'specs', 'highlights', 'warrantyText', 'datasheetUrl', 'sku', 'imageUrls',
+  'attributeValues',
 ] as const;
 
 const readinessSelect = {
@@ -22,6 +23,7 @@ const readinessSelect = {
   brand: true,
   brandId: true,
   specs: true,
+  attributeValues: { select: { id: true } },
   warrantyText: true,
   sku: true,
   category: { select: { isActive: true, isVisible: true } },

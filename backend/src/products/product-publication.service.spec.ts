@@ -28,7 +28,7 @@ function setup(current: any = product()) {
     invalidatePublicationCaches: jest.fn(),
     findOneAdmin: jest.fn().mockResolvedValue({ id: current?.id, status: 'ACTIVE' }),
   };
-  return { service: new ProductPublicationService(prisma, new ProductReadinessService(), products), prisma, tx, products };
+  return { service: new ProductPublicationService(prisma, new ProductReadinessService(), products, { missingRequiredForProduct: jest.fn().mockResolvedValue([]) } as never), prisma, tx, products };
 }
 
 describe('ProductPublicationService', () => {

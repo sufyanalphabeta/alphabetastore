@@ -11,20 +11,20 @@ ON CONFLICT ("code") DO UPDATE SET
   "unit" = EXCLUDED."unit", "allowed_values" = EXCLUDED."allowed_values", "is_active" = true;
 
 DO $$
-DECLARE profile_id uuid;
+DECLARE v_profile_id uuid;
 BEGIN
-  SELECT "id" INTO profile_id FROM "attribute_profiles" WHERE "name" = 'Hard Drives' ORDER BY "created_at" LIMIT 1;
-  IF profile_id IS NULL THEN
-    profile_id := gen_random_uuid();
+  SELECT "id" INTO v_profile_id FROM "attribute_profiles" WHERE "name" = 'Hard Drives' ORDER BY "created_at" LIMIT 1;
+  IF v_profile_id IS NULL THEN
+    v_profile_id := gen_random_uuid();
     INSERT INTO "attribute_profiles" ("id", "name", "description")
-    VALUES (profile_id, 'Hard Drives', 'P2E pilot profile for HDD products.');
+    VALUES (v_profile_id, 'Hard Drives', 'P2E pilot profile for HDD products.');
   END IF;
 
   INSERT INTO "attribute_profile_items" (
     "id", "profile_id", "attribute_definition_id", "required", "filterable",
     "comparable", "visible_on_product", "visible_in_summary", "sort_order"
   )
-  SELECT gen_random_uuid(), profile_id, definition."id",
+  SELECT gen_random_uuid(), v_profile_id, definition."id",
     definition."code" IN ('capacity', 'interface'),
     definition."code" IN ('capacity', 'interface', 'rotational_speed', 'form_factor'),
     true, true, definition."code" IN ('capacity', 'interface'),
@@ -38,24 +38,24 @@ BEGIN
     "comparable" = EXCLUDED."comparable", "visible_on_product" = EXCLUDED."visible_on_product",
     "visible_in_summary" = EXCLUDED."visible_in_summary", "sort_order" = EXCLUDED."sort_order";
 
-  UPDATE "categories" SET "attribute_profile_id" = profile_id WHERE "slug" = 'hdd';
+  UPDATE "categories" SET "attribute_profile_id" = v_profile_id WHERE "slug" = 'hdd';
 END $$;
 
 DO $$
-DECLARE product_id uuid;
+DECLARE v_product_id uuid;
 BEGIN
-  SELECT "id" INTO product_id FROM "products" WHERE "slug" = 'seagate-barracuda-2tb';
-  IF product_id IS NULL THEN RETURN; END IF;
+  SELECT "id" INTO v_product_id FROM "products" WHERE "slug" = 'seagate-barracuda-2tb';
+  IF v_product_id IS NULL THEN RETURN; END IF;
 
   INSERT INTO "product_attribute_values" ("id", "product_id", "attribute_definition_id", "text_value")
-  SELECT gen_random_uuid(), product_id, "id",
+  SELECT gen_random_uuid(), v_product_id, "id",
     CASE "code" WHEN 'capacity' THEN '2 TB' WHEN 'interface' THEN 'SATA 6 Gb/s' ELSE '3.5 inch' END
   FROM "attribute_definitions" WHERE "code" IN ('capacity', 'interface', 'form_factor')
   ON CONFLICT ("product_id", "attribute_definition_id") DO UPDATE SET
     "text_value" = EXCLUDED."text_value", "number_value" = NULL, "boolean_value" = NULL, "json_value" = NULL;
 
   INSERT INTO "product_attribute_values" ("id", "product_id", "attribute_definition_id", "number_value")
-  SELECT gen_random_uuid(), product_id, "id",
+  SELECT gen_random_uuid(), v_product_id, "id",
     CASE "code" WHEN 'rotational_speed' THEN 7200 ELSE 256 END
   FROM "attribute_definitions" WHERE "code" IN ('rotational_speed', 'cache')
   ON CONFLICT ("product_id", "attribute_definition_id") DO UPDATE SET

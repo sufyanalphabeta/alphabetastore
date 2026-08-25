@@ -43,8 +43,9 @@ function servicesWith(getProducts: () => ReturnType<typeof productState>[]) {
   };
   const readiness = new ProductReadinessService();
   const cache = { get: jest.fn(), set: jest.fn(), del: jest.fn() };
-  const products = new (ProductsService as any)(prisma, {}, {}, cache, {}, readiness, {});
-  return { queue: new AdminProductReviewService(prisma as never, readiness), products, prisma };
+  const attributes = { missingRequiredForProduct: jest.fn().mockResolvedValue([]), publicProductAttributes: jest.fn().mockResolvedValue({ attributes: [], specs: [], comparisonAttributes: [] }) };
+  const products = new (ProductsService as any)(prisma, {}, {}, cache, {}, readiness, {}, {}, attributes);
+  return { queue: new AdminProductReviewService(prisma as never, readiness, attributes as never), products, prisma };
 }
 
 describe('Admin product readiness consistency', () => {
