@@ -13,9 +13,15 @@ export const StyledCard = styled(Card)(({
   flexDirection: "column",
   justifyContent: "space-between",
   transition: "all 250ms ease-in-out",
+  border: `1px solid ${theme.palette.divider}`,
+  borderRadius: theme.shape.borderRadius,
+  boxShadow: theme.shadows[1],
   ":hover .hover-box": {
     opacity: 1
-  }
+  },
+  ...(theme.custom?.presetCode === "BAZAAR_FASHION" && { boxShadow: "none" }),
+  ...(theme.custom?.presetCode === "BAZAAR_GROCERY" && { borderRadius: 10 }),
+  ...(theme.custom?.presetCode === "BAZAAR_GIFT" && { borderRadius: 16 })
   
 // border: `1px solid ${theme.palette.divider}`
 }));
@@ -33,6 +39,10 @@ export const ImageWrapper = styled("div")(({
     display: "block"
   },
   transition: "0.3s",
+  ...(theme.custom?.presetCode === "BAZAAR_ELECTRONICS" && { backgroundColor: "#F8FAFC" }),
+  ...(theme.custom?.presetCode === "BAZAAR_GROCERY" && { backgroundColor: "#F0FDF4" }),
+  ...(theme.custom?.presetCode === "BAZAAR_HEALTH" && { backgroundColor: "#F0FAFA" }),
+  ...(theme.custom?.presetCode === "BAZAAR_FASHION" && { backgroundColor: "#FAF0F1" }),
   ":hover .thumbnail": {
     scale: 0.9
   },

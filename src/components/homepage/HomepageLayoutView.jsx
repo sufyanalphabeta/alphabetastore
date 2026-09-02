@@ -38,7 +38,7 @@ function ProductsBlock({ block }) {
   const items = Array.isArray(block.items) ? block.items : [];
   if (!items.length) return null;
   return (
-    <Container sx={{ py: 4 }}>
+    <Container className="homepage-products-block" sx={{ py: 4 }}>
       <SectionHeading title={block.title} subtitle={block.subtitle} />
       <Grid container spacing={3}>
         {items.map(product => (
@@ -55,7 +55,7 @@ function FeaturedCategoriesBlock({ block }) {
   const items = Array.isArray(block.items) ? block.items : [];
   if (!items.length) return null;
   return (
-    <Container sx={{ py: 4 }}>
+    <Container className="homepage-category-block" sx={{ py: 4 }}>
       <SectionHeading title={block.title || "Featured Categories"} subtitle={block.subtitle} />
       <Grid container spacing={2}>
         {items.map(category => (
@@ -224,7 +224,7 @@ function StoreTrustStrip() {
     [<SupportAgentOutlined key="support" />, "دعم قبل الشراء", "نساعدك في الاختيار"],
   ];
   return (
-    <Container sx={{ pt: 2 }}>
+    <Container className="homepage-trust-strip" sx={{ pt: 2 }}>
       <Paper elevation={0} sx={{ p: { xs: 1.5, md: 2 }, border: "1px solid", borderColor: "divider", borderRadius: 3 }}>
         <Grid container spacing={1}>
           {items.map(([icon, title, subtitle]) => (

@@ -12,39 +12,18 @@ const breakpoints = {
     xxl: 1920
   }
 };
-const themeColorMap = {
-  default: COLORS.BLUISH,
-  dark: COLORS.DARK,
-  electronics: COLORS.BLUISH,
-  fashion: COLORS.GOLD,
-  red: COLORS.RED,
-  green: COLORS.GREEN,
-  orange: COLORS.ORANGE,
-  gold: COLORS.GOLD,
-  gift: COLORS.GIFT,
-  paste: COLORS.PASTE,
-  health: COLORS.HEALTH,
-  bluish: COLORS.BLUISH,
-  yellow: COLORS.YELLOW
-};
-
 export const AVAILABLE_THEME_KEYS = Object.keys(THEME_PRESETS);
 
 function isValidHexColor(value) {
   return /^#([\da-fA-F]{6})$/.test(String(value || "").trim());
 }
 
-function resolveThemeColor(themeKey) {
-  const key = normalizeThemeKey(themeKey).toLowerCase();
-  return themeColorMap[key] || COLORS.DARK;
-}
-
 export default function themeOptions({
   themeKey,
   primaryColor
-} = {}) {
+  } = {}) {
   const preset = THEME_PRESETS[normalizeThemeKey(themeKey)] || THEME_PRESETS.DEFAULT;
-  const selectedPalette = getPalette(resolveThemeColor(themeKey));
+  const selectedPalette = getPalette(COLORS.DARK);
   const { tokens } = preset;
   const primaryMain = isValidHexColor(primaryColor) ? primaryColor.trim() : tokens.primary;
   selectedPalette.primary = { ...selectedPalette.primary, main: primaryMain, light: lighten(primaryMain, 0.4), dark: darken(primaryMain, 0.25), contrastText: "#FFFFFF" };
@@ -54,12 +33,42 @@ export default function themeOptions({
   selectedPalette.divider = tokens.border;
 
   const themeOption = {
-    typography,
-    components,
+    typography: { ...typography, fontFamily: tokens.font },
+    components: {
+      ...components,
+      MuiCssBaseline: {
+        ...components.MuiCssBaseline,
+        styleOverrides: {
+          ...components.MuiCssBaseline.styleOverrides,
+          body: { backgroundColor: tokens.background, color: tokens.text },
+          '[data-store-theme="BAZAAR_ELECTRONICS"] .homepage-products-block .MuiCard-root': { borderRadius: 2, boxShadow: tokens.shadow },
+          '[data-store-theme="BAZAAR_ELECTRONICS"] .homepage-category-block .MuiCard-root': { borderTop: `3px solid ${tokens.primary}` },
+          '[data-store-theme="BAZAAR_FASHION"] .homepage-products-block .MuiCard-root': { borderRadius: 1, boxShadow: "none", border: `1px solid ${tokens.border}` },
+          '[data-store-theme="BAZAAR_GROCERY"] .homepage-products-block .MuiCard-root': { borderRadius: 1, boxShadow: tokens.shadow },
+          '[data-store-theme="BAZAAR_HEALTH"] .homepage-trust-strip': { backgroundColor: tokens.background },
+          '[data-store-theme="BAZAAR_GIFT"] .homepage-products-block .MuiCard-root': { borderRadius: 3, boxShadow: tokens.shadow },
+          '[data-store-theme="BAZAAR_GENERAL"] .homepage-products-block .MuiCard-root': { borderRadius: 2, boxShadow: tokens.shadow }
+        }
+      },
+      MuiCard: {
+        ...components.MuiCard,
+        styleOverrides: { ...components.MuiCard.styleOverrides, root: { ...components.MuiCard.styleOverrides.root, borderRadius: tokens.radius } }
+      },
+      MuiOutlinedInput: {
+        ...components.MuiOutlinedInput,
+        styleOverrides: { ...components.MuiOutlinedInput.styleOverrides, root: { ...components.MuiOutlinedInput.styleOverrides.root, borderRadius: tokens.radius / 2 } }
+      }
+    },
     breakpoints,
     palette: selectedPalette,
     shape: { borderRadius: tokens.radius },
-    shadows: Array.from({ length: 25 }, (_, index) => index === 0 ? "none" : tokens.shadow)
+    shadows: Array.from({ length: 25 }, (_, index) => index === 0 ? "none" : tokens.shadow),
+    custom: {
+      presetCode: preset.code,
+      variants: preset.variants,
+      density: tokens.density,
+      accent: tokens.accent
+    }
   };
   return themeOption;
 }

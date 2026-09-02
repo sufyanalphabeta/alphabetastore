@@ -15,6 +15,8 @@ export const HeaderWrapper = styled("div")(({
   background: theme.palette.background.paper,
   boxShadow: theme.shadows[2],
   borderBottom: `1px solid ${theme.palette.divider}`,
+  ...(theme.custom?.presetCode === "BAZAAR_ELECTRONICS" && { boxShadow: "0 2px 10px rgba(15, 52, 96, .10)" }),
+  ...(theme.custom?.presetCode === "BAZAAR_DARK" && { background: theme.palette.secondary.main }),
   [theme.breakpoints.down("sm")]: {
     height: layoutConstant.mobileHeaderHeight
   }

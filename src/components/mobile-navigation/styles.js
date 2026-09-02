@@ -17,7 +17,8 @@ const Wrapper = styled("div")(({
   zIndex: theme.zIndex.drawer + 1,
   height: layoutConstant.mobileNavHeight,
   backgroundColor: theme.palette.background.paper,
-  boxShadow: "0px 1px 4px 3px rgba(0, 0, 0, 0.1)",
+  boxShadow: theme.shadows[3],
+  borderTop: `2px solid ${theme.palette.primary.main}`,
   [theme.breakpoints.down("lg")]: {
     display: "flex",
     width: "100vw"

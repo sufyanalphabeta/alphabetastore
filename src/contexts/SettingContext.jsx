@@ -94,6 +94,11 @@ export default function SettingsProvider({
       normalized.direction = localLanguage === "ar" ? "rtl" : "ltr";
     }
 
+    const previewTheme = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("theme") : null;
+    if (previewTheme) {
+      normalized.theme = normalizeThemeKey(previewTheme);
+    }
+
     setSettings(prev => ({
       ...prev,
       ...normalized

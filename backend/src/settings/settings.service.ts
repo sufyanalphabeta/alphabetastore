@@ -7,7 +7,7 @@ import { UpdateSystemSettingDto } from './dto/update-system-setting.dto';
 
 const SETTINGS_CACHE_KEY = 'settings:all';
 const SETTINGS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-const VALID_THEME_KEYS = new Set(['DEFAULT', 'TECH_MODERN', 'DARK_TECH', 'MINIMAL_LIGHT', 'default', 'electronics', 'dark', 'fashion', 'red', 'green', 'orange', 'gold', 'gift', 'paste', 'health', 'bluish', 'yellow']);
+const VALID_THEME_KEYS = new Set(['BAZAAR_ELECTRONICS', 'BAZAAR_FASHION', 'BAZAAR_GROCERY', 'BAZAAR_HEALTH', 'BAZAAR_GIFT', 'BAZAAR_GENERAL', 'DEFAULT', 'TECH_MODERN', 'DARK_TECH', 'MINIMAL_LIGHT', 'default', 'electronics', 'dark', 'fashion', 'red', 'green', 'orange', 'gold', 'gift', 'paste', 'health', 'bluish', 'yellow']);
 
 const DEFAULT_SETTINGS: Record<string, string> = {
   site_name: 'Alphabeta Store',
