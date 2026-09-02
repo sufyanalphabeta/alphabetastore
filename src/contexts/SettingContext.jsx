@@ -5,6 +5,7 @@ import { createContext, useCallback, useEffect, useMemo, useState } from "react"
 import { apiGet } from "utils/api";
 import { configureCurrency } from "utils/currency";
 import i18n from "i18n";
+import { normalizeThemeKey } from "theme/theme-presets";
 
 
 // ============================================================
@@ -17,7 +18,7 @@ const initialSettings = {
   direction: "rtl",
   site_name: "Alphabeta Store",
   site_logo_url: "",
-  theme: "electronics",
+  theme: "TECH_MODERN",
   primary_color: "#f59331",
   enable_whatsapp: "true",
   default_language: "ar",
@@ -46,7 +47,7 @@ function normalizeSettings(value) {
     direction: source.direction === "ltr" ? "ltr" : source.default_language === "en" ? "ltr" : "rtl",
     site_name: String(source.site_name || initialSettings.site_name),
     site_logo_url: String(source.site_logo_url || ""),
-    theme: String(source.theme || initialSettings.theme),
+    theme: normalizeThemeKey(source.theme || initialSettings.theme),
     primary_color: String(source.primary_color || initialSettings.primary_color),
     enable_whatsapp: String(source.enable_whatsapp ?? initialSettings.enable_whatsapp),
     // USD is an internal pricing currency only. Customers always see LYD.

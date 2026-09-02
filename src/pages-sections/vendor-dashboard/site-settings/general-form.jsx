@@ -8,6 +8,7 @@ import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import CircularProgress from "@mui/material/CircularProgress";
+import Chip from "@mui/material/Chip";
 import Divider from "@mui/material/Divider";
 import Grid from "@mui/material/Grid";
 import MenuItem from "@mui/material/MenuItem";
@@ -17,27 +18,11 @@ import Typography from "@mui/material/Typography";
 import useSettings from "hooks/useSettings";
 import { apiGet, apiPatch } from "utils/api";
 import { FormProvider, TextField } from "components/form-hook";
-import { AVAILABLE_THEME_KEYS } from "theme/theme-options";
-
-const THEME_LABELS = {
-  default: "Default",
-  dark: "Dark",
-  electronics: "Electronics",
-  fashion: "Fashion",
-  red: "Red",
-  green: "Green",
-  orange: "Orange",
-  gold: "Gold",
-  gift: "Gift",
-  paste: "Paste",
-  health: "Health",
-  bluish: "Bluish",
-  yellow: "Yellow"
-};
+import { THEME_PRESETS, THEME_PRESET_KEYS, normalizeThemeKey } from "theme/theme-presets";
 
 const validationSchema = yup.object().shape({
   site_name: yup.string().required("site name is required"),
-  theme: yup.string().oneOf(AVAILABLE_THEME_KEYS).required("theme is required"),
+  theme: yup.string().oneOf(THEME_PRESET_KEYS).required("theme is required"),
   default_language: yup.string().oneOf(["ar", "en"]).required("default language is required"),
   default_currency: yup.string().oneOf(["LYD", "USD"]).required("default currency is required"),
   exchange_rate_usd_to_lyd: yup.number().moreThan(0).required("exchange rate is required"),
@@ -146,7 +131,7 @@ export default function GeneralForm() {
 
   const initialValues = {
     site_name: "",
-    theme: "default",
+    theme: "DEFAULT",
     default_language: "ar",
     default_currency: "LYD",
     exchange_rate_usd_to_lyd: 5.2,
@@ -177,7 +162,7 @@ export default function GeneralForm() {
         const response = await apiGet("/settings");
         reset({
           site_name: String(response?.site_name || ""),
-          theme: String(response?.theme || "default"),
+          theme: normalizeThemeKey(response?.theme || "DEFAULT"),
           default_language: response?.default_language === "en" ? "en" : "ar",
           default_currency: String(response?.default_currency || "LYD").toUpperCase() === "USD" ? "USD" : "LYD",
           exchange_rate_usd_to_lyd: Number(response?.exchange_rate_usd_to_lyd || 5.2),
@@ -205,7 +190,7 @@ export default function GeneralForm() {
       value: values.site_name
     }, {
       key: "theme",
-      value: values.theme
+      value: normalizeThemeKey(values.theme)
     }, {
       key: "default_language",
       value: values.default_language
@@ -243,7 +228,7 @@ export default function GeneralForm() {
 
       updateSettings({
         site_name: values.site_name,
-        theme: values.theme,
+        theme: normalizeThemeKey(values.theme),
         default_language: values.default_language,
         direction: values.default_language === "ar" ? "rtl" : "ltr",
         default_currency: values.default_currency,
@@ -303,16 +288,12 @@ export default function GeneralForm() {
         </Grid>
 
         <Grid size={12}>
-          <TextField select fullWidth color="info" size="medium" name="theme" label="Store Theme" onChange={event => {
-            methods.setValue("theme", event.target.value, { shouldDirty: true, shouldValidate: true });
-            // A preset must be visible immediately; custom colors are an
-            // explicit override and are reset when another preset is chosen.
-            methods.setValue("primary_color", "", { shouldDirty: true, shouldValidate: true });
-          }}>
-            {AVAILABLE_THEME_KEYS.map(themeKey => <MenuItem key={themeKey} value={themeKey}>
-                {THEME_LABELS[themeKey] || themeKey}
-              </MenuItem>)}
-          </TextField>
+          <Typography variant="subtitle1" mb={1}>قالب المتجر</Typography>
+          <Grid container spacing={1.5}>{THEME_PRESET_KEYS.map(themeKey => {
+            const preset = THEME_PRESETS[themeKey];
+            const selected = methods.watch("theme") === themeKey;
+            return <Grid key={themeKey} size={{ xs: 12, sm: 6, md: 3 }}><Box onClick={() => { methods.setValue("theme", themeKey, { shouldDirty: true, shouldValidate: true }); methods.setValue("primary_color", "", { shouldDirty: true, shouldValidate: true }); }} sx={{ p: 1.5, cursor: "pointer", border: "2px solid", borderColor: selected ? preset.tokens.primary : "divider", borderRadius: 2, bgcolor: preset.tokens.surface, color: preset.tokens.text, boxShadow: selected ? 3 : 0 }}><Box sx={{ height: 28, borderRadius: 1, mb: 1, background: `linear-gradient(90deg, ${preset.tokens.primary} 0 42%, ${preset.tokens.secondary} 42% 78%, ${preset.tokens.accent} 78%)` }} /><Typography fontWeight={700}>{preset.nameAr}</Typography><Typography variant="caption" color="text.secondary">{preset.description}</Typography>{selected ? <Chip size="small" color="success" label="القالب الحالي" sx={{ mt: 1 }} /> : null}</Box></Grid>;
+          })}</Grid>
         </Grid>
 
         <Grid size={{ md: 6, xs: 12 }}>

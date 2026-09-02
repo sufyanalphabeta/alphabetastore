@@ -20,7 +20,7 @@ export const StyledFooter = styled("footer")(({
   borderRadius: 12,
   padding: "2.5rem",
   marginBottom: "1rem",
-  backgroundColor: theme.palette.grey[900],
+  backgroundColor: theme.palette.secondary.dark,
   "& .links": {
     marginTop: "4rem",
     marginBottom: "1rem",
