@@ -226,7 +226,7 @@ function ElectronicsHeroShell() {
           <Typography variant="overline" sx={{ color: "rgba(255,255,255,.78)", letterSpacing: 1.2 }}>Alphabeta Store</Typography>
           <Typography variant="h1" fontWeight={800} fontSize={{ xs: 26, md: 42 }} lineHeight={1.2}>تقنية موثوقة لعملك ومنزلك</Typography>
           <Typography sx={{ mt: 1, color: "rgba(255,255,255,.82)" }}>اكتشف أجهزة الكمبيوتر والشبكات والمراقبة مع أسعار بالدينار الليبي ودعم محلي.</Typography>
-          <Button component={Link} href="/products/search" variant="contained" color="warning" sx={{ mt: 2, fontWeight: 700 }}>تصفح المنتجات</Button>
+          <Button href="/products/search" variant="contained" color="warning" sx={{ mt: 2, fontWeight: 700 }}>تصفح المنتجات</Button>
         </Box>
       </Card>
     </Container>
