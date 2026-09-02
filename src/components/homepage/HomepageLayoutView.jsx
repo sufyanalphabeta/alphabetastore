@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import Grid from "@mui/material/Grid";
 import Stack from "@mui/material/Stack";
@@ -216,6 +217,22 @@ function HeroBannerBlock({ block }) {
   );
 }
 
+function ElectronicsHeroShell() {
+  return (
+    <Container className="homepage-electronics-hero" sx={{ pt: { xs: 2, md: 3 }, pb: 1 }}>
+      <Card sx={{ minHeight: { xs: 190, md: 260 }, px: { xs: 3, md: 7 }, py: { xs: 3, md: 5 }, display: "flex", alignItems: "center", overflow: "hidden", position: "relative", bgcolor: "secondary.main", color: "common.white", backgroundImage: "linear-gradient(115deg, rgba(15,52,96,.98), rgba(43,127,255,.84))" }}>
+        <Box sx={{ position: "absolute", width: 260, height: 260, borderRadius: "50%", bgcolor: "rgba(255,255,255,.08)", right: { xs: -100, md: 80 }, top: -100 }} />
+        <Box sx={{ position: "relative", maxWidth: 690 }}>
+          <Typography variant="overline" sx={{ color: "rgba(255,255,255,.78)", letterSpacing: 1.2 }}>Alphabeta Store</Typography>
+          <Typography variant="h1" fontWeight={800} fontSize={{ xs: 26, md: 42 }} lineHeight={1.2}>تقنية موثوقة لعملك ومنزلك</Typography>
+          <Typography sx={{ mt: 1, color: "rgba(255,255,255,.82)" }}>اكتشف أجهزة الكمبيوتر والشبكات والمراقبة مع أسعار بالدينار الليبي ودعم محلي.</Typography>
+          <Button component={Link} href="/products/search" variant="contained" color="warning" sx={{ mt: 2, fontWeight: 700 }}>تصفح المنتجات</Button>
+        </Box>
+      </Card>
+    </Container>
+  );
+}
+
 function StoreTrustStrip() {
   const items = [
     [<LocalShippingOutlined key="shipping" />, "توصيل داخل ليبيا", "ننسق التوصيل معك"],
@@ -285,6 +302,7 @@ export default function HomepageLayoutView({ blocks = [] }) {
 
   return (
     <>
+      {!blocks.some(block => block.type === "HERO_BANNER") ? <ElectronicsHeroShell /> : null}
       <StoreTrustStrip />
       {blocks.map(block => (
         <HomepageBlockRenderer key={block.id} block={block} />

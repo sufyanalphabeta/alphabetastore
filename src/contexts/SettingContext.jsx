@@ -19,7 +19,7 @@ const initialSettings = {
   site_name: "Alphabeta Store",
   site_logo_url: "",
   theme: "TECH_MODERN",
-  primary_color: "#f59331",
+    primary_color: "",
   enable_whatsapp: "true",
   default_language: "ar",
   default_currency: "LYD",
@@ -48,7 +48,7 @@ function normalizeSettings(value) {
     site_name: String(source.site_name || initialSettings.site_name),
     site_logo_url: String(source.site_logo_url || ""),
     theme: normalizeThemeKey(source.theme || initialSettings.theme),
-    primary_color: String(source.primary_color || initialSettings.primary_color),
+    primary_color: String(source.primary_color || ""),
     enable_whatsapp: String(source.enable_whatsapp ?? initialSettings.enable_whatsapp),
     // USD is an internal pricing currency only. Customers always see LYD.
     default_currency: "LYD",
@@ -94,7 +94,8 @@ export default function SettingsProvider({
       normalized.direction = localLanguage === "ar" ? "rtl" : "ltr";
     }
 
-    const previewTheme = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("theme") : null;
+    const query = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+    const previewTheme = query?.get("themePreview") || query?.get("theme");
     if (previewTheme) {
       normalized.theme = normalizeThemeKey(previewTheme);
     }
