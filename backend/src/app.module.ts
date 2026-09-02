@@ -35,6 +35,7 @@ import { ProductRelationsModule } from './product-relations/product-relations.mo
 import { CatalogImportModule } from './catalog-import/catalog-import.module';
 import { MediaModule } from './media/media.module';
 import { AttributesModule } from './attributes/attributes.module';
+import { ActivityPresetsModule } from './activity-presets/activity-presets.module';
 
 @Module({
   imports: [
@@ -133,6 +134,7 @@ import { AttributesModule } from './attributes/attributes.module';
     CatalogImportModule,
     MediaModule,
     AttributesModule,
+    ActivityPresetsModule,
     QueueModule,
     HealthModule,
   ],

@@ -44,6 +44,10 @@ export const navigation = [{
   icon: duotone.Products,
   path: "/admin/attributes"
 }, {
+  name: "إعداد النشاط",
+  icon: duotone.Dashboard,
+  path: "/admin/activity"
+}, {
   name: "Homepage",
   icon: duotone.Dashboard,
   path: "/admin/homepage"
