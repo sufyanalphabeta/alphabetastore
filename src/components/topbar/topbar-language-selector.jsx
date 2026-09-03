@@ -95,6 +95,7 @@ export function TopbarLanguageSelector({
 
     if (typeof window !== "undefined") {
       window.localStorage.setItem("alphabeta_locale", lang);
+      window.location.reload();
     }
   };
 
