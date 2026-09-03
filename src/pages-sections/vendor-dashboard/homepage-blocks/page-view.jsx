@@ -30,6 +30,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 
 import PageWrapper from "../page-wrapper";
+import MediaPicker from "components/admin/media/MediaPicker";
 import {
   HOMEPAGE_BLOCK_TYPES,
   createHomepageBlock,
@@ -58,7 +59,7 @@ function defaultConfig(type) {
 }
 
 /** Typed config editor — renders different fields per block type. */
-function BlockConfigEditor({ type, config, onChange }) {
+function BlockConfigEditor({ type, config, onChange, onPickImage }) {
   const set = (key, value) => onChange({ ...config, [key]: value });
 
   if (type === "HERO_BANNER") {
@@ -72,6 +73,13 @@ function BlockConfigEditor({ type, config, onChange }) {
           fullWidth
           placeholder="https://example.com/banner.jpg"
         />
+        <Button
+          variant="outlined"
+          onClick={onPickImage}
+          sx={{ alignSelf: "flex-start" }}
+        >
+          اختيار الصورة من مكتبة الوسائط
+        </Button>
         <TextField
           label="Link (href)"
           value={config.href || ""}
@@ -161,6 +169,7 @@ export default function HomepageBlocksPageView() {
   const [editing, setEditing] = useState(null);
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -209,6 +218,17 @@ export default function HomepageBlocksPageView() {
 
   const onConfigChange = newConfig => {
     setEditing(curr => ({ ...curr, config: newConfig }));
+  };
+
+  const onHeroMediaConfirm = selected => {
+    const media = selected?.[0];
+    if (media) {
+      setEditing(curr => ({
+        ...curr,
+        config: { ...curr.config, imageUrl: media.productUrl || media.cardUrl || media.thumbnailUrl }
+      }));
+    }
+    setMediaPickerOpen(false);
   };
 
   const onSave = async () => {
@@ -419,6 +439,7 @@ export default function HomepageBlocksPageView() {
               type={editing?.type || "NEW_ARRIVALS"}
               config={editing?.config || defaultConfig(editing?.type || "NEW_ARRIVALS")}
               onChange={onConfigChange}
+              onPickImage={() => setMediaPickerOpen(true)}
             />
           </Stack>
         </DialogContent>
@@ -429,6 +450,12 @@ export default function HomepageBlocksPageView() {
           </Button>
         </DialogActions>
       </Dialog>
+      <MediaPicker
+        open={mediaPickerOpen}
+        onClose={() => setMediaPickerOpen(false)}
+        remaining={1}
+        onConfirm={onHeroMediaConfirm}
+      />
     </PageWrapper>
   );
 }

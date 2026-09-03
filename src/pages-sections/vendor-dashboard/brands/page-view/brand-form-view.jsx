@@ -16,6 +16,7 @@ import CircularProgress from "@mui/material/CircularProgress";
 import Typography from "@mui/material/Typography";
 
 import { Checkbox, FormProvider, TextField } from "components/form-hook";
+import MediaPicker from "components/admin/media/MediaPicker";
 import {
   createBrand,
   fetchBrandBySlug,
@@ -51,6 +52,7 @@ export default function BrandFormView({ slug }) {
   const [logoUrl, setLogoUrl] = useState("");
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
+  const [mediaPickerTarget, setMediaPickerTarget] = useState("");
 
   const methods = useForm({
     defaultValues: {
@@ -159,6 +161,14 @@ export default function BrandFormView({ slug }) {
     }
   });
 
+  const onMediaConfirm = selected => {
+    const media = selected?.[0];
+    const url = media?.productUrl || media?.cardUrl || media?.thumbnailUrl || "";
+    if (url && mediaPickerTarget === "logo") setLogoUrl(url);
+    if (url && mediaPickerTarget === "banner") setValue("bannerUrl", url, { shouldDirty: true, shouldValidate: true });
+    setMediaPickerTarget("");
+  };
+
   if (loading) {
     return (
       <Card className="p-3" sx={{ display: "flex", justifyContent: "center", py: 6 }}>
@@ -248,6 +258,13 @@ export default function BrandFormView({ slug }) {
               >
                 {uploading ? "Uploading…" : logoUrl ? "Replace Logo" : "Upload Logo"}
               </Button>
+              <Button
+                variant="text"
+                disabled={!brand?.id}
+                onClick={() => setMediaPickerTarget("logo")}
+              >
+                اختيار من المكتبة
+              </Button>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -268,6 +285,16 @@ export default function BrandFormView({ slug }) {
           </Grid>
 
           <Grid size={12}>
+            <Button
+              variant="outlined"
+              disabled={!brand?.id}
+              onClick={() => setMediaPickerTarget("banner")}
+            >
+              اختيار صورة الغلاف من مكتبة الوسائط
+            </Button>
+          </Grid>
+
+          <Grid size={12}>
             <Stack direction="row" spacing={2}>
               <Button variant="contained" color="info" type="submit" disabled={isSubmitting}>
                 {brand?.id ? "Save Changes" : "Create Brand"}
@@ -279,6 +306,12 @@ export default function BrandFormView({ slug }) {
           </Grid>
         </Grid>
       </FormProvider>
+      <MediaPicker
+        open={Boolean(mediaPickerTarget)}
+        onClose={() => setMediaPickerTarget("")}
+        remaining={1}
+        onConfirm={onMediaConfirm}
+      />
     </Card>
   );
 }
