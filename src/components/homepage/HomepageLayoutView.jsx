@@ -15,7 +15,7 @@ import Typography from "@mui/material/Typography";
 import Container from "components/Container";
 import LazyImage from "components/LazyImage";
 import ProductCard1 from "components/product-cards/product-card-1";
-import { mapCatalogProduct, normalizeProductImageUrl } from "utils/catalog";
+import { getBrandLogoUrl, mapCatalogProduct, normalizeProductImageUrl } from "utils/catalog";
 
 function SectionHeading({ title, subtitle }) {
   if (!title && !subtitle) return null;
@@ -135,9 +135,9 @@ function FeaturedBrandsBlock({ block }) {
                   ":hover": { boxShadow: 4 }
                 }}
               >
-                {brand.logoUrl ? (
+                {getBrandLogoUrl(brand) ? (
                   <LazyImage
-                    src={normalizeProductImageUrl(brand.logoUrl)}
+                    src={getBrandLogoUrl(brand)}
                     alt={brand.name}
                     width={120}
                     height={60}

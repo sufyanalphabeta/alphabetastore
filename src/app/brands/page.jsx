@@ -8,7 +8,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
 import LazyImage from "components/LazyImage";
-import { fetchBrandsPublic } from "utils/catalog";
+import { fetchBrandsPublic, getBrandLogoUrl } from "utils/catalog";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 60;
@@ -72,9 +72,9 @@ export default async function BrandsIndex() {
                     mb: 1.5
                   }}
                 >
-                  {brand.logoUrl ? (
+                  {getBrandLogoUrl(brand) ? (
                     <LazyImage
-                      src={brand.logoUrl}
+                      src={getBrandLogoUrl(brand)}
                       alt={brand.name}
                       width={120}
                       height={80}

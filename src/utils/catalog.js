@@ -2,6 +2,23 @@ import { API_BASE_URL } from "./api";
 
 export const FALLBACK_PRODUCT_IMAGE = "/assets/images/products/alphabeta-product-placeholder.svg";
 
+const BRAND_LOGOS = {
+  acer: "/assets/images/brands/acer.png",
+  apple: "/assets/images/brands/apple.png",
+  asus: "/assets/images/brands/asus.png",
+  dell: "/assets/images/brands/dell.png",
+  hp: "/assets/images/brands/hp.png",
+  samsung: "/assets/images/brands/samsung.png",
+  sony: "/assets/images/brands/sony.png",
+  xiaomi: "/assets/images/brands/xiaomi.png"
+};
+
+export function getBrandLogoUrl(brand) {
+  const configured = String(brand?.logoUrl || "").trim();
+  if (configured) return normalizeProductImageUrl(configured);
+  return BRAND_LOGOS[String(brand?.slug || "").trim().toLowerCase()] || "";
+}
+
 const MISSING_PRODUCT_IMAGE_PATHS = new Set([
   "/assets/images/products/placeholder.png",
   "placeholder.png"

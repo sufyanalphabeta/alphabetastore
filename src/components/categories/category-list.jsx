@@ -7,7 +7,7 @@ import { styled } from "@mui/material/styles";
 
 import IconComponent from "components/IconComponent";
 import useSettings from "hooks/useSettings";
-import { fetchCategoriesTree } from "utils/catalog";
+import { fetchCategoriesTree, fetchBrandsPublic, getBrandLogoUrl } from "utils/catalog";
 
 export const StyledRoot = styled("div", {
   shouldForwardProp: prop => prop !== "position"
@@ -83,6 +83,11 @@ export const StyledRoot = styled("div", {
     "&:hover": { color: theme.palette.primary.main }
   },
   "& .branch-children": { paddingInlineStart: theme.spacing(1.5), borderInlineStart: `1px solid ${theme.palette.divider}` },
+  "& .brand-strip": { marginTop: theme.spacing(3), paddingTop: theme.spacing(2), borderTop: `1px solid ${theme.palette.divider}` },
+  "& .brand-strip-title": { fontWeight: 800, marginBottom: theme.spacing(1) },
+  "& .brand-strip-items": { display: "flex", flexWrap: "wrap", gap: theme.spacing(1) },
+  "& .brand-strip-item": { display: "inline-flex", alignItems: "center", gap: theme.spacing(0.75), padding: theme.spacing(0.5, 1), border: `1px solid ${theme.palette.divider}`, borderRadius: 8, color: "inherit", fontSize: 12, textDecoration: "none", "&:hover": { borderColor: theme.palette.primary.main, color: theme.palette.primary.main } },
+  "& .brand-strip-logo": { width: 28, height: 22, display: "grid", placeItems: "center", fontWeight: 800, color: theme.palette.primary.main, "& img": { maxWidth: "100%", maxHeight: "100%", objectFit: "contain" } },
   [theme.breakpoints.down("lg")]: {
     width: "min(900px, calc(100vw - 32px))",
     gridTemplateColumns: "240px minmax(0, 1fr)",
@@ -107,16 +112,18 @@ export function CategoryList({ position = "absolute" }) {
   const [selectedId, setSelectedId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [brands, setBrands] = useState([]);
 
   useEffect(() => {
     let active = true;
-    fetchCategoriesTree(true)
-      .then(tree => {
+    Promise.all([fetchCategoriesTree(true), fetchBrandsPublic({ onlyVisible: true })])
+      .then(([tree, brandItems]) => {
         if (!active) return;
         const roots = Array.isArray(tree) ? tree : [];
         setCategories(roots);
         setSelectedId(current => current && roots.some(item => item.id === current) ? current : roots[0]?.id || null);
         setError("");
+        setBrands(Array.isArray(brandItems) ? brandItems.filter(item => Number(item.productCount ?? 0) > 0).slice(0, 10) : []);
       })
       .catch(loadError => active && setError(loadError.message || (isArabic ? "تعذر تحميل الفئات" : "Unable to load categories")))
       .finally(() => active && setLoading(false));
@@ -173,6 +180,15 @@ export function CategoryList({ position = "absolute" }) {
               </div> : <Link href={`/categories/${selected.slug}`} className="view-all">
                 {isArabic ? "تصفح منتجات هذه الفئة" : "Browse this category"}
               </Link>}
+            {brands.length ? <div className="brand-strip" aria-label={isArabic ? "العلامات التجارية" : "Brands"}>
+              <div className="brand-strip-title">{isArabic ? "تسوق حسب العلامة التجارية" : "Shop by brand"}</div>
+              <div className="brand-strip-items">
+                {brands.map(brand => <Link key={brand.id} href={`/brands/${brand.slug}`} className="brand-strip-item">
+                  <span className="brand-strip-logo">{getBrandLogoUrl(brand) ? <img src={getBrandLogoUrl(brand)} alt="" /> : brand.name?.charAt(0)}</span>
+                  <span>{brand.name}</span>
+                </Link>)}
+              </div>
+            </div> : null}
           </> : null}
       </div>
     </StyledRoot>;
