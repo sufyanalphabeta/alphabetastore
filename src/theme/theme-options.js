@@ -20,11 +20,14 @@ function isValidHexColor(value) {
 
 export default function themeOptions({
   themeKey,
-  primaryColor
+  primaryColor,
+  colorOverrides = {}
   } = {}) {
   const preset = THEME_PRESETS[normalizeThemeKey(themeKey)] || THEME_PRESETS.DEFAULT;
   const selectedPalette = getPalette(COLORS.DARK);
-  const { tokens } = preset;
+  const tokens = { ...preset.tokens };
+  const overrideMap = { primary: "primary", secondary: "secondary", accent: "accent", headerBackground: "headerBackground", headerText: "headerText", navBackground: "navBackground", navText: "navText", pageBackground: "background", surface: "surface", cardBackground: "cardBackground", textPrimary: "text", textSecondary: "muted", border: "border", footerBackground: "footerBackground", footerText: "footerText", link: "link", ctaBackground: "ctaBackground", ctaText: "ctaText", ctaHover: "ctaHover" };
+  Object.entries(overrideMap).forEach(([overrideKey, tokenKey]) => { if (isValidHexColor(colorOverrides[overrideKey])) tokens[tokenKey] = colorOverrides[overrideKey].trim(); });
   const primaryMain = isValidHexColor(primaryColor) ? primaryColor.trim() : tokens.primary;
   selectedPalette.primary = { ...selectedPalette.primary, main: primaryMain, light: lighten(primaryMain, 0.4), dark: darken(primaryMain, 0.25), contrastText: "#FFFFFF" };
   selectedPalette.secondary = { ...selectedPalette.secondary, main: tokens.secondary, dark: tokens.secondary, contrastText: "#FFFFFF" };
@@ -40,7 +43,7 @@ export default function themeOptions({
         ...components.MuiCssBaseline,
         styleOverrides: {
           ...components.MuiCssBaseline.styleOverrides,
-          body: { backgroundColor: tokens.background, color: tokens.text },
+          body: { backgroundColor: tokens.background, color: tokens.text, "--store-primary": tokens.primary, "--store-secondary": tokens.secondary, "--store-accent": tokens.accent, "--store-page-bg": tokens.background, "--store-surface": tokens.surface, "--store-text-primary": tokens.text, "--store-text-secondary": tokens.muted, "--store-border": tokens.border, "--store-header-bg": tokens.headerBackground || tokens.surface, "--store-header-text": tokens.headerText || tokens.text, "--store-nav-bg": tokens.navBackground || tokens.secondary, "--store-nav-text": tokens.navText || "#FFFFFF", "--store-cta-bg": tokens.ctaBackground || tokens.primary, "--store-cta-text": tokens.ctaText || "#FFFFFF", "--store-cta-hover": tokens.ctaHover || tokens.primary, "--store-link": tokens.link || tokens.primary, "--store-footer-bg": tokens.footerBackground || tokens.secondary, "--store-footer-text": tokens.footerText || "#FFFFFF" },
           '[data-store-theme="BAZAAR_ELECTRONICS"] .homepage-products-block .MuiCard-root': { borderRadius: 2, boxShadow: tokens.shadow },
           '[data-store-theme="BAZAAR_ELECTRONICS"] .homepage-category-block .MuiCard-root': { borderTop: `3px solid ${tokens.primary}` },
           '[data-store-theme="BAZAAR_FASHION"] .homepage-products-block .MuiCard-root': { borderRadius: 1, boxShadow: "none", border: `1px solid ${tokens.border}` },
@@ -67,7 +70,9 @@ export default function themeOptions({
       presetCode: preset.code,
       variants: preset.variants,
       density: tokens.density,
-      accent: tokens.accent
+      accent: tokens.accent,
+      resolvedTokens: tokens,
+      colorOverrides
     }
   };
   return themeOption;

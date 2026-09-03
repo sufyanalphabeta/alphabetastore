@@ -18,7 +18,7 @@ import { SecondaryHeader } from "components/secondary-header";
 import { MobileNavigationBar } from "components/mobile-navigation";
 import { SearchInput2 } from "components/search-box";
 import { Topbar, TopbarLanguageSelector } from "components/topbar";
-import { Header, HeaderCart, HeaderLogin, MobileHeader, HeaderSearch } from "components/header";
+import { Header, HeaderCart, HeaderLogin, HeaderWishlist, MobileHeader, HeaderSearch } from "components/header";
 
 // CUSTOM DATA MODEL
 
@@ -52,6 +52,7 @@ export default function ShopLayout1({
         </HeaderSearch>
 
         <HeaderLogin />
+        <HeaderWishlist />
         <HeaderCart />
       </MobileHeader.Right>
     </MobileHeader>;
@@ -68,7 +69,7 @@ export default function ShopLayout1({
         </Topbar.Right>
       </Topbar>
 
-      <Sticky fixedOn={0} scrollDistance={300}>
+      <Sticky fixedOn={0} scrollDistance={0}>
         <Header mobileHeader={MOBILE_VERSION_HEADER}>
           <Header.Left>
             <Header.Logo url={header.logo} siteName={header.siteName} />
@@ -81,6 +82,7 @@ export default function ShopLayout1({
           <Header.Right>
             <TopbarLanguageSelector languages={topbar.languageOptions} />
             <HeaderLogin />
+            <HeaderWishlist />
             <HeaderCart />
           </Header.Right>
         </Header>

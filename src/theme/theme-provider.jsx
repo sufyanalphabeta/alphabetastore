@@ -28,7 +28,8 @@ export default function ThemeProvider({
   const activeTheme = THEME_PRESETS[activeThemeKey];
   const themeOptions = customThemeOptions({
     themeKey: activeThemeKey,
-    primaryColor: previewTheme ? "" : settings.primary_color
+    primaryColor: previewTheme ? "" : settings.primary_color,
+    colorOverrides: previewTheme ? {} : settings.color_overrides
   });
   const mergedThemeOptions = merge({}, themeOptions, {
     direction: settings.direction

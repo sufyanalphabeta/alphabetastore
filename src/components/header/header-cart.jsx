@@ -13,7 +13,8 @@ export function HeaderCart() {
   const {
     state
   } = useCart();
-  return <Badge badgeContent={state.cart.length} color="primary">
+  const quantity = state.cart.reduce((total, item) => total + Number(item.qty || 0), 0);
+  return <Badge badgeContent={quantity} color="primary" showZero>
       <IconButton LinkComponent={Link} href="/mini-cart">
         <SvgIcon fontSize="small">
           <svg viewBox="0 0 24 24">

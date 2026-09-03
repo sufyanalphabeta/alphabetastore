@@ -32,7 +32,7 @@ export function MobileNavigationBar({
       title,
       badge
     }) => <StyledNavLink href={href} key={title}>
-          {badge ? <Badge badgeContent={state.cart.length} color="primary">
+          {badge ? <Badge badgeContent={state.cart.reduce((total, item) => total + Number(item.qty || 0), 0)} color="primary" showZero>
               <IconComponent icon={icon} fontSize="small" className="icon" />
             </Badge> : <IconComponent icon={icon} fontSize="small" className="icon" />}
 

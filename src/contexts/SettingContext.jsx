@@ -41,6 +41,8 @@ function normalizeSettings(value) {
   }
 
   const source = value;
+  let colorOverrides = {};
+  try { colorOverrides = source.color_overrides ? JSON.parse(String(source.color_overrides)) : {}; } catch { colorOverrides = {}; }
 
   return {
     default_language: source.default_language === "en" ? "en" : "ar",
@@ -49,6 +51,7 @@ function normalizeSettings(value) {
     site_logo_url: String(source.site_logo_url || ""),
     theme: normalizeThemeKey(source.theme || initialSettings.theme),
     primary_color: String(source.primary_color || ""),
+    color_overrides: colorOverrides,
     enable_whatsapp: String(source.enable_whatsapp ?? initialSettings.enable_whatsapp),
     // USD is an internal pricing currency only. Customers always see LYD.
     default_currency: "LYD",

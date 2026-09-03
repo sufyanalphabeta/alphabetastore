@@ -68,9 +68,12 @@ export async function fetchWishlistItemsPage(filters = {}) {
 
 export async function addWishlistItem(productId) {
   const data = await apiPost("/wishlist", { productId });
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("wishlist:changed"));
   return mapWishlistItem(data);
 }
 
 export async function removeWishlistItem(productId) {
-  return apiDelete(`/wishlist/${productId}`);
+  const result = await apiDelete(`/wishlist/${productId}`);
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("wishlist:changed"));
+  return result;
 }
