@@ -39,6 +39,11 @@ async function bootstrap() {
   app.useStaticAssets(join(uploadsPath, "branding"), {
     prefix: "/uploads/branding/"
   });
+  // Brand logos are uploaded to the brands directory by BrandsController.
+  // Expose the directory using the same public URL stored in Brand.logoUrl.
+  app.useStaticAssets(join(uploadsPath, "brands"), {
+    prefix: "/uploads/brands/"
+  });
   app.useStaticAssets(join(uploadsPath, "media"), {
     prefix: "/uploads/media/"
   });

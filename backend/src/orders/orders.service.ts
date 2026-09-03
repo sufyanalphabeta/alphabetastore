@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { randomBytes } from "node:crypto";
 import { Prisma } from "@prisma/client";
 
 import { OrderPaymentStatus, OrderStatus, PaymentMethodCode } from "../prisma/prisma-client";
@@ -741,12 +742,13 @@ export class OrdersService {
 
     const code = customerCode ?? "GUEST";
 
-    const count = await this.prisma.order.count({
-      where: userId ? { userId } : {}
-    });
-
-    const seq = String(count + 1).padStart(4, "0");
-    return `ORD-${code}-${seq}`;
+    // Do not derive identifiers from a count: retries and concurrent checkouts
+    // can observe the same count and collide on the unique order_number index.
+    // A time component plus cryptographic randomness keeps the identifier
+    // readable while making it safe across users and concurrent requests.
+    const timestamp = Date.now().toString(36).toUpperCase();
+    const entropy = randomBytes(4).toString("hex").toUpperCase();
+    return `ORD-${code}-${timestamp}-${entropy}`;
   }
 
   private async findManyWithQuery(baseWhere: Record<string, unknown>, query: FindOrdersQueryDto) {
