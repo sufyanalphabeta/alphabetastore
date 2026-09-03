@@ -3,10 +3,6 @@ import Link from "next/link";
 import Image from "next/image";
 import Divider from "@mui/material/Divider";
 import Typography from "@mui/material/Typography";
-import Box from "@mui/material/Box";
-import LocalShippingOutlined from "@mui/icons-material/LocalShippingOutlined";
-import FavoriteBorderOutlined from "@mui/icons-material/FavoriteBorderOutlined";
-import PlaceOutlined from "@mui/icons-material/PlaceOutlined";
 
 // GLOBAL CUSTOM COMPONENTS
 import { Footer1, FooterApps, FooterContact, FooterLinksWidget, FooterSocialLinks } from "components/footer";
@@ -17,7 +13,7 @@ import { MobileMenu } from "components/mobile-navbar";
 import { SecondaryHeader } from "components/secondary-header";
 import { MobileNavigationBar } from "components/mobile-navigation";
 import { SearchInput2 } from "components/search-box";
-import { Topbar, TopbarLanguageSelector } from "components/topbar";
+import { TopbarLanguageSelector } from "components/topbar";
 import { Header, HeaderCart, HeaderLogin, HeaderWishlist, MobileHeader, HeaderSearch } from "components/header";
 
 // CUSTOM DATA MODEL
@@ -57,18 +53,6 @@ export default function ShopLayout1({
       </MobileHeader.Right>
     </MobileHeader>;
   return <Fragment>
-      <Topbar>
-        <Topbar.Left label={topbar.label} title={topbar.title} />
-
-        <Topbar.Right>
-          <Box display="flex" alignItems="center" gap={{ xs: 1, sm: 3 }} sx={{ color: "inherit" }}>
-            <Box display="flex" alignItems="center" gap={0.5}><LocalShippingOutlined fontSize="small" /><Typography variant="caption">توصيل سريع داخل ليبيا</Typography></Box>
-            <Box display={{ xs: "none", sm: "flex" }} alignItems="center" gap={0.5}><PlaceOutlined fontSize="small" /><Typography variant="caption">عنوان المتجر</Typography></Box>
-            <Box display="flex" alignItems="center" gap={0.5}><FavoriteBorderOutlined fontSize="small" /><Link href="/wish-list" style={{ color: "inherit", textDecoration: "none" }}><Typography variant="caption">الأمنيات</Typography></Link></Box>
-          </Box>
-        </Topbar.Right>
-      </Topbar>
-
       <Sticky fixedOn={0} scrollDistance={0}>
         <Header mobileHeader={MOBILE_VERSION_HEADER}>
           <Header.Left>
@@ -86,17 +70,15 @@ export default function ShopLayout1({
             <HeaderCart />
           </Header.Right>
         </Header>
-      </Sticky>
-
-      {!hideSecondaryHeader && <SecondaryHeader elevation={0}>
+        {!hideSecondaryHeader && <SecondaryHeader elevation={0}>
           <SecondaryHeader.Left>
             <CategoryList />
           </SecondaryHeader.Left>
-
           <SecondaryHeader.Right>
             <NavigationList navigation={header.navigation} />
           </SecondaryHeader.Right>
-      </SecondaryHeader>}
+        </SecondaryHeader>}
+      </Sticky>
 
       {children}
 

@@ -16,11 +16,11 @@ export const StyledLink = styled(Link)(() => ({
 export const StyledFooter = styled("footer")(({
   theme
 }) => ({
-  color: "white",
+  color: "var(--store-footer-text, white)",
   borderRadius: 12,
   padding: "2.5rem",
   marginBottom: "1rem",
-  backgroundColor: theme.palette.secondary.dark,
+  backgroundColor: `var(--store-footer-bg, ${theme.palette.secondary.dark})`,
   "& .links": {
     marginTop: "4rem",
     marginBottom: "1rem",
