@@ -73,6 +73,7 @@ function createOrderService(
       })
     },
     productVariant: { updateMany: jest.fn() },
+    $queryRaw: jest.fn().mockResolvedValue([{ sequence: 1 }]),
     order: {
       create: jest.fn().mockImplementation(async ({ data }) => ({
         id: `order-${++orderIndex}`,

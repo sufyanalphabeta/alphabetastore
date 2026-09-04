@@ -39,6 +39,11 @@ const StyledRoot = styled("div")(({
       display: "none"
     }
   },
+  [theme.breakpoints.down("lg")]: {
+    ".right": {
+      display: "none"
+    }
+  },
   [theme.breakpoints.down("sm")]: {
     marginBottom: "1rem"
   }

@@ -78,6 +78,13 @@ export default function OrderSummery({
             Shipping Address
           </Typography>
 
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            رقم الطلب: <strong>{order.orderNumber || "—"}</strong>
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            كود العميل: <strong>{order.customerCode || "—"}</strong>
+          </Typography>
+
           <Typography variant="body1">{order.shippingAddress || "No address provided."}</Typography>
         </Card>
       </Grid>
@@ -111,6 +118,9 @@ export default function OrderSummery({
           </FlexBetween>
 
           <p>{order.paymentMethod}</p>
+          <Button size="small" variant="outlined" onClick={() => window.print()} sx={{ mb: 1 }}>
+            طباعة ملخص الطلب
+          </Button>
           <Typography variant="body2" color="text.secondary" sx={{
           mb: order.notes ? 1 : 0
         }}>

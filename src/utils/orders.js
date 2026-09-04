@@ -63,6 +63,7 @@ export function mapOrder(order) {
   return {
     id: order?.id || "",
     userId: order?.userId || null,
+    customerCode: order?.customerCode || order?.user?.customerCode || "",
     addressId: order?.addressId || null,
     orderNumber: order?.orderNumber || "",
     fullName: order?.fullName || "",

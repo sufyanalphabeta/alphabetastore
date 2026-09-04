@@ -62,14 +62,11 @@ export class AuthService {
     }
 
     const passwordHash = await this.hashPassword(registerDto.password);
-    const customerCode = this.generateCustomerCode();
-
     return this.usersService.createCustomer({
       name: registerDto.name,
       email: normalizedEmail,
       phone: registerDto.phone,
       passwordHash,
-      customerCode,
     });
   }
 
@@ -404,12 +401,4 @@ export class AuthService {
     return Number(this.configService.get<number>('BCRYPT_SALT_ROUNDS', 10));
   }
 
-  private generateCustomerCode(): string {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    let code = '';
-    for (let i = 0; i < 6; i++) {
-      code += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return code;
-  }
 }

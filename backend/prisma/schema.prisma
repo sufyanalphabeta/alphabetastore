@@ -199,6 +199,7 @@ model User {
   addresses               Address[]
   carts                   Cart[]
   orders                  Order[]
+  customerOrderCounter    CustomerOrderCounter?
   orderStatusChanges      OrderStatusHistory[]
   tickets                 Ticket[]
   ticketMessages          TicketMessage[]
@@ -219,6 +220,15 @@ model User {
   @@index([role])
   @@index([status])
   @@map("users")
+}
+
+model CustomerOrderCounter {
+  userId    String   @id @map("user_id") @db.Uuid
+  nextValue Int      @default(1) @map("next_value")
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("customer_order_counters")
 }
 
 model PasswordResetToken {

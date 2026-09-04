@@ -20,6 +20,9 @@ export function CustomerDashboardLayout({
     sm: 4
   }}>
       <Container>
+        <Box sx={{ display: { xs: "block", lg: "none" }, mb: 2 }}>
+          <Navigation />
+        </Box>
         <Grid container spacing={3}>
           <Grid size={{
           lg: 3,

@@ -13,6 +13,7 @@ const publicUserSelect = {
   name: true,
   email: true,
   phone: true,
+  customerCode: true,
   preferredPaymentMethod: true,
   role: true,
   status: true,
@@ -65,22 +66,53 @@ export class UsersService {
     return user;
   }
 
-  createCustomer(data: CreateUserDto & { passwordHash: string; customerCode?: string }) {
+  async createCustomer(data: CreateUserDto & { passwordHash: string; customerCode?: string }) {
     const payload: Prisma.UserCreateInput = {
       name: data.name,
       email: data.email,
       phone: data.phone,
-      customerCode: data.customerCode ?? null,
+      customerCode: data.customerCode?.trim() || null,
       preferredPaymentMethod: PaymentMethodCode.COD,
       passwordHash: data.passwordHash,
       role: Role.CUSTOMER,
       status: UserStatus.ACTIVE,
     };
 
-    return this.prisma.user.create({
-      data: payload,
-      select: publicUserSelect,
-    });
+    if (payload.customerCode) {
+      return this.prisma.user.create({ data: payload, select: publicUserSelect });
+    }
+
+    // A legacy/manual numeric code may already occupy a sequence value.
+    // Retrying only the unique customer-code collision keeps allocation safe
+    // without replacing the database-backed sequence with a count-based guess.
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      try {
+        return await this.prisma.user.create({
+          data: { ...payload, customerCode: await this.nextCustomerCode() },
+          select: publicUserSelect,
+        });
+      } catch (error) {
+        const isCustomerCodeConflict =
+          typeof error === 'object' &&
+          error !== null &&
+          'code' in error &&
+          error.code === 'P2002' &&
+          'meta' in error &&
+          String((error.meta as { target?: unknown })?.target ?? '').includes('customer_code');
+        if (!isCustomerCodeConflict || attempt === 4) throw error;
+      }
+    }
+
+    throw new Error('Unable to allocate a customer code.');
+  }
+
+  private async nextCustomerCode() {
+    const rows = await this.prisma.$queryRaw<Array<{ value: bigint }>>`
+      SELECT nextval('customer_code_seq') AS value
+    `;
+    const value = rows[0]?.value;
+    if (value === undefined) throw new Error('Customer code sequence did not return a value.');
+    return String(value).padStart(3, '0');
   }
 
   findAllCustomers(page = 1, limit = 50) {
@@ -93,6 +125,7 @@ export class UsersService {
           name: true,
           email: true,
           phone: true,
+          customerCode: true,
           status: true,
           createdAt: true,
           _count: {

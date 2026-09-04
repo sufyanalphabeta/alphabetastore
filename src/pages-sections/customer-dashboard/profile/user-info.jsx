@@ -41,6 +41,7 @@ export default function UserInfo({
         <TableRowItem title="Name" value={user.name} />
         <TableRowItem title="Email" value={user.email} />
         <TableRowItem title="Phone" value={user.phone || "Not provided"} />
+        <TableRowItem title="Customer Code" value={user.customerCode || "Not assigned"} />
         <TableRowItem title="Preferred Payment" value={formatPreferredPaymentMethod(user.preferredPaymentMethod)} />
       </Card>
     </Link>;

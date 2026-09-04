@@ -67,8 +67,8 @@ async function main() {
 
   const systemSettingsDefaults = [
     { key: 'site_name', value: 'Alphabeta Store' },
-    { key: 'theme', value: 'default' },
-    { key: 'primary_color', value: '#1976d2' },
+    { key: 'theme', value: 'BAZAAR_ELECTRONICS' },
+    { key: 'primary_color', value: '' },
     { key: 'enable_whatsapp', value: 'true' },
     { key: 'default_language', value: 'ar' },
     { key: 'direction', value: 'rtl' },
@@ -78,6 +78,8 @@ async function main() {
     { key: 'shop_address', value: 'Tripoli, Libya' },
     { key: 'min_order', value: '0' },
     { key: 'support_email', value: 'support@alphabeta.com' },
+    { key: 'footer_description', value: 'Alphabeta Store مدعوم بواجهات خلفية حقيقية.' },
+    { key: 'footer_copyright', value: 'جميع الحقوق محفوظة.' },
     {
       key: 'terms_and_conditions_text',
       value:
@@ -95,9 +97,9 @@ async function main() {
       where: {
         key: setting.key,
       },
-      update: {
-        value: setting.value,
-      },
+      // Store settings are merchant-owned. Seed only fills missing keys and
+      // must never overwrite values changed from the admin UI.
+      update: {},
       create: {
         key: setting.key,
         value: setting.value,

@@ -75,6 +75,11 @@ export default function OrderDetailsPageView({
         }}>
             <OrderActions id={order.id} createdAt={order.createdAt} status={order.rawStatus} statusLabel={order.statusLabel} onUpdated={setOrder} />
 
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={3} sx={{ mb: 2 }}>
+              <span>رقم الطلب: <strong>{order.orderNumber || "—"}</strong></span>
+              <span>كود العميل: <strong>{order.customerCode || "—"}</strong></span>
+            </Stack>
+
             {order.items.map((item, index) => <OrderedProduct product={item} key={index} />)}
           </Card>
         </Grid>

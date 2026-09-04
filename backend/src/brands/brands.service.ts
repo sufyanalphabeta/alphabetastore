@@ -147,6 +147,9 @@ export class BrandsService {
       this.cache.del(BRANDS_CACHE_KEY),
       this.cache.del(BRANDS_VISIBLE_CACHE_KEY),
       this.cache.del(BRANDS_FEATURED_CACHE_KEY),
+      // Featured-brand homepage blocks embed logoUrl and must not retain the
+      // previous logo after an admin upload or media-library selection.
+      this.cache.del('homepage:layout'),
     ]);
   }
 

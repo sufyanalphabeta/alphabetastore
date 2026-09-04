@@ -22,6 +22,23 @@ import { apiGet, apiPatch } from "utils/api";
 import { FormProvider, TextField } from "components/form-hook";
 import { THEME_PRESETS, THEME_PRESET_KEYS, normalizeThemeKey } from "theme/theme-presets";
 
+const ELECTRONICS_THEME_DEFAULTS = {
+  primary: "#2563EB",
+  secondary: "#1E40AF",
+  accent: "#06B6D4",
+  headerBackground: "#FFFFFF",
+  headerText: "#0F172A",
+  navBackground: "#1E40AF",
+  navText: "#FFFFFF",
+  background: "#F8FAFC",
+  surface: "#FFFFFF",
+  text: "#0F172A",
+  muted: "#64748B",
+  border: "#E2E8F0",
+  ctaBackground: "#2563EB",
+  ctaText: "#FFFFFF"
+};
+
 const validationSchema = yup.object().shape({
   site_name: yup.string().required("site name is required"),
   theme: yup.string().oneOf(THEME_PRESET_KEYS).required("theme is required"),
@@ -146,12 +163,14 @@ export default function GeneralForm() {
     default_currency: "LYD",
     exchange_rate_usd_to_lyd: 5.2,
     auto_round_prices: "false",
-    primary_color: "#1976d2",
+    primary_color: "",
     color_overrides: {},
     enable_whatsapp: "true"
     ,shop_phone: ""
     ,shop_address: ""
     ,support_email: ""
+    ,footer_description: ""
+    ,footer_copyright: ""
   };
 
   const methods = useForm({
@@ -171,6 +190,11 @@ export default function GeneralForm() {
     const loadSettings = async () => {
       try {
         const response = await apiGet("/settings");
+        const parsedColorOverrides = typeof response?.color_overrides === "object" && response.color_overrides !== null
+          ? response.color_overrides
+          : (() => {
+              try { return JSON.parse(String(response?.color_overrides || "{}")); } catch { return {}; }
+            })();
         reset({
           site_name: String(response?.site_name || ""),
           theme: normalizeThemeKey(response?.theme || "DEFAULT"),
@@ -179,13 +203,15 @@ export default function GeneralForm() {
           exchange_rate_usd_to_lyd: Number(response?.exchange_rate_usd_to_lyd || 5.2),
           auto_round_prices: String(response?.auto_round_prices ?? "false"),
           primary_color: String(response?.primary_color || ""),
-          color_overrides: typeof response?.color_overrides === "object" ? response.color_overrides : (() => { try { return JSON.parse(String(response?.color_overrides || "{}")); } catch { return {}; } })(),
+          color_overrides: parsedColorOverrides,
           enable_whatsapp: String(response?.enable_whatsapp ?? "true"),
           shop_phone: String(response?.shop_phone || ""),
           shop_address: String(response?.shop_address || ""),
-          support_email: String(response?.support_email || "")
+          support_email: String(response?.support_email || ""),
+          footer_description: String(response?.footer_description || ""),
+          footer_copyright: String(response?.footer_copyright || "")
         });
-        setColorMode(response?.color_overrides ? "custom" : "theme");
+        setColorMode(Object.keys(parsedColorOverrides).length ? "custom" : "theme");
       } catch {
         // Keep defaults when settings cannot be fetched.
       }
@@ -239,6 +265,12 @@ export default function GeneralForm() {
     }, {
       key: "support_email",
       value: values.support_email
+    }, {
+      key: "footer_description",
+      value: values.footer_description
+    }, {
+      key: "footer_copyright",
+      value: values.footer_copyright
     }];
 
     try {
@@ -257,7 +289,9 @@ export default function GeneralForm() {
         enable_whatsapp: values.enable_whatsapp,
         shop_phone: values.shop_phone,
         shop_address: values.shop_address,
-        support_email: values.support_email
+        support_email: values.support_email,
+        footer_description: values.footer_description,
+        footer_copyright: values.footer_copyright
       });
 
       await refreshSettings();
@@ -269,6 +303,11 @@ export default function GeneralForm() {
 
   const tabs = ["الهوية", "التصميم والمظهر", "اللغة والعملة", "التواصل", "التكاملات", "الإعدادات المتقدمة"];
   const colorField = key => ({ value: methods.watch(`color_overrides.${key}`), onChange: value => methods.setValue(`color_overrides.${key}`, value, { shouldDirty: true }) });
+  const useThemeColors = () => {
+    setColorMode("theme");
+    methods.setValue("primary_color", "", { shouldDirty: true, shouldValidate: true });
+    methods.setValue("color_overrides", {}, { shouldDirty: true });
+  };
 
   return <FormProvider methods={methods} onSubmit={handleSubmitForm}>
       <Tabs value={activeTab} onChange={(_, value) => setActiveTab(value)} variant="scrollable" scrollButtons="auto" sx={{ mb: 3, borderBottom: 1, borderColor: "divider" }}>
@@ -295,23 +334,23 @@ export default function GeneralForm() {
           <Typography variant="subtitle1" mb={1}>قالب المتجر</Typography>
           <Alert severity="info" sx={{ mb: 2 }}>ابدأ بقالب الإلكترونيات؛ القوالب الأخرى مسجلة للتوسع وستظهر بعد اعتماد تصميمها.</Alert>
           <Stack direction="row" spacing={2} mb={2} flexWrap="wrap" useFlexGap>
-            <Button type="button" variant={colorMode === "theme" ? "contained" : "outlined"} onClick={() => { setColorMode("theme"); methods.setValue("color_overrides", {}); }}>● ألوان القالب</Button>
+            <Button type="button" variant={colorMode === "theme" ? "contained" : "outlined"} onClick={useThemeColors}>● ألوان القالب</Button>
             <Button type="button" variant={colorMode === "custom" ? "contained" : "outlined"} onClick={() => setColorMode("custom")}>○ تخصيص ألوان المتجر</Button>
           </Stack>
           <Grid container spacing={1.5}>{THEME_PRESET_KEYS.filter(themeKey => ["BAZAAR_ELECTRONICS", "BAZAAR_GENERAL"].includes(themeKey)).map(themeKey => {
             const preset = THEME_PRESETS[themeKey];
             const selected = methods.watch("theme") === themeKey;
-            return <Grid key={themeKey} size={{ xs: 12, sm: 6 }}><Box onClick={() => { methods.setValue("theme", themeKey, { shouldDirty: true, shouldValidate: true }); methods.setValue("primary_color", "", { shouldDirty: true, shouldValidate: true }); }} sx={{ p: 1.5, cursor: "pointer", border: "2px solid", borderColor: selected ? preset.tokens.primary : "divider", borderRadius: 2, bgcolor: preset.tokens.surface, color: preset.tokens.text, boxShadow: selected ? 3 : 0 }}><Box sx={{ height: 112, borderRadius: 1.5, mb: 1.25, p: 1, bgcolor: preset.tokens.background, border: `1px solid ${preset.tokens.border}` }}><Box sx={{ height: 14, borderRadius: 0.5, bgcolor: preset.tokens.secondary, mb: 1 }} /><Box sx={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr", gap: 0.75, height: 70 }}><Box sx={{ borderRadius: 0.5, bgcolor: preset.tokens.primary, p: 1 }}><Box sx={{ bgcolor: preset.tokens.surface, height: 8, width: "65%", mt: 2 }} /></Box><Box sx={{ borderRadius: 0.5, bgcolor: preset.tokens.surface, border: `1px solid ${preset.tokens.border}` }} /><Box sx={{ borderRadius: 0.5, bgcolor: preset.tokens.accent }} /></Box></Box><Typography fontWeight={700}>{preset.nameAr}</Typography><Typography variant="caption" color="text.secondary" display="block">{preset.description}</Typography><Stack direction="row" spacing={1} alignItems="center" mt={1}><Button type="button" size="small" variant="outlined" onClick={event => { event.stopPropagation(); window.open(`/market-1?themePreview=${encodeURIComponent(themeKey)}`, "_blank", "noopener,noreferrer"); }}>معاينة المتجر</Button>{selected ? <Chip size="small" color="success" label="القالب الحالي" /> : null}</Stack></Box></Grid>;
+            return <Grid key={themeKey} size={{ xs: 12, sm: 6 }}><Box onClick={() => { methods.setValue("theme", themeKey, { shouldDirty: true, shouldValidate: true }); useThemeColors(); }} sx={{ p: 1.5, cursor: "pointer", border: "2px solid", borderColor: selected ? preset.tokens.primary : "divider", borderRadius: 2, bgcolor: preset.tokens.surface, color: preset.tokens.text, boxShadow: selected ? 3 : 0 }}><Box sx={{ height: 112, borderRadius: 1.5, mb: 1.25, p: 1, bgcolor: preset.tokens.background, border: `1px solid ${preset.tokens.border}` }}><Box sx={{ height: 14, borderRadius: 0.5, bgcolor: preset.tokens.secondary, mb: 1 }} /><Box sx={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr", gap: 0.75, height: 70 }}><Box sx={{ borderRadius: 0.5, bgcolor: preset.tokens.primary, p: 1 }}><Box sx={{ bgcolor: preset.tokens.surface, height: 8, width: "65%", mt: 2 }} /></Box><Box sx={{ borderRadius: 0.5, bgcolor: preset.tokens.surface, border: `1px solid ${preset.tokens.border}` }} /><Box sx={{ borderRadius: 0.5, bgcolor: preset.tokens.accent }} /></Box></Box><Typography fontWeight={700}>{preset.nameAr}</Typography><Typography variant="caption" color="text.secondary" display="block">{preset.description}</Typography><Stack direction="row" spacing={1} alignItems="center" mt={1}><Button type="button" size="small" variant="outlined" onClick={event => { event.stopPropagation(); window.open(`/market-1?themePreview=${encodeURIComponent(themeKey)}`, "_blank", "noopener,noreferrer"); }}>معاينة المتجر</Button>{selected ? <Chip size="small" color="success" label="القالب الحالي" /> : null}</Stack></Box></Grid>;
           })}</Grid>
           {colorMode === "custom" ? <Box sx={{ mt: 3, p: 2, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
             <Typography fontWeight={700} mb={2}>تخصيص الألوان</Typography>
             <Typography variant="subtitle2" mb={1}>العلامة التجارية</Typography>
-            <Grid container spacing={2}><ColorField name="color_overrides.primary" label="الأساسي" defaultValue={THEME_PRESETS.BAZAAR_ELECTRONICS.tokens.primary} {...colorField("primary")} /><ColorField name="color_overrides.secondary" label="الثانوي" defaultValue={THEME_PRESETS.BAZAAR_ELECTRONICS.tokens.secondary} {...colorField("secondary")} /><ColorField name="color_overrides.accent" label="Accent" defaultValue={THEME_PRESETS.BAZAAR_ELECTRONICS.tokens.accent} {...colorField("accent")} /></Grid>
+            <Grid container spacing={2}><ColorField name="color_overrides.primary" label="الأساسي" defaultValue={ELECTRONICS_THEME_DEFAULTS.primary} {...colorField("primary")} /><ColorField name="color_overrides.secondary" label="الثانوي" defaultValue={ELECTRONICS_THEME_DEFAULTS.secondary} {...colorField("secondary")} /><ColorField name="color_overrides.accent" label="Accent" defaultValue={ELECTRONICS_THEME_DEFAULTS.accent} {...colorField("accent")} /></Grid>
             <Typography variant="subtitle2" mt={2} mb={1}>الرأس والتنقل</Typography>
-            <Grid container spacing={2}><ColorField name="color_overrides.headerBackground" label="خلفية الهيدر" defaultValue="#FFFFFF" {...colorField("headerBackground")} /><ColorField name="color_overrides.headerText" label="نص الهيدر" defaultValue="#1F2937" {...colorField("headerText")} /><ColorField name="color_overrides.navBackground" label="خلفية القائمة" defaultValue={THEME_PRESETS.BAZAAR_ELECTRONICS.tokens.secondary} {...colorField("navBackground")} /><ColorField name="color_overrides.navText" label="نص القائمة" defaultValue="#FFFFFF" {...colorField("navText")} /></Grid>
+            <Grid container spacing={2}><ColorField name="color_overrides.headerBackground" label="خلفية الهيدر" defaultValue={ELECTRONICS_THEME_DEFAULTS.headerBackground} {...colorField("headerBackground")} /><ColorField name="color_overrides.headerText" label="نص الهيدر" defaultValue={ELECTRONICS_THEME_DEFAULTS.headerText} {...colorField("headerText")} /><ColorField name="color_overrides.navBackground" label="خلفية القائمة" defaultValue={ELECTRONICS_THEME_DEFAULTS.navBackground} {...colorField("navBackground")} /><ColorField name="color_overrides.navText" label="نص القائمة" defaultValue={ELECTRONICS_THEME_DEFAULTS.navText} {...colorField("navText")} /></Grid>
             <Typography variant="subtitle2" mt={2} mb={1}>المحتوى والأزرار</Typography>
-            <Grid container spacing={2}><ColorField name="color_overrides.background" label="خلفية الصفحة" defaultValue={THEME_PRESETS.BAZAAR_ELECTRONICS.tokens.background} {...colorField("background")} /><ColorField name="color_overrides.surface" label="البطاقات" defaultValue="#FFFFFF" {...colorField("surface")} /><ColorField name="color_overrides.text" label="النص الأساسي" defaultValue={THEME_PRESETS.BAZAAR_ELECTRONICS.tokens.text} {...colorField("text")} /><ColorField name="color_overrides.muted" label="النص الثانوي" defaultValue={THEME_PRESETS.BAZAAR_ELECTRONICS.tokens.muted} {...colorField("muted")} /><ColorField name="color_overrides.border" label="الحدود" defaultValue={THEME_PRESETS.BAZAAR_ELECTRONICS.tokens.border} {...colorField("border")} /><ColorField name="color_overrides.ctaBackground" label="خلفية CTA" defaultValue={THEME_PRESETS.BAZAAR_ELECTRONICS.tokens.primary} {...colorField("ctaBackground")} /><ColorField name="color_overrides.ctaText" label="نص CTA" defaultValue="#FFFFFF" {...colorField("ctaText")} /></Grid>
-            <Button type="button" size="small" sx={{ mt: 2 }} onClick={() => { setColorMode("theme"); methods.setValue("color_overrides", {}); }}>إعادة الألوان الافتراضية</Button>
+            <Grid container spacing={2}><ColorField name="color_overrides.background" label="خلفية الصفحة" defaultValue={ELECTRONICS_THEME_DEFAULTS.background} {...colorField("background")} /><ColorField name="color_overrides.surface" label="البطاقات" defaultValue={ELECTRONICS_THEME_DEFAULTS.surface} {...colorField("surface")} /><ColorField name="color_overrides.text" label="النص الأساسي" defaultValue={ELECTRONICS_THEME_DEFAULTS.text} {...colorField("text")} /><ColorField name="color_overrides.muted" label="النص الثانوي" defaultValue={ELECTRONICS_THEME_DEFAULTS.muted} {...colorField("muted")} /><ColorField name="color_overrides.border" label="الحدود" defaultValue={ELECTRONICS_THEME_DEFAULTS.border} {...colorField("border")} /><ColorField name="color_overrides.ctaBackground" label="خلفية CTA" defaultValue={ELECTRONICS_THEME_DEFAULTS.ctaBackground} {...colorField("ctaBackground")} /><ColorField name="color_overrides.ctaText" label="نص CTA" defaultValue={ELECTRONICS_THEME_DEFAULTS.ctaText} {...colorField("ctaText")} /></Grid>
+            <Button type="button" size="small" sx={{ mt: 2 }} onClick={useThemeColors}>إعادة الألوان الافتراضية</Button>
           </Box> : <Typography variant="caption" color="text.secondary">سيتم استخدام ألوان بيتا الافتراضية، ويمكنك تفعيل التخصيص عند الحاجة.</Typography>}
         </Grid> : null}
 
@@ -340,6 +379,9 @@ export default function GeneralForm() {
         <Grid size={{ md: 4, xs: 12 }}><TextField fullWidth color="info" size="medium" name="shop_phone" label="الهاتف" /></Grid>
         <Grid size={{ md: 4, xs: 12 }}><TextField fullWidth color="info" size="medium" name="support_email" label="البريد الإلكتروني" type="email" /></Grid>
         <Grid size={{ md: 4, xs: 12 }}><TextField fullWidth color="info" size="medium" name="shop_address" label="عنوان المتجر" /></Grid>
+        <Grid size={12}><Divider textAlign="left"><Typography variant="overline" color="text.secondary">محتوى الفوتر</Typography></Divider></Grid>
+        <Grid size={{ md: 8, xs: 12 }}><TextField fullWidth multiline minRows={2} color="info" size="medium" name="footer_description" label="النص أسفل الشعار" placeholder="النص التعريفي الذي يظهر في الفوتر" /></Grid>
+        <Grid size={{ md: 4, xs: 12 }}><TextField fullWidth color="info" size="medium" name="footer_copyright" label="نص حقوق النشر" /></Grid>
         </> : null}
 
         {activeTab === 4 ? <>

@@ -22,6 +22,7 @@ export function mapUserProfile(user) {
     name: user?.name || "",
     email: user?.email || "",
     phone: user?.phone || "",
+    customerCode: user?.customerCode || "",
     preferredPaymentMethod: normalizePreferredPaymentMethod(user?.preferredPaymentMethod),
     role: user?.role || "CUSTOMER",
     status: user?.status || "ACTIVE",

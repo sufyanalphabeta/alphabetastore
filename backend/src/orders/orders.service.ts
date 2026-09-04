@@ -27,6 +27,7 @@ const orderInclude = {
       name: true,
       email: true,
       phone: true,
+      customerCode: true,
       role: true
     }
   },
@@ -209,10 +210,17 @@ export class OrdersService {
       throw new BadRequestException(`Minimum order amount is ${minimumOrderAmount}.`);
     }
 
-    const orderNumber = await this.generateOrderNumber(identity.userId);
-
     // Lock exchange rate at time of order
     const pricingSettings = await this.pricingService.getPricingSettings();
+    const customerCode = identity.userId
+      ? (await this.prisma.user.findUnique({
+          where: { id: identity.userId },
+          select: { customerCode: true }
+        }))?.customerCode ?? null
+      : null;
+    if (identity.userId && !customerCode) {
+      throw new BadRequestException("Customer profile is incomplete. Please contact support.");
+    }
 
     // Use an interactive transaction so we can atomically decrement stock
     // with an UPDATE ... WHERE stock_qty >= qty check that prevents overselling.
@@ -227,6 +235,8 @@ export class OrdersService {
           const currentProductById = new Map(
             currentProducts.map((product) => [product.id, product])
           );
+
+          const orderNumber = await this.generateOrderNumber(tx, identity.userId, customerCode);
 
           // Atomically decrement stock for each line item.
           // If stockQty < quantity, updateMany returns count=0 → throw immediately.
@@ -654,6 +664,7 @@ export class OrdersService {
     return {
       id: order.id,
       userId: order.userId,
+      customerCode: order.user?.customerCode ?? null,
       sessionId: order.sessionId,
       addressId: order.addressId,
       orderNumber: order.orderNumber ?? null,
@@ -729,26 +740,30 @@ export class OrdersService {
     return Number.isFinite(value) && value > 0 ? value : 0;
   }
 
-  private async generateOrderNumber(userId: string | null): Promise<string> {
-    let customerCode: string | null = null;
-
-    if (userId) {
-      const user = await this.prisma.user.findUnique({
-        where: { id: userId },
-        select: { customerCode: true }
-      });
-      customerCode = user?.customerCode ?? null;
+  private async generateOrderNumber(
+    tx: Prisma.TransactionClient,
+    userId: string | null,
+    customerCode: string | null
+  ): Promise<string> {
+    if (!userId) {
+      const timestamp = Date.now().toString(36).toUpperCase();
+      const entropy = randomBytes(4).toString("hex").toUpperCase();
+      return `ORD-GUEST-${timestamp}-${entropy}`;
     }
 
-    const code = customerCode ?? "GUEST";
-
-    // Do not derive identifiers from a count: retries and concurrent checkouts
-    // can observe the same count and collide on the unique order_number index.
-    // A time component plus cryptographic randomness keeps the identifier
-    // readable while making it safe across users and concurrent requests.
-    const timestamp = Date.now().toString(36).toUpperCase();
-    const entropy = randomBytes(4).toString("hex").toUpperCase();
-    return `ORD-${code}-${timestamp}-${entropy}`;
+    const rows = await tx.$queryRaw<Array<{ sequence: number }>>`
+      INSERT INTO "customer_order_counters" ("user_id", "next_value")
+      VALUES (${userId}::uuid, 2)
+      ON CONFLICT ("user_id") DO UPDATE
+        SET "next_value" = "customer_order_counters"."next_value" + 1,
+            "updated_at" = NOW()
+      RETURNING "next_value" - 1 AS sequence
+    `;
+    const sequence = Number(rows[0]?.sequence);
+    if (!Number.isInteger(sequence) || sequence < 1) {
+      throw new Error("Customer order counter did not return a valid value.");
+    }
+    return `ORD-${customerCode}-${String(sequence).padStart(3, "0")}`;
   }
 
   private async findManyWithQuery(baseWhere: Record<string, unknown>, query: FindOrdersQueryDto) {

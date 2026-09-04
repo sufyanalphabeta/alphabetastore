@@ -102,7 +102,7 @@ const getLayoutData = cache(async () => {
     footer: {
       logo: logoUrl,
       siteName,
-      description: isArabic ? "Alphabeta Store مدعوم بواجهات خلفية حقيقية." : "Alphabeta Store powered by real backend APIs.",
+      description: settings?.footer_description ?? (isArabic ? "Alphabeta Store مدعوم بواجهات خلفية حقيقية." : "Alphabeta Store powered by real backend APIs."),
       playStoreUrl: settings?.google_play_url || "",
       appStoreUrl: settings?.app_store_url || "",
       aboutTitle: isArabic ? "من نحن" : "About Us",
@@ -118,7 +118,7 @@ const getLayoutData = cache(async () => {
         address: settings?.shop_address || "Tripoli, Libya"
       },
       socials: [],
-      copyright: isArabic ? "جميع الحقوق محفوظة." : "All rights reserved."
+      copyright: settings?.footer_copyright ?? (isArabic ? "جميع الحقوق محفوظة." : "All rights reserved.")
     }
   };
 });

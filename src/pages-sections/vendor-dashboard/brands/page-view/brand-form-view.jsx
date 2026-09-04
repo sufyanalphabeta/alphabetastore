@@ -51,6 +51,7 @@ export default function BrandFormView({ slug }) {
   const [pageError, setPageError] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [savingMedia, setSavingMedia] = useState(false);
   const fileInputRef = useRef(null);
   const [mediaPickerTarget, setMediaPickerTarget] = useState("");
 
@@ -161,11 +162,24 @@ export default function BrandFormView({ slug }) {
     }
   });
 
-  const onMediaConfirm = selected => {
+  const onMediaConfirm = async selected => {
     const media = selected?.[0];
     const url = media?.productUrl || media?.cardUrl || media?.thumbnailUrl || "";
-    if (url && mediaPickerTarget === "logo") setLogoUrl(url);
-    if (url && mediaPickerTarget === "banner") setValue("bannerUrl", url, { shouldDirty: true, shouldValidate: true });
+    if (!url) return;
+    if (mediaPickerTarget === "logo" && brand?.id) {
+      setSavingMedia(true);
+      setPageError("");
+      try {
+        const updated = await updateBrand(brand.id, { logoUrl: url });
+        setBrand(updated);
+        setLogoUrl(updated.logoUrl || url);
+      } catch (e) {
+        setPageError(e instanceof Error ? e.message : "Failed to save brand logo");
+      } finally {
+        setSavingMedia(false);
+      }
+    }
+    if (mediaPickerTarget === "banner") setValue("bannerUrl", url, { shouldDirty: true, shouldValidate: true });
     setMediaPickerTarget("");
   };
 
@@ -260,10 +274,10 @@ export default function BrandFormView({ slug }) {
               </Button>
               <Button
                 variant="text"
-                disabled={!brand?.id}
+                disabled={!brand?.id || savingMedia}
                 onClick={() => setMediaPickerTarget("logo")}
               >
-                اختيار من المكتبة
+                {savingMedia ? "جاري الحفظ…" : "اختيار من المكتبة"}
               </Button>
               <input
                 ref={fileInputRef}
