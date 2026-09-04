@@ -71,6 +71,13 @@ function setup(rows = [product()]) {
     resolveScope: jest.fn().mockResolvedValue({ categoryIds: ['category-1', 'category-child'] }),
     getPublicCounts: jest.fn().mockResolvedValue([]),
   };
+  const attributes = {
+    buildProductWhere: jest.fn(),
+    publicProductAttributes: jest.fn(),
+    publicSummaryAttributesForProducts: jest.fn().mockResolvedValue(new Map()),
+    prepareValues: jest.fn(),
+    missingRequiredForProduct: jest.fn(),
+  };
   const service = new ProductsService(
     prisma as never,
     {} as never,
@@ -80,9 +87,9 @@ function setup(rows = [product()]) {
     { evaluate: jest.fn() } as never,
     { productUpdateInvalidates: jest.fn(), invalidationData: jest.fn() } as never,
     categoryTree as never,
-    { buildProductWhere: jest.fn(), publicProductAttributes: jest.fn(), prepareValues: jest.fn(), missingRequiredForProduct: jest.fn() } as never,
+    attributes as never,
   );
-  return { service, prisma, categoryTree };
+  return { service, prisma, categoryTree, attributes };
 }
 
 describe('ProductsService storefront discovery', () => {
@@ -122,6 +129,25 @@ describe('ProductsService storefront discovery', () => {
     expect(result.items[0]).not.toHaveProperty('stockQty');
     expect(result.items[0]).not.toHaveProperty('status');
     expect(result.items[0]).not.toHaveProperty('description');
+  });
+
+  it('adds the same compact summary attribute contract without leaking profile internals', async () => {
+    const { service, attributes } = setup([product(), product({ id: '22222222-2222-4222-8222-222222222222' })]);
+    attributes.publicSummaryAttributesForProducts.mockResolvedValueOnce(new Map([
+      ['11111111-1111-4111-8111-111111111111', [{ code: 'ram', label: 'الذاكرة', displayValue: '16 GB', sortOrder: 10 }]],
+    ]));
+
+    const result = await service.findAll({ page: 1, limit: 12 }) as any;
+
+    expect(result.items[0].summaryAttributes).toEqual([{ code: 'ram', label: 'الذاكرة', displayValue: '16 GB', sortOrder: 10 }]);
+    expect(result.items[1].summaryAttributes).toEqual([]);
+    expect(result.items[0].summaryAttributes[0]).not.toHaveProperty('attributeDefinitionId');
+    expect(result.items[0].summaryAttributes[0]).not.toHaveProperty('required');
+    expect(attributes.publicSummaryAttributesForProducts).toHaveBeenCalledTimes(1);
+    expect(attributes.publicSummaryAttributesForProducts).toHaveBeenCalledWith(expect.arrayContaining([
+      expect.objectContaining({ id: '11111111-1111-4111-8111-111111111111' }),
+      expect.objectContaining({ id: '22222222-2222-4222-8222-222222222222' }),
+    ]));
   });
 
   it('prefers READY ProductMedia and never falls back when media exists but is not READY', async () => {

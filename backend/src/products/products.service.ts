@@ -284,7 +284,7 @@ type PricedProductIdRow = {
   is_meta: boolean;
 };
 
-const PRODUCT_LIST_CACHE_PREFIX = "products:list:";
+const PRODUCT_LIST_CACHE_PREFIX = "products:list:v2:";
 const PRODUCT_DETAIL_CACHE_PREFIX = "products:detail:v2:";
 const PRODUCT_LIST_CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
 const PRODUCT_DETAIL_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -482,7 +482,7 @@ export class ProductsService {
       const page = Math.max(Number(query.page) || 1, 1);
       const limit = Math.min(Math.max(Number(query.limit) || 12, 1), 100);
       const selected = hasPagination ? priced.slice((page - 1) * limit, page * limit) : priced;
-      const items = selected.map(({ product }) => this.toPublicProductListItem(product, pricingSettings));
+      const items = await this.toPublicProductListItems(selected.map(({ product }) => product), pricingSettings);
       if (!hasPagination) return items;
       return {
         items,
@@ -555,7 +555,7 @@ export class ProductsService {
         }),
         this.pricingService.getPricingSettings()
       ]);
-      return products.map((product) => this.toPublicProductListItem(product, pricingSettings));
+      return this.toPublicProductListItems(products, pricingSettings);
     }
 
     const page = Math.max(Number(query.page) || 1, 1);
@@ -607,7 +607,7 @@ export class ProductsService {
     ]);
 
     return {
-      items: items.map((product) => this.toPublicProductListItem(product, pricingSettings)),
+      items: await this.toPublicProductListItems(items, pricingSettings),
       pagination: {
         page,
         limit,
@@ -619,7 +619,8 @@ export class ProductsService {
 
   private toPublicProductListItem(
     product: PublicProductListRow,
-    pricingSettings: PricingSettings
+    pricingSettings: PricingSettings,
+    summaryAttributes: Array<{ code: string; label: string; displayValue: string; sortOrder: number }> = [],
   ) {
     const computed = this.pricingService.computePrice(product, pricingSettings);
     const mediaCount = product._count.media;
@@ -662,8 +663,21 @@ export class ProductsService {
       createdAt: product.createdAt,
       inStock: product.stockQty > 0,
       availability: product.stockQty > 0 ? "IN_STOCK" : "OUT_OF_STOCK",
-      cardImageUrl
+      cardImageUrl,
+      summaryAttributes,
     };
+  }
+
+  private async toPublicProductListItems(
+    products: PublicProductListRow[],
+    pricingSettings: PricingSettings,
+  ) {
+    const summaries = await this.attributesService.publicSummaryAttributesForProducts(products);
+    return products.map((product) => this.toPublicProductListItem(
+      product,
+      pricingSettings,
+      summaries.get(product.id) ?? [],
+    ));
   }
 
   private buildPublicProductSqlConditions(
@@ -836,10 +850,10 @@ export class ProductsService {
         })
       : [];
     const byId = new Map(products.map((product) => [product.id, product]));
-    const items = ids
+    const orderedProducts = ids
       .map((id) => byId.get(id))
-      .filter((product): product is PublicProductListRow => Boolean(product))
-      .map((product) => this.toPublicProductListItem(product, pricingSettings));
+      .filter((product): product is PublicProductListRow => Boolean(product));
+    const items = await this.toPublicProductListItems(orderedProducts, pricingSettings);
 
     return {
       items,
@@ -1454,7 +1468,7 @@ export class ProductsService {
       this.pricingService.getPricingSettings()
     ]);
 
-    return same.map((product) => this.toPublicProductListItem(product, pricingSettings));
+    return this.toPublicProductListItems(same, pricingSettings);
   }
 
   async findFeatured(limit = 12) {
@@ -1467,7 +1481,7 @@ export class ProductsService {
       }),
       this.pricingService.getPricingSettings()
     ]);
-    return products.map((product) => this.toPublicProductListItem(product, pricingSettings));
+    return this.toPublicProductListItems(products, pricingSettings);
   }
 
   async findBestSellers(limit = 12) {
@@ -1480,7 +1494,7 @@ export class ProductsService {
       }),
       this.pricingService.getPricingSettings()
     ]);
-    return products.map((product) => this.toPublicProductListItem(product, pricingSettings));
+    return this.toPublicProductListItems(products, pricingSettings);
   }
 
   async findNewArrivals(limit = 12) {
@@ -1493,7 +1507,7 @@ export class ProductsService {
       }),
       this.pricingService.getPricingSettings()
     ]);
-    return products.map((product) => this.toPublicProductListItem(product, pricingSettings));
+    return this.toPublicProductListItems(products, pricingSettings);
   }
 
   /**
@@ -1550,11 +1564,10 @@ export class ProductsService {
       }),
       this.pricingService.getPricingSettings()
     ]);
-    return rows
-      .map((r: { product: PublicProductListRow }) =>
-        this.toPublicProductListItem(r.product, pricingSettings)
-      )
-      .filter((p) => Boolean(p));
+    return this.toPublicProductListItems(
+      rows.map((row: { product: PublicProductListRow }) => row.product),
+      pricingSettings,
+    );
   }
 
   async findByIds(ids: string[]) {
@@ -1567,9 +1580,7 @@ export class ProductsService {
       this.pricingService.getPricingSettings()
     ]);
     // Preserve caller's order
-    const normalizedRows = rows.map((row) =>
-      this.toPublicProductListItem(row, pricingSettings)
-    );
+    const normalizedRows = await this.toPublicProductListItems(rows, pricingSettings);
     const byId = new Map(normalizedRows.map((r: { id: string }) => [r.id, r]));
     return ids.map((id) => byId.get(id)).filter(Boolean);
   }
@@ -1619,9 +1630,7 @@ export class ProductsService {
     ]);
 
     return {
-      products: products.map((product) =>
-        this.toPublicProductListItem(product, pricingSettings)
-      ),
+      products: await this.toPublicProductListItems(products, pricingSettings),
       brands,
       categories
     };

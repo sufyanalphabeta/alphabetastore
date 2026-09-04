@@ -50,6 +50,7 @@ function serviceWith(prismaOverrides: Record<string, unknown> = {}) {
   };
   const attributes = {
     publicProductAttributes: jest.fn().mockResolvedValue({ attributes: [], specs: [], comparisonAttributes: [] }),
+    publicSummaryAttributesForProducts: jest.fn().mockResolvedValue(new Map()),
     missingRequiredForProduct: jest.fn().mockResolvedValue([]),
   };
   return { service: new ProductsService(prisma as never, {} as never, pricing as never, cache as never, sku as never, readiness as never, reviewAudit as never, categoryTree as never, attributes as never), prisma, cache, readiness, reviewAudit, categoryTree, attributes };
@@ -59,7 +60,7 @@ describe('ProductsService public safety', () => {
   it('uses publication-safe cache namespaces', async () => {
     const listSetup = serviceWith();
     await listSetup.service.findAll({ page: 1 });
-    expect(listSetup.cache.get).toHaveBeenCalledWith('products:list:public:{"page":1}');
+    expect(listSetup.cache.get).toHaveBeenCalledWith('products:list:v2:public:{"page":1}');
 
     const detailSetup = serviceWith();
     await expect(detailSetup.service.findOneBySlug('inactive')).rejects.toBeInstanceOf(NotFoundException);

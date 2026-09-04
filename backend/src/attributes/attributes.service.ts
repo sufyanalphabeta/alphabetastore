@@ -19,6 +19,27 @@ import {
 } from './dto/attribute.dto';
 
 type AttributeValueInput = { code: string; value: unknown };
+type SummaryProductRef = {
+  id: string;
+  categoryId?: string | null;
+  category?: { id: string } | null;
+};
+type PublicAttributeItem = {
+  sortOrder: number;
+  attributeDefinition: {
+    code: string;
+    nameAr: string;
+    nameEn: string | null;
+    dataType: AttributeDataType;
+    unit: string | null;
+  };
+};
+export type PublicSummaryAttribute = {
+  code: string;
+  label: string;
+  displayValue: string;
+  sortOrder: number;
+};
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 type StoredValue = {
   attributeDefinitionId: string;
@@ -302,6 +323,109 @@ export class AttributesService {
     return { attributes, specs: [...attributes, ...legacy], comparisonAttributes };
   }
 
+  /**
+   * Resolves compact storefront attributes for a whole product page in a
+   * bounded number of queries. Category-profile inheritance is evaluated in
+   * memory, then all matching values are loaded together (never per product).
+   */
+  async publicSummaryAttributesForProducts(
+    products: SummaryProductRef[],
+    limit = 5,
+  ): Promise<Map<string, PublicSummaryAttribute[]>> {
+    const result = new Map(products.map((product) => [product.id, [] as PublicSummaryAttribute[]]));
+    if (!products.length || limit <= 0) return result;
+
+    const [categories, activeProfiles] = await Promise.all([
+      this.prisma.category.findMany({
+        select: { id: true, parentId: true, attributeProfileId: true },
+      }),
+      this.prisma.attributeProfile.findMany({
+        where: { isActive: true },
+        select: {
+          id: true,
+          items: {
+            where: { visibleInSummary: true, attributeDefinition: { isActive: true } },
+            orderBy: [{ sortOrder: 'asc' }, { attributeDefinition: { code: 'asc' } }],
+            select: {
+              sortOrder: true,
+              visibleInSummary: true,
+              attributeDefinitionId: true,
+              attributeDefinition: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    const categoriesById = new Map(categories.map((category) => [category.id, category]));
+    const profilesById = new Map(activeProfiles.map((profile) => [profile.id, profile]));
+    const itemsByProductId = new Map<string, (typeof activeProfiles)[number]['items']>();
+    const definitionIds = new Set<string>();
+
+    for (const product of products) {
+      const categoryId = product.categoryId ?? product.category?.id ?? null;
+      const visited = new Set<string>();
+      let category = categoryId ? categoriesById.get(categoryId) : undefined;
+      let summaryItems: (typeof activeProfiles)[number]['items'] = [];
+
+      while (category && !visited.has(category.id)) {
+        visited.add(category.id);
+        if (category.attributeProfileId) {
+          const profile = profilesById.get(category.attributeProfileId);
+          if (profile) {
+            summaryItems = profile.items
+              .filter((item) => item.visibleInSummary && item.attributeDefinition.isActive)
+              .sort((left, right) => left.sortOrder - right.sortOrder
+                || left.attributeDefinition.code.localeCompare(right.attributeDefinition.code));
+            break;
+          }
+        }
+        category = category.parentId ? categoriesById.get(category.parentId) : undefined;
+      }
+
+      itemsByProductId.set(product.id, summaryItems);
+      summaryItems.forEach((item) => definitionIds.add(item.attributeDefinitionId));
+    }
+
+    if (!definitionIds.size) return result;
+
+    const values = await this.prisma.productAttributeValue.findMany({
+      where: {
+        productId: { in: products.map((product) => product.id) },
+        attributeDefinitionId: { in: [...definitionIds] },
+      },
+      select: {
+        productId: true,
+        attributeDefinitionId: true,
+        textValue: true,
+        numberValue: true,
+        booleanValue: true,
+        jsonValue: true,
+      },
+    });
+    const valuesByProductAndDefinition = new Map(
+      values.map((value) => [`${value.productId}:${value.attributeDefinitionId}`, value]),
+    );
+
+    for (const product of products) {
+      const summary = (itemsByProductId.get(product.id) ?? []).flatMap((item) => {
+        const stored = valuesByProductAndDefinition.get(`${product.id}:${item.attributeDefinitionId}`);
+        const value = stored ? this.readStoredValue(stored) : null;
+        if (this.isBlank(value)) return [];
+        const attribute = this.publicAttribute(item, value);
+        return [{
+          code: attribute.code,
+          label: attribute.label,
+          displayValue: attribute.displayValue,
+          sortOrder: attribute.sortOrder,
+        }];
+      }).slice(0, limit);
+      result.set(product.id, summary);
+    }
+
+    return result;
+  }
+
   async publicFilterProfile(categorySlug: string) {
     const category = await this.prisma.category.findFirst({
       where: UUID_PATTERN.test(categorySlug)
@@ -415,7 +539,7 @@ export class AttributesService {
     return value.jsonValue ?? null;
   }
 
-  private publicAttribute(item: Prisma.AttributeProfileItemGetPayload<{ include: { attributeDefinition: true } }>, value: unknown) {
+  private publicAttribute(item: PublicAttributeItem, value: unknown) {
     return {
       code: item.attributeDefinition.code,
       label: item.attributeDefinition.nameAr,
@@ -423,9 +547,18 @@ export class AttributesService {
       dataType: item.attributeDefinition.dataType,
       unit: item.attributeDefinition.unit,
       value,
-      displayValue: Array.isArray(value) ? value.join('، ') : `${value}${item.attributeDefinition.unit ? ` ${item.attributeDefinition.unit}` : ''}`,
+      displayValue: this.formatDisplayValue(value, item.attributeDefinition.unit),
       sortOrder: item.sortOrder,
     };
+  }
+
+  private formatDisplayValue(value: unknown, unit?: string | null) {
+    const normalized = Array.isArray(value)
+      ? value.map((item) => String(item)).join('، ')
+      : typeof value === 'boolean'
+        ? value ? 'نعم' : 'لا'
+        : String(value);
+    return `${normalized}${unit ? ` ${unit}` : ''}`;
   }
 
   private legacySpecs(specs: unknown) {
