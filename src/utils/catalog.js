@@ -353,6 +353,15 @@ export function mapCatalogProduct(product) {
   const categoryName = product?.category?.name || "";
   const categories = Array.isArray(product?.categories) ? product.categories.map(item => item?.name || item).filter(Boolean) : categoryName ? [categoryName] : [];
   const slug = product?.slug || product?.id || "";
+  const summaryAttributes = (Array.isArray(product?.summaryAttributes) ? product.summaryAttributes : [])
+    .filter(item => item && item.code && item.label && item.displayValue)
+    .slice(0, 5)
+    .map(item => ({
+      code: String(item.code),
+      label: String(item.label),
+      displayValue: String(item.displayValue),
+      sortOrder: Number(item.sortOrder || 0)
+    }));
 
   return {
     ...product,
@@ -373,6 +382,7 @@ export function mapCatalogProduct(product) {
     sku: product?.sku || null,
     specs: product?.specs || null,
     highlights: Array.isArray(product?.highlights) ? product.highlights : null,
+    summaryAttributes,
     shop: null,
     categoryName,
     categorySlug: product?.category?.slug || null,
